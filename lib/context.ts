@@ -23,6 +23,7 @@ export interface Sede {
   nombre: string
   whatsapp_nro: string | null
   aforo_maximo_reservas: number | null
+  activa: boolean
 }
 
 export interface Contexto {
@@ -38,8 +39,10 @@ export interface Contexto {
   puedeApagarBot: boolean
   /** Sedes del negocio a las que el usuario tiene alcance (todas si no tiene restricción). Vacío = negocio de una sola sede. */
   sedes: Sede[]
-  /** Todas las sedes del negocio (para mostrar nombres de datos fuera del alcance de edición). */
+  /** Todas las sedes del negocio, activas o no (para mostrar nombres de datos viejos). */
   sedesTodas: Sede[]
+  /** Sedes que el usuario puede administrar en Configuración (su alcance), incluidas las desactivadas. */
+  sedesGestion: Sede[]
   /** Sede elegida en el selector (null = todas las del alcance). Si el usuario tiene una sola sede, es esa. */
   sede: Sede | null
   /** El usuario no tiene restricción de sedes (ve todo el negocio, incluido lo que no tiene sede). */
@@ -80,11 +83,12 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     : ((membresias?.find((m) => m.negocio_id === negocio.id)?.rol as Rol | undefined) ?? 'solo_lectura')
 
   // Sedes: la lista completa (RLS deja ver los nombres) y el alcance del usuario.
-  const { data: sedesData } = await supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas').eq('negocio_id', negocio.id).eq('activa', true).order('orden').order('nombre')
+  const { data: sedesData } = await supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa').eq('negocio_id', negocio.id).order('orden').order('nombre')
   const sedesTodas = (sedesData ?? []) as Sede[]
   const alcance = perfil.es_superadmin ? [] : ((membresias?.find((m) => m.negocio_id === negocio.id)?.sucursal_ids as string[] | undefined) ?? [])
   const sinRestriccionSede = alcance.length === 0
-  const sedes = sinRestriccionSede ? sedesTodas : sedesTodas.filter((x) => alcance.includes(x.id))
+  const sedesGestion = sinRestriccionSede ? sedesTodas : sedesTodas.filter((x) => alcance.includes(x.id))
+  const sedes = sedesGestion.filter((x) => x.activa)
   const sedeCookie = cookieStore.get(SEDE_COOKIE)?.value
   const sede = sedes.length === 1 ? sedes[0] : (sedes.find((x) => x.id === sedeCookie) ?? null)
 
@@ -101,6 +105,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
     sedes,
     sedesTodas,
+    sedesGestion,
     sede,
     sinRestriccionSede,
     supabase,

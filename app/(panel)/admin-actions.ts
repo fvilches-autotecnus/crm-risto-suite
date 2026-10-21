@@ -1,6 +1,5 @@
 'use server'
 
-import { randomBytes, createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getContexto, type Contexto, type Rol } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -95,7 +94,6 @@ export async function actualizarNegocio(_prev: ActionResult | null, fd: FormData
     whatsapp_nro: text(fd, 'whatsapp_nro').replace(/\D/g, '') || null,
     aforo_maximo_reservas: aforo,
     activo: fd.get('activo') === 'on',
-    reserva_estado_inicial: text(fd, 'estado_inicial') === 'confirmada' ? 'confirmada' : 'nueva',
     modulos: { ...(actual.modulos as Record<string, unknown>), apagado_bot: fd.get('apagado_bot') === 'on' },
   }).eq('id', id)
   if (error) return fail('No se pudo guardar el negocio')
@@ -249,15 +247,4 @@ export async function guardarSedesMembresia(userId: string, negocioId: string, s
   if (error) return fail('No se pudieron guardar los accesos')
   refrescar()
   return { ok: true }
-}
-
-/** Genera un secreto nuevo para el webhook de reservas. Se muestra UNA vez; en la base queda solo el hash (sha256). */
-export async function generarSecretoWebhook(negocioId: string): Promise<ActionResult & { secret?: string }> {
-  const ctx = await getContexto()
-  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede generar secretos')
-  const secret = randomBytes(24).toString('hex')
-  const { error } = await createAdminClient().from('negocios').update({ webhook_secret: createHash('sha256').update(secret).digest('hex') }).eq('id', negocioId)
-  if (error) return fail('No se pudo generar el secreto')
-  refrescar()
-  return { ok: true, secret }
 }

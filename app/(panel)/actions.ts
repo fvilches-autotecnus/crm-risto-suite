@@ -268,8 +268,11 @@ export async function guardarUbicacion(_prev: ActionResult | null, fd: FormData)
   const ctx = await getContexto()
   if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar ubicaciones')
   const nombre = text(fd, 'nombre').toUpperCase()
+  const sedeId = text(fd, 'sucursal_id') || null
   if (!nombre) return fail('Falta el nombre de la ubicación')
-  const { error } = await ctx.supabase.from('ubicaciones').insert({ negocio_id: ctx.negocio.id, nombre, orden: 99 })
+  if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  if (!sedeId && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
+  const { error } = await ctx.supabase.from('ubicaciones').insert({ negocio_id: ctx.negocio.id, sucursal_id: sedeId, nombre, orden: 99 })
   if (error) return fail(error.code === '23505' ? 'Esa ubicación ya existe' : 'No se pudo guardar la ubicación')
   revalidatePath('/', 'layout')
   return { ok: true }
@@ -280,6 +283,39 @@ export async function borrarUbicacion(id: string): Promise<ActionResult> {
   if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar ubicaciones')
   const { error } = await ctx.supabase.from('ubicaciones').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo borrar la ubicación')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+/** Desactiva o reactiva una sede: deja de aparecer en selectores y formularios, pero sus reservas se conservan. */
+export async function alternarSede(id: string, activa: boolean): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar sedes')
+  if (!ctx.sedesGestion.some((x) => x.id === id)) return fail('No tenés alcance sobre esa sede')
+  if (!activa && ctx.sedesTodas.filter((x) => x.activa && x.id !== id).length === 0) return fail('No se puede desactivar la única sede activa del negocio')
+  const { error } = await ctx.supabase.from('sucursales').update({ activa }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo actualizar la sede')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+/** Elimina una sede SOLO si no tiene reservas (si las tiene, hay que desactivarla: borrarla dejaría esas reservas sin sede). */
+export async function eliminarSede(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar sedes')
+  if (!ctx.sedesGestion.some((x) => x.id === id)) return fail('No tenés alcance sobre esa sede')
+  const admin = createAdminClient()
+  const [{ count: nRes }, { count: nCons }, { count: nSes }] = await Promise.all([
+    admin.from('reservas').select('id', { count: 'exact', head: true }).eq('sucursal_id', id),
+    admin.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('sucursal_id', id),
+    admin.from('sesiones_bot').select('id', { count: 'exact', head: true }).eq('sucursal_id', id),
+  ])
+  if ((nRes ?? 0) + (nCons ?? 0) + (nSes ?? 0) > 0) return fail(`La sede tiene ${nRes ?? 0} reserva(s) y datos asociados: no se puede eliminar. Desactivala para ocultarla.`)
+  // sacar la sede de los accesos de los usuarios que la tenían asignada
+  const { data: ms } = await admin.from('membresias').select('user_id, negocio_id, sucursal_ids').eq('negocio_id', ctx.negocio.id).contains('sucursal_ids', [id])
+  for (const m of ms ?? []) await admin.from('membresias').update({ sucursal_ids: (m.sucursal_ids as string[]).filter((x) => x !== id) }).eq('user_id', m.user_id).eq('negocio_id', m.negocio_id)
+  const { error } = await admin.from('sucursales').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo eliminar la sede')
   revalidatePath('/', 'layout')
   return { ok: true }
 }

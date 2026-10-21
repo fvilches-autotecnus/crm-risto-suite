@@ -22,10 +22,13 @@ export interface OpcionesSede {
   sedes: { id: string; nombre: string }[]          // sedes a las que el usuario tiene acceso
   nombresSede: Record<string, string>              // id -> nombre de todas las sedes (para la tabla)
   sedeDefault: string | null                        // sede elegida en el selector del encabezado
-  ubicaciones: string[]                             // vacío = el negocio no usa ubicaciones
+  ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
 }
 
 function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva; fechaDefault?: string; onDone: () => void; op: OpcionesSede }) {
+  const [sedeElegida, setSedeElegida] = useState<string>(reserva?.sucursal_id ?? op.sedeDefault ?? (op.sedes.length === 1 ? op.sedes[0].id : ''))
+  // las ubicaciones de la sede elegida + las que valen para todas las sedes
+  const ubicacionesSede = [...new Set(op.ubicaciones.filter((u) => !u.sucursal_id || u.sucursal_id === sedeElegida).map((u) => u.nombre))]
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(guardarReserva, null)
   useEffect(() => {
     if (state?.ok) onDone()
@@ -53,18 +56,18 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       {op.sedes.length > 0 && (
         <div>
           <label className="label" htmlFor="sucursal_id">Sede *</label>
-          <select id="sucursal_id" name="sucursal_id" defaultValue={reserva?.sucursal_id ?? op.sedeDefault ?? (op.sedes.length === 1 ? op.sedes[0].id : '')} className="input w-full" required>
+          <select id="sucursal_id" name="sucursal_id" value={sedeElegida} onChange={(e) => setSedeElegida(e.target.value)} className="input w-full" required>
             <option value="" disabled>Elegí…</option>
             {op.sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
           </select>
         </div>
       )}
-      {op.ubicaciones.length > 0 && (
+      {ubicacionesSede.length > 0 && (
         <div>
           <label className="label" htmlFor="ubicacion">Ubicación</label>
-          <select id="ubicacion" name="ubicacion" defaultValue={reserva?.ubicacion ?? ''} className="input w-full">
+          <select id="ubicacion" name="ubicacion" key={sedeElegida} defaultValue={reserva?.ubicacion && ubicacionesSede.includes(reserva.ubicacion) ? reserva.ubicacion : ''} className="input w-full">
             <option value="">Sin definir</option>
-            {op.ubicaciones.map((u) => <option key={u} value={u}>{u}</option>)}
+            {ubicacionesSede.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       )}

@@ -18,7 +18,7 @@ export default async function ConfiguracionPage() {
 
   const [{ data: bloqueos }, { data: ubicaciones }, { data: miembros }] = await Promise.all([
     bq.order('fecha'),
-    supabase.from('ubicaciones').select('id, nombre').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
+    supabase.from('ubicaciones').select('id, nombre, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
     ctx.puedeAdministrar
       ? supabase.from('membresias').select('user_id, rol, activo, sucursal_ids, perfiles(id, usuario, nombre, activo, es_superadmin)').eq('negocio_id', negocio.id)
       : Promise.resolve({ data: null }),
@@ -66,10 +66,10 @@ export default async function ConfiguracionPage() {
       </section>
 
       {ctx.puedeAdministrar && (ctx.sedesTodas.length > 0 || ctx.esSuperadmin) && (
-        <section className="card p-5">
+        <section id="sedes" className="card scroll-mt-4 p-5">
           <h2 className="card-title">Sedes</h2>
           <p className="mt-1 text-sm text-rs-muted">Cada sede tiene su aforo, sus fechas bloqueadas y su WhatsApp. Los usuarios pueden limitarse a una o más sedes desde "Usuarios del negocio".</p>
-          <div className="mt-3"><SedesPanel sedes={ctx.sedes} puedeCrear={ctx.sinRestriccionSede} /></div>
+          <div className="mt-3"><SedesPanel sedes={ctx.sedesGestion} puedeCrear={ctx.sinRestriccionSede} /></div>
         </section>
       )}
 
@@ -77,7 +77,7 @@ export default async function ConfiguracionPage() {
         <section className="card p-5">
           <h2 className="card-title">Ubicaciones</h2>
           <p className="mt-1 text-sm text-rs-muted">Zonas del local para elegir al cargar una reserva (ej. interior, exterior).</p>
-          <div className="mt-3"><UbicacionesPanel ubicaciones={ubicaciones ?? []} /></div>
+          <div className="mt-3"><UbicacionesPanel ubicaciones={ubicaciones ?? []} sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} puedeTodas={ctx.sinRestriccionSede} /></div>
         </section>
       )}
 

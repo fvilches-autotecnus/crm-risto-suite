@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import Modal from '@/components/modal'
-import { agregarFechaBloqueada, borrarFechaBloqueada, borrarUbicacion, guardarAforo, guardarFuncionesNegocio, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
 
 function Estado({ state }: { state: ActionResult | null }) {
   if (!state) return null
@@ -74,7 +74,7 @@ export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
 // ---------------------------------------------------------------------------
 // Sedes y ubicaciones
 // ---------------------------------------------------------------------------
-export interface SedeEditable { id: string; nombre: string; whatsapp_nro: string | null; aforo_maximo_reservas: number | null }
+export interface SedeEditable { id: string; nombre: string; whatsapp_nro: string | null; aforo_maximo_reservas: number | null; activa: boolean }
 
 function SedeForm({ sede, onDone }: { sede?: SedeEditable; onDone: () => void }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(guardarSede, null)
@@ -98,42 +98,59 @@ function SedeForm({ sede, onDone }: { sede?: SedeEditable; onDone: () => void })
 export function SedesPanel({ sedes, puedeCrear }: { sedes: SedeEditable[]; puedeCrear: boolean }) {
   const [nueva, setNueva] = useState(false)
   const [edit, setEdit] = useState<SedeEditable | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+  const correr = (fn: () => Promise<ActionResult>) => start(async () => { setError(null); const r = await fn(); if (!r.ok) setError(r.error ?? 'Error') })
   return (
     <div>
       <ul className="divide-y divide-rs-border/60">
         {sedes.map((x) => (
           <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm">
-            <span>
+            <span className={x.activa ? '' : 'opacity-60'}>
               <span className="font-medium">{x.nombre}</span>
+              {!x.activa && <span className="ml-2 badge bg-rs-raised text-rs-muted">Desactivada</span>}
               <span className="text-rs-muted"> · WhatsApp {x.whatsapp_nro ?? 'sin cargar'} · aforo {x.aforo_maximo_reservas ?? 'del negocio'}</span>
             </span>
-            <button onClick={() => setEdit(x)} className="btn btn-sm"><Pencil size={13} /> Editar</button>
+            <span className="flex gap-1.5">
+              <button onClick={() => setEdit(x)} className="btn btn-sm"><Pencil size={13} /> Editar</button>
+              <button disabled={pending} onClick={() => correr(() => alternarSede(x.id, !x.activa))} className="btn btn-sm">{x.activa ? 'Desactivar' : 'Reactivar'}</button>
+              <button disabled={pending} onClick={() => confirm(`¿Eliminar la sede ${x.nombre}? Solo se puede si no tiene reservas.`) && correr(() => eliminarSede(x.id))} aria-label={`Eliminar ${x.nombre}`} className="btn btn-sm btn-danger"><Trash2 size={13} /></button>
+            </span>
           </li>
         ))}
       </ul>
+      {error && <p role="alert" className="mt-2 text-sm text-rs-danger">{error}</p>}
       {puedeCrear && <button onClick={() => setNueva(true)} className="btn btn-sm mt-3"><Plus size={14} /> Nueva sede</button>}
+      <p className="mt-2 text-xs text-rs-muted">Desactivar oculta la sede de selectores y formularios pero conserva sus reservas. Eliminar solo funciona en sedes sin reservas.</p>
       {nueva && <Modal titulo="Nueva sede" onClose={() => setNueva(false)}><SedeForm onDone={() => setNueva(false)} /></Modal>}
       {edit && <Modal titulo={`Editar ${edit.nombre}`} onClose={() => setEdit(null)}><SedeForm sede={edit} onDone={() => setEdit(null)} /></Modal>}
     </div>
   )
 }
 
-export function UbicacionesPanel({ ubicaciones }: { ubicaciones: { id: string; nombre: string }[] }) {
+export function UbicacionesPanel({ ubicaciones, sedes, puedeTodas }: { ubicaciones: { id: string; nombre: string; sucursal_id: string | null }[]; sedes: { id: string; nombre: string }[]; puedeTodas: boolean }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(guardarUbicacion, null)
   const [borrando, start] = useTransition()
+  const nombreSede = (id: string | null) => (id ? sedes.find((x) => x.id === id)?.nombre ?? 'otra sede' : null)
   return (
     <div>
       <ul className="flex flex-wrap gap-2">
         {ubicaciones.length === 0 && <li className="text-sm text-rs-muted">Sin ubicaciones: el formulario de reservas no las pide.</li>}
         {ubicaciones.map((u) => (
           <li key={u.id} className="inline-flex items-center gap-2 rounded-full bg-rs-raised px-3 py-1 text-sm">
-            {u.nombre}
+            {u.nombre}{sedes.length > 0 && <span className="text-xs text-rs-muted">· {nombreSede(u.sucursal_id) ?? 'todas las sedes'}</span>}
             <button disabled={borrando} onClick={() => confirm(`¿Quitar la ubicación ${u.nombre}?`) && start(async () => { await borrarUbicacion(u.id) })} aria-label={`Quitar ${u.nombre}`} className="text-rs-muted hover:text-rs-danger">×</button>
           </li>
         ))}
       </ul>
       <form action={action} className="mt-3 flex flex-wrap items-center gap-2">
         <input name="nombre" placeholder="Ej. TERRAZA" aria-label="Nueva ubicación" className="input" required />
+        {sedes.length > 0 && (
+          <select name="sucursal_id" aria-label="Sede de la ubicación" className="input" defaultValue={puedeTodas ? '' : sedes[0].id}>
+            {puedeTodas && <option value="">Todas las sedes</option>}
+            {sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+          </select>
+        )}
         <button disabled={pending} className="btn">Agregar</button>
         <Estado state={state} />
       </form>
