@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getContexto, NEGOCIO_COOKIE } from '@/lib/context'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado } from '@/lib/notify'
 import { TIPOS_RESERVA } from '@/lib/reservas'
 
@@ -31,6 +31,18 @@ export async function cambiarNegocio(formData: FormData) {
     ;(await cookies()).set(NEGOCIO_COOKIE, id, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
   }
   revalidatePath('/', 'layout')
+}
+
+// Interruptor general del bot de WhatsApp: el workflow de n8n lee negocios.bot_activo en cada mensaje
+// ("IF - Bot Pausado") y, si es false, no responde. Lo puede mover un encargado o superior; como RLS
+// solo deja editar el negocio a owner/admin, se escribe con service_role después de validar el rol acá.
+export async function cambiarEstadoBot(activo: boolean): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeApagarBot) return fail('No tenés permiso para cambiar el estado del bot')
+  const { error } = await createAdminClient().from('negocios').update({ bot_activo: !!activo }).eq('id', ctx.negocio.id)
+  if (error) return fail('No se pudo cambiar el estado del bot')
+  revalidatePath('/', 'layout')
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------

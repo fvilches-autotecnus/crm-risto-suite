@@ -13,6 +13,7 @@ export interface Negocio {
   whatsapp_nro: string | null
   zona_horaria: string
   aforo_maximo_reservas: number | null
+  bot_activo: boolean
   modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean }
 }
 
@@ -25,6 +26,7 @@ export interface Contexto {
   rol: Rol | 'superadmin'
   puedeEscribir: boolean
   puedeAdministrar: boolean
+  puedeApagarBot: boolean
   supabase: Awaited<ReturnType<typeof createClient>>
 }
 
@@ -40,7 +42,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
   // En paralelo: RLS ya limita negocios/membresías a los del usuario (o todos si es superadmin)
   const [{ data: perfil }, { data: negocios }, { data: membresias }] = await Promise.all([
     supabase.from('perfiles').select('nombre, usuario, es_superadmin, activo').eq('id', userId).maybeSingle(),
-    supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, zona_horaria, aforo_maximo_reservas, modulos').eq('activo', true).order('nombre'),
+    supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, zona_horaria, aforo_maximo_reservas, bot_activo, modulos').eq('activo', true).order('nombre'),
     supabase.from('membresias').select('negocio_id, rol').eq('user_id', userId).eq('activo', true),
   ])
   if (!perfil || !perfil.activo || !negocios?.length) {
@@ -65,6 +67,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     rol,
     puedeEscribir: rol !== 'solo_lectura',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
+    puedeApagarBot: rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado',
     supabase,
   }
 })
