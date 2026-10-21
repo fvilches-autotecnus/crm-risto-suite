@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { getContexto, NEGOCIO_COOKIE } from '@/lib/context'
+import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado } from '@/lib/notify'
 import { TIPOS_RESERVA } from '@/lib/reservas'
@@ -61,6 +61,15 @@ export async function guardarFuncionesNegocio(_prev: ActionResult | null, fd: Fo
   return { ok: true }
 }
 
+export async function cambiarSede(formData: FormData) {
+  const ctx = await getContexto()
+  const id = text(formData, 'sede_id')
+  const jar = await cookies()
+  if (id === 'todas') jar.delete(SEDE_COOKIE)
+  else if (ctx.sedes.some((x) => x.id === id)) jar.set(SEDE_COOKIE, id, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
+  revalidatePath('/', 'layout')
+}
+
 // ---------------------------------------------------------------------------
 // Reservas
 // ---------------------------------------------------------------------------
@@ -78,6 +87,8 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   const tipo = text(fd, 'tipo_reserva') || 'comun'
   const diaCump = text(fd, 'cumpleanos_dia')
   const mesCump = text(fd, 'cumpleanos_mes')
+  const sucursalId = text(fd, 'sucursal_id') || null
+  const ubicacion = text(fd, 'ubicacion') || null
 
   if (!nombre) return fail('Falta el nombre del titular')
   if (fecha && !FECHA_RE.test(fecha)) return fail('La fecha no es válida')
@@ -86,6 +97,8 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   if (!TIPOS_RESERVA.some((t) => t.value === tipo)) return fail('Tipo de reserva no válido')
   if (telefono && telefono.replace(/\D/g, '').length < 6) return fail('El teléfono no es válido')
   if (!!diaCump !== !!mesCump) return fail('Falta el día o el mes del cumpleaños')
+  if (ctx.sedes.length > 0 && !sucursalId) return fail('Elegí la sede de la reserva')
+  if (sucursalId && !ctx.sedes.some((x) => x.id === sucursalId)) return fail('La sede no es válida o no tenés acceso a ella')
 
   const fila = {
     cliente_nombre: nombre,
@@ -97,6 +110,8 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
     observaciones: text(fd, 'observaciones') || null,
     cumpleanos_dia: diaCump ? Number(diaCump) : null,
     cumpleanos_mes: mesCump ? Number(mesCump) : null,
+    sucursal_id: sucursalId,
+    ubicacion,
   }
 
   const { supabase, negocio } = ctx
@@ -160,7 +175,11 @@ export async function guardarAforo(_prev: ActionResult | null, fd: FormData): Pr
   const raw = text(fd, 'aforo')
   const aforo = raw === '' ? null : Number(raw)
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un número entero mayor a 0')
-  const { error } = await ctx.supabase.from('negocios').update({ aforo_maximo_reservas: aforo }).eq('id', ctx.negocio.id)
+  const sedeId = text(fd, 'sucursal_id')
+  if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  const { error } = sedeId
+    ? await ctx.supabase.from('sucursales').update({ aforo_maximo_reservas: aforo }).eq('id', sedeId).eq('negocio_id', ctx.negocio.id)
+    : await ctx.supabase.from('negocios').update({ aforo_maximo_reservas: aforo }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar el aforo')
   revalidatePath('/', 'layout')
   return { ok: true }
@@ -172,11 +191,15 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
   const fecha = text(fd, 'fecha')
   const desde = text(fd, 'hora_desde')
   const hasta = text(fd, 'hora_hasta')
+  const sedeBloq = text(fd, 'sucursal_id') || null
+  if (sedeBloq && !ctx.sedes.some((x) => x.id === sedeBloq)) return fail('La sede no es válida')
+  if (!sedeBloq && ctx.sedes.length > 0 && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
   if (!FECHA_RE.test(fecha)) return fail('Elegí una fecha')
   if ((desde && !HORA_RE.test(desde)) || (hasta && !HORA_RE.test(hasta))) return fail('El horario no es válido')
   if (!!desde !== !!hasta) return fail('Completá el horario desde y hasta, o dejá ambos vacíos para bloquear todo el día')
   const { error } = await ctx.supabase.from('fechas_bloqueadas_reservas').insert({
     negocio_id: ctx.negocio.id,
+    sucursal_id: sedeBloq,
     fecha,
     hora_desde: desde || null,
     hora_hasta: hasta || null,
@@ -213,6 +236,50 @@ export async function guardarNotasCliente(_prev: ActionResult | null, fd: FormDa
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
   const { error } = await ctx.supabase.from('clientes').update({ notas: text(fd, 'notas') || null }).eq('id', text(fd, 'id')).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudieron guardar las notas')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Sedes y ubicaciones (dueño / administrador sin restricción de sede)
+// ---------------------------------------------------------------------------
+
+export async function guardarSede(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar sedes')
+  const id = text(fd, 'id')
+  const nombre = text(fd, 'nombre')
+  const wa = text(fd, 'whatsapp_nro').replace(/\D/g, '')
+  const aforoRaw = text(fd, 'aforo')
+  const aforo = aforoRaw ? Number(aforoRaw) : null
+  if (!nombre) return fail('Falta el nombre de la sede')
+  if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un entero mayor a 0')
+  if (!id && !ctx.sinRestriccionSede) return fail('Solo quien ve todas las sedes puede crear una nueva')
+  const fila = { nombre, whatsapp_nro: wa || null, aforo_maximo_reservas: aforo }
+  const { error } = id
+    ? await ctx.supabase.from('sucursales').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    : await ctx.supabase.from('sucursales').insert({ ...fila, negocio_id: ctx.negocio.id, orden: ctx.sedesTodas.length + 1 })
+  if (error) return fail(error.code === '23505' ? 'Ya hay una sede con ese nombre' : 'No se pudo guardar la sede')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+export async function guardarUbicacion(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar ubicaciones')
+  const nombre = text(fd, 'nombre').toUpperCase()
+  if (!nombre) return fail('Falta el nombre de la ubicación')
+  const { error } = await ctx.supabase.from('ubicaciones').insert({ negocio_id: ctx.negocio.id, nombre, orden: 99 })
+  if (error) return fail(error.code === '23505' ? 'Esa ubicación ya existe' : 'No se pudo guardar la ubicación')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+export async function borrarUbicacion(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar ubicaciones')
+  const { error } = await ctx.supabase.from('ubicaciones').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo borrar la ubicación')
   revalidatePath('/', 'layout')
   return { ok: true }
 }

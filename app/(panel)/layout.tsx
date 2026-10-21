@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import BotToggle from '@/components/bot-toggle'
 import Nav from '@/components/nav'
 import NegocioSelect from '@/components/negocio-select'
+import SedeSelect from '@/components/sede-select'
 import { getContexto } from '@/lib/context'
 import { cerrarSesion } from './actions'
 
@@ -21,6 +22,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             ) : (
               <span className="truncate rounded-full bg-rs-raised px-2.5 py-0.5 text-xs text-rs-lime">{ctx.negocio.nombre}</span>
             )}
+            {ctx.sedes.length > 0 && <SedeSelect sedes={ctx.sedes} actual={ctx.sede?.id ?? null} />}
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}

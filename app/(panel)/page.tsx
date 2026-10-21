@@ -3,6 +3,7 @@ import { getContexto } from '@/lib/context'
 import { fechaLarga, hoyEn, inicioSemana, sumarDias } from '@/lib/fechas'
 import { RESERVA_COLS, ocupaLugar, type Reserva } from '@/lib/reservas'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
+import { cargarOpciones } from '@/lib/sedes'
 
 function Tile({ valor, etiqueta, sub, color, subColor }: { valor: string | number; etiqueta: string; sub: string; color: string; subColor?: string }) {
   return (
@@ -18,21 +19,25 @@ const delta = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
   const ctx = await getContexto()
-  const { supabase, negocio } = ctx
+  const { supabase, negocio, sede } = ctx
+  const op = await cargarOpciones(ctx)
   const sp = await searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const dia = sp.fecha && /^\d{4}-\d{2}-\d{2}$/.test(sp.fecha) ? sp.fecha : hoy
+
+  // con una sede elegida (o un usuario limitado a una sede) todo se filtra por esa sede
+  const porSede = <T,>(q: T): T => (sede ? (q as any).eq('sucursal_id', sede.id) : q)
 
   const semana = inicioSemana(dia)
   const semanaAnt = sumarDias(semana, -7)
   const finSemana = sumarDias(semana, 6)
 
   const [{ data: rango }, { data: delDia }, { count: pendientes }, { data: bloqueos }, { count: consultas }] = await Promise.all([
-    supabase.from('reservas').select('fecha, estado, cantidad_personas').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', semanaAnt).lte('fecha', finSemana),
-    supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', dia).order('hora'),
-    supabase.from('reservas').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('estado', 'nueva').or(`fecha.gte.${hoy},fecha.is.null`),
-    supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia),
-    supabase.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('estado', 'pendiente'),
+    porSede(supabase.from('reservas').select('fecha, estado, cantidad_personas').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', semanaAnt).lte('fecha', finSemana)),
+    porSede(supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', dia).order('hora')),
+    porSede(supabase.from('reservas').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('estado', 'nueva').or(`fecha.gte.${hoy},fecha.is.null`)),
+    (sede ? supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia).or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia)),
+    porSede(supabase.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('estado', 'pendiente')),
   ])
 
   const reservasDia = (delDia ?? []) as Reserva[]
@@ -46,7 +51,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const semanaPrevia = contar(semanaAnt, sumarDias(semana, -1))
   const personasSemana = semanaActual.reduce((s, f) => s + (f.cantidad_personas ?? 0), 0)
 
-  const aforo = negocio.aforo_maximo_reservas
+  const aforo = sede ? (sede.aforo_maximo_reservas ?? negocio.aforo_maximo_reservas) : negocio.aforo_maximo_reservas
   const personasConfirmadas = reservasDia.filter((r) => r.estado === 'confirmada').reduce((s, r) => s + (r.cantidad_personas ?? 0), 0)
   const pctAforo = aforo ? Math.round((personasConfirmadas / aforo) * 100) : null
 
@@ -92,10 +97,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <h2 className="card-title">Reservas de {dia === hoy ? 'hoy' : fechaLarga(dia)}</h2>
           <div className="flex items-center gap-3">
             <span className="text-xs text-rs-muted/80">{reservasDia.length} reserva{reservasDia.length === 1 ? '' : 's'}</span>
-            {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={dia} />}
+            {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={dia} op={op} />}
           </div>
         </div>
-        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
+        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} op={op} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
       </section>
 
       <section>

@@ -4,13 +4,15 @@ import { useActionState, useEffect, useState, useTransition } from 'react'
 import { KeyRound, Plus, ShieldCheck, Trash2, UserCog } from 'lucide-react'
 import Modal from '@/components/modal'
 import type { ActionResult } from '@/app/(panel)/actions'
-import { activarMembresia, activarUsuario, agregarMembresia, cambiarRol, crearUsuario, quitarMembresia, resetearPassword } from '@/app/(panel)/admin-actions'
-import { ROLES, ROLES_BAJOS, labelRol, type UsuarioUI } from '@/lib/roles'
+import { activarMembresia, activarUsuario, agregarMembresia, cambiarRol, crearUsuario, guardarSedesMembresia, quitarMembresia, resetearPassword } from '@/app/(panel)/admin-actions'
+import { ROLES, ROLES_BAJOS, labelRol, type MembresiaUI, type UsuarioUI } from '@/lib/roles'
 import type { Rol } from '@/lib/context'
 
 interface Props {
   usuarios: UsuarioUI[]
   negocios: { id: string; nombre: string }[]
+  sedesPorNegocio: Record<string, { id: string; nombre: string }[]> // sedes que quien mira puede asignar
+  nombresSede: Record<string, string>                                 // id -> nombre, para mostrar
   modo: 'global' | 'negocio'          // global: superadmin ve todos los negocios; negocio: dueño/admin del negocio activo
   negocioActual: string
   esSuperadmin: boolean
@@ -30,8 +32,10 @@ function Error({ msg }: { msg: string | null }) {
 function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(crearUsuario, null)
   const [esSuper, setEsSuper] = useState(false)
+  const [negocioElegido, setNegocioElegido] = useState(p.modo === 'global' ? '' : p.negocioActual)
   useEffect(() => { if (state?.ok) onDone() }, [state, onDone])
   const roles = rolesAsignables(p.miRol)
+  const sedesNegocio = p.sedesPorNegocio[negocioElegido] ?? []
   return (
     <form action={action} className="grid grid-cols-2 gap-3">
       <div>
@@ -58,7 +62,7 @@ function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
           {p.modo === 'global' ? (
             <div>
               <label className="label" htmlFor="u_negocio">Negocio *</label>
-              <select id="u_negocio" name="negocio_id" className="input w-full" required defaultValue="">
+              <select id="u_negocio" name="negocio_id" className="input w-full" required defaultValue="" onChange={(e) => setNegocioElegido(e.target.value)}>
                 <option value="" disabled>Elegí…</option>
                 {p.negocios.map((n) => <option key={n.id} value={n.id}>{n.nombre}</option>)}
               </select>
@@ -71,6 +75,15 @@ function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
             </select>
           </div>
         </>
+      )}
+      {!esSuper && sedesNegocio.length > 0 && (
+        <fieldset className="col-span-2">
+          <legend className="label">Acceso a sedes</legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+            {sedesNegocio.map((x) => <label key={x.id} className="inline-flex items-center gap-2"><input type="checkbox" name="sucursal_ids" value={x.id} className="h-4 w-4 accent-[#c8e62b]" />{x.nombre}</label>)}
+          </div>
+          <p className="mt-1 text-xs text-rs-muted">Si no marcás ninguna, tiene acceso a todas las sedes.</p>
+        </fieldset>
       )}
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
@@ -116,6 +129,9 @@ function Accesos({ u, p, onClose }: { u: UsuarioUI; p: Props; onClose: () => voi
                 onClick={() => confirm(`¿Quitar a ${u.nombre} de ${m.negocio_nombre}?`) && correr(() => quitarMembresia(u.id, m.negocio_id))}
                 aria-label="Quitar del negocio" className="btn btn-sm btn-danger"
               ><Trash2 size={13} /></button>
+              {(p.sedesPorNegocio[m.negocio_id]?.length ?? 0) > 0 && (
+                <SedesDeAcceso userId={u.id} m={m} sedes={p.sedesPorNegocio[m.negocio_id]} nombresSede={p.nombresSede} editable={editable} correr={correr} pending={pending} />
+              )}
             </li>
           )
         })}
@@ -137,6 +153,25 @@ function Accesos({ u, p, onClose }: { u: UsuarioUI; p: Props; onClose: () => voi
       )}
       <Error msg={error} />
     </Modal>
+  )
+}
+
+function SedesDeAcceso({ userId, m, sedes, nombresSede, editable, correr, pending }: { userId: string; m: MembresiaUI; sedes: { id: string; nombre: string }[]; nombresSede: Record<string, string>; editable: boolean; correr: (fn: () => Promise<ActionResult>) => void; pending: boolean }) {
+  const [sel, setSel] = useState<string[]>(m.sucursal_ids)
+  const igual = sel.length === m.sucursal_ids.length && sel.every((x) => m.sucursal_ids.includes(x))
+  return (
+    <div className="mt-1 w-full rounded-rs bg-rs-raised/50 px-3 py-2">
+      <div className="mb-1 text-xs text-rs-muted">Acceso a sedes — {m.sucursal_ids.length === 0 ? 'todas' : m.sucursal_ids.map((id) => nombresSede[id] ?? '—').join(', ')}</div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        {sedes.map((x) => (
+          <label key={x.id} className="inline-flex items-center gap-2">
+            <input type="checkbox" disabled={!editable || pending} checked={sel.includes(x.id)} onChange={(e) => setSel(e.target.checked ? [...sel, x.id] : sel.filter((i) => i !== x.id))} className="h-4 w-4 accent-[#c8e62b]" />{x.nombre}
+          </label>
+        ))}
+        {editable && <button disabled={igual || pending} onClick={() => correr(() => guardarSedesMembresia(userId, m.negocio_id, sel))} className="btn btn-sm btn-primary">Guardar sedes</button>}
+      </div>
+      <p className="mt-1 text-[11px] text-rs-muted">Ninguna marcada = todas las sedes.</p>
+    </div>
   )
 }
 
@@ -188,7 +223,7 @@ export default function GestionUsuarios(p: Props) {
                 <td className="td">
                   <div className="flex flex-wrap gap-1.5">
                     {u.es_superadmin && u.membresias.length === 0 && <span className="badge bg-rs-lime/15 text-rs-lime">Todos los negocios</span>}
-                    {u.membresias.map((m) => <span key={m.negocio_id} className={'badge ' + (m.activo ? 'bg-rs-raised text-rs-text' : 'bg-rs-raised text-rs-muted line-through')}>{p.modo === 'global' ? `${m.negocio_nombre} · ` : ''}{labelRol(m.rol)}</span>)}
+                    {u.membresias.map((m) => <span key={m.negocio_id} className={'badge ' + (m.activo ? 'bg-rs-raised text-rs-text' : 'bg-rs-raised text-rs-muted line-through')}>{p.modo === 'global' ? `${m.negocio_nombre} · ` : ''}{labelRol(m.rol)}{m.sucursal_ids.length > 0 ? ` · ${m.sucursal_ids.map((id) => p.nombresSede[id] ?? '—').join(', ')}` : ''}</span>)}
                   </div>
                 </td>
                 <td className="td">{u.activo ? <span className="badge bg-rs-ok/15 text-rs-ok">Activo</span> : <span className="badge bg-rs-danger/15 text-rs-danger">Desactivado</span>}</td>

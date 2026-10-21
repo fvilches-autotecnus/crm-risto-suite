@@ -5,13 +5,15 @@ import { fechaHoraCorta } from '@/lib/fechas'
 const AUTOR: Record<string, string> = { cliente: 'Cliente', bot: 'Bot', humano: 'Equipo' }
 
 export default async function ConversacionesPage({ searchParams }: { searchParams: Promise<{ tel?: string }> }) {
-  const { supabase, negocio } = await getContexto()
+  const { supabase, negocio, sede } = await getContexto()
   const { tel } = await searchParams
 
-  const { data: sesiones } = await supabase
+  let sq = supabase
     .from('sesiones_bot')
     .select('telefono, nombre_whatsapp, estado_bot, motivo_pausa, actualizado_en')
     .eq('negocio_id', negocio.id)
+  if (sede) sq = sq.eq('sucursal_id', sede.id)
+  const { data: sesiones } = await sq
     .order('actualizado_en', { ascending: false })
     .limit(200)
 

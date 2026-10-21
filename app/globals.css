@@ -16,6 +16,6 @@ body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, sys
   .btn-danger { @apply border-rs-danger/40 text-rs-danger hover:bg-rs-danger/10 hover:text-rs-danger; }
   .btn-sm { @apply h-7 px-2 text-xs; }
   .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold; }
-  .th { @apply px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
-  .td { @apply px-3 py-3 text-sm; }
+  .th { @apply px-2.5 py-3 text-left text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
+  .td { @apply px-2.5 py-3 text-sm; }
 }

@@ -1,5 +1,6 @@
 'use server'
 
+import { randomBytes, createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getContexto, type Contexto, type Rol } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -22,6 +23,19 @@ function puedeGestionar(ctx: Contexto, negocioId: string, rolObjetivo: Rol[]): b
   if (ctx.rol === 'owner') return true
   if (ctx.rol === 'admin') return rolObjetivo.every((r) => ROLES_BAJOS.includes(r))
   return false
+}
+
+/** Un usuario con alcance limitado a algunas sedes solo puede gestionar usuarios que estén dentro de ese alcance. */
+function dentroDeAlcance(ctx: Contexto, objetivoSedes: string[]): boolean {
+  if (ctx.esSuperadmin || ctx.sinRestriccionSede) return true
+  const mias = ctx.sedes.map((x) => x.id)
+  return objetivoSedes.length > 0 && objetivoSedes.every((id) => mias.includes(id))
+}
+
+async function sedesValidas(negocioId: string, ids: string[]): Promise<boolean> {
+  if (!ids.length) return true
+  const { data } = await createAdminClient().from('sucursales').select('id').eq('negocio_id', negocioId).in('id', ids)
+  return (data ?? []).length === new Set(ids).size
 }
 
 async function otrosDuenos(negocioId: string, excluirUserId: string): Promise<number> {
@@ -81,6 +95,7 @@ export async function actualizarNegocio(_prev: ActionResult | null, fd: FormData
     whatsapp_nro: text(fd, 'whatsapp_nro').replace(/\D/g, '') || null,
     aforo_maximo_reservas: aforo,
     activo: fd.get('activo') === 'on',
+    reserva_estado_inicial: text(fd, 'estado_inicial') === 'confirmada' ? 'confirmada' : 'nueva',
     modulos: { ...(actual.modulos as Record<string, unknown>), apagado_bot: fd.get('apagado_bot') === 'on' },
   }).eq('id', id)
   if (error) return fail('No se pudo guardar el negocio')
@@ -100,6 +115,7 @@ export async function crearUsuario(_prev: ActionResult | null, fd: FormData): Pr
   const rol = text(fd, 'rol') as Rol
   const esSuper = ctx.esSuperadmin && fd.get('es_superadmin') === 'on'
   const negocioId = ctx.esSuperadmin ? text(fd, 'negocio_id') : ctx.negocio.id
+  const sedeIds = fd.getAll('sucursal_ids').map(String).filter(Boolean)
 
   if (!USUARIO_RE.test(usuario)) return fail('El usuario debe tener 3 a 40 caracteres: minúsculas, números, punto, guion o guion bajo')
   if (!nombre) return fail('Falta el nombre')
@@ -108,6 +124,8 @@ export async function crearUsuario(_prev: ActionResult | null, fd: FormData): Pr
     if (!ROL_VALUES.includes(rol)) return fail('Elegí un rol')
     if (!negocioId) return fail('Elegí un negocio')
     if (!puedeGestionar(ctx, negocioId, [rol])) return fail('No tenés permiso para crear usuarios con ese rol')
+    if (!(await sedesValidas(negocioId, sedeIds))) return fail('Alguna sede no pertenece al negocio')
+    if (!dentroDeAlcance(ctx, sedeIds)) return fail('Solo podés dar acceso a las sedes que vos administrás')
   } else if (!ctx.esSuperadmin) {
     return fail('No tenés permiso')
   }
@@ -125,7 +143,7 @@ export async function crearUsuario(_prev: ActionResult | null, fd: FormData): Pr
   const { error: ePerfil } = await admin.from('perfiles').insert({ id: uid, usuario, nombre, es_superadmin: esSuper })
   if (ePerfil) { await admin.auth.admin.deleteUser(uid); return fail('No se pudo crear el perfil') }
   if (!esSuper) {
-    const { error: eMem } = await admin.from('membresias').insert({ user_id: uid, negocio_id: negocioId, rol })
+    const { error: eMem } = await admin.from('membresias').insert({ user_id: uid, negocio_id: negocioId, rol, sucursal_ids: sedeIds })
     if (eMem) { await admin.auth.admin.deleteUser(uid); return fail('No se pudo asignar el negocio') }
   }
   refrescar()
@@ -144,8 +162,8 @@ export async function agregarMembresia(userId: string, negocioId: string, rol: R
 }
 
 async function membresia(userId: string, negocioId: string) {
-  const { data } = await createAdminClient().from('membresias').select('rol, activo').eq('user_id', userId).eq('negocio_id', negocioId).maybeSingle()
-  return data as { rol: Rol; activo: boolean } | null
+  const { data } = await createAdminClient().from('membresias').select('rol, activo, sucursal_ids').eq('user_id', userId).eq('negocio_id', negocioId).maybeSingle()
+  return data as { rol: Rol; activo: boolean; sucursal_ids: string[] } | null
 }
 
 export async function cambiarRol(userId: string, negocioId: string, rol: Rol): Promise<ActionResult> {
@@ -153,7 +171,7 @@ export async function cambiarRol(userId: string, negocioId: string, rol: Rol): P
   if (!ROL_VALUES.includes(rol)) return fail('Rol no válido')
   const actual = await membresia(userId, negocioId)
   if (!actual) return fail('El usuario no pertenece a ese negocio')
-  if (!puedeGestionar(ctx, negocioId, [actual.rol, rol])) return fail('No tenés permiso para cambiar ese rol')
+  if (!puedeGestionar(ctx, negocioId, [actual.rol, rol]) || !dentroDeAlcance(ctx, actual.sucursal_ids)) return fail('No tenés permiso para cambiar ese rol')
   if (userId === ctx.userId) return fail('No podés cambiar tu propio rol')
   if (actual.rol === 'owner' && rol !== 'owner' && (await otrosDuenos(negocioId, userId)) === 0) return fail('El negocio no puede quedar sin dueño')
   const { error } = await createAdminClient().from('membresias').update({ rol }).eq('user_id', userId).eq('negocio_id', negocioId)
@@ -166,7 +184,7 @@ export async function quitarMembresia(userId: string, negocioId: string): Promis
   const ctx = await getContexto()
   const actual = await membresia(userId, negocioId)
   if (!actual) return fail('El usuario no pertenece a ese negocio')
-  if (!puedeGestionar(ctx, negocioId, [actual.rol])) return fail('No tenés permiso para quitar a ese usuario')
+  if (!puedeGestionar(ctx, negocioId, [actual.rol]) || !dentroDeAlcance(ctx, actual.sucursal_ids)) return fail('No tenés permiso para quitar a ese usuario')
   if (userId === ctx.userId) return fail('No podés quitarte a vos mismo')
   if (actual.rol === 'owner' && (await otrosDuenos(negocioId, userId)) === 0) return fail('El negocio no puede quedar sin dueño')
   const { error } = await createAdminClient().from('membresias').delete().eq('user_id', userId).eq('negocio_id', negocioId)
@@ -180,7 +198,7 @@ export async function activarMembresia(userId: string, negocioId: string, activo
   const ctx = await getContexto()
   const actual = await membresia(userId, negocioId)
   if (!actual) return fail('El usuario no pertenece a ese negocio')
-  if (!puedeGestionar(ctx, negocioId, [actual.rol])) return fail('No tenés permiso para cambiar a ese usuario')
+  if (!puedeGestionar(ctx, negocioId, [actual.rol]) || !dentroDeAlcance(ctx, actual.sucursal_ids)) return fail('No tenés permiso para cambiar a ese usuario')
   if (userId === ctx.userId) return fail('No podés desactivarte a vos mismo')
   if (!activo && actual.rol === 'owner' && (await otrosDuenos(negocioId, userId)) === 0) return fail('El negocio no puede quedar sin dueño')
   const { error } = await createAdminClient().from('membresias').update({ activo }).eq('user_id', userId).eq('negocio_id', negocioId)
@@ -206,13 +224,40 @@ export async function resetearPassword(userId: string, password: string): Promis
   const admin = createAdminClient()
   if (!ctx.esSuperadmin) {
     // Solo si el usuario pertenece ÚNICAMENTE a este negocio (si no, un dueño podría tomar su acceso a otros negocios).
-    const { data: ms } = await admin.from('membresias').select('negocio_id, rol').eq('user_id', userId)
-    const lista = (ms ?? []) as { negocio_id: string; rol: Rol }[]
+    const { data: ms } = await admin.from('membresias').select('negocio_id, rol, sucursal_ids').eq('user_id', userId)
+    const lista = (ms ?? []) as { negocio_id: string; rol: Rol; sucursal_ids: string[] }[]
     const { data: p } = await admin.from('perfiles').select('es_superadmin').eq('id', userId).maybeSingle()
     if (!lista.length || p?.es_superadmin || lista.some((m) => m.negocio_id !== ctx.negocio.id)) return fail('No tenés permiso para cambiar la contraseña de ese usuario')
-    if (!puedeGestionar(ctx, ctx.negocio.id, lista.map((m) => m.rol))) return fail('No tenés permiso para cambiar la contraseña de ese usuario')
+    if (!puedeGestionar(ctx, ctx.negocio.id, lista.map((m) => m.rol)) || !lista.every((m) => dentroDeAlcance(ctx, m.sucursal_ids))) return fail('No tenés permiso para cambiar la contraseña de ese usuario')
   }
   const { error } = await admin.auth.admin.updateUserById(userId, { password })
   if (error) return fail('No se pudo cambiar la contraseña')
   return { ok: true }
+}
+
+/** Define a qué sedes puede acceder un usuario en un negocio (lista vacía = todas). */
+export async function guardarSedesMembresia(userId: string, negocioId: string, sucursalIds: string[]): Promise<ActionResult> {
+  const ctx = await getContexto()
+  const actual = await membresia(userId, negocioId)
+  if (!actual) return fail('El usuario no pertenece a ese negocio')
+  if (!puedeGestionar(ctx, negocioId, [actual.rol]) || !dentroDeAlcance(ctx, actual.sucursal_ids)) return fail('No tenés permiso para cambiar los accesos de ese usuario')
+  if (userId === ctx.userId) return fail('No podés cambiar tus propios accesos')
+  const ids = [...new Set(sucursalIds)]
+  if (!(await sedesValidas(negocioId, ids))) return fail('Alguna sede no pertenece al negocio')
+  if (!dentroDeAlcance(ctx, ids)) return fail('Solo podés dar acceso a las sedes que vos administrás')
+  const { error } = await createAdminClient().from('membresias').update({ sucursal_ids: ids }).eq('user_id', userId).eq('negocio_id', negocioId)
+  if (error) return fail('No se pudieron guardar los accesos')
+  refrescar()
+  return { ok: true }
+}
+
+/** Genera un secreto nuevo para el webhook de reservas. Se muestra UNA vez; en la base queda solo el hash (sha256). */
+export async function generarSecretoWebhook(negocioId: string): Promise<ActionResult & { secret?: string }> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede generar secretos')
+  const secret = randomBytes(24).toString('hex')
+  const { error } = await createAdminClient().from('negocios').update({ webhook_secret: createHash('sha256').update(secret).digest('hex') }).eq('id', negocioId)
+  if (error) return fail('No se pudo generar el secreto')
+  refrescar()
+  return { ok: true, secret }
 }

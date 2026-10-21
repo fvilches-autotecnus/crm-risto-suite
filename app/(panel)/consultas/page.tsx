@@ -5,15 +5,17 @@ import ConsultaAcciones from './acciones'
 
 export default async function ConsultasPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
   const ctx = await getContexto()
-  const { supabase, negocio } = ctx
+  const { supabase, negocio, sede } = ctx
   const { estado } = await searchParams
   const filtro = estado === 'resuelta' ? 'resuelta' : 'pendiente'
 
-  const { data } = await supabase
+  let cq = supabase
     .from('consultas_reclamos')
     .select('id, telefono, mensaje, estado, creado_en')
     .eq('negocio_id', negocio.id)
     .eq('estado', filtro)
+  if (sede) cq = cq.eq('sucursal_id', sede.id)
+  const { data } = await cq
     .order('creado_en', { ascending: false })
     .limit(200)
 

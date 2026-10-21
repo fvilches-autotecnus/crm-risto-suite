@@ -4,17 +4,21 @@ import { hoyEn, sumarDias } from '@/lib/fechas'
 import { RESERVA_COLS, type Reserva } from '@/lib/reservas'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import FiltrosReservas from '@/components/filtros-reservas'
+import { cargarOpciones } from '@/lib/sedes'
 
 type SP = { estado?: string; rango?: string; tipo?: string; q?: string; desde?: string; hasta?: string }
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await getContexto()
-  const { supabase, negocio } = ctx
+  const { supabase, negocio, sede } = ctx
+  const op = await cargarOpciones(ctx)
   const sp = await searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const rango = sp.rango ?? 'hoy'
 
   let q = supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null)
+
+  if (sede) q = q.eq('sucursal_id', sede.id)
 
   if (rango === 'hoy') q = q.eq('fecha', hoy)
   else if (rango === 'manana') q = q.eq('fecha', sumarDias(hoy, 1))
@@ -37,12 +41,12 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start gap-2">
-        {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} />}
+        {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
         <div className="min-w-0 flex-1">
           <Suspense><FiltrosReservas /></Suspense>
         </div>
       </div>
-      <ReservasTabla reservas={(data ?? []) as Reserva[]} puedeEscribir={ctx.puedeEscribir} />
+      <ReservasTabla reservas={(data ?? []) as Reserva[]} puedeEscribir={ctx.puedeEscribir} op={op} />
       {(data?.length ?? 0) === 500 && <p className="text-xs text-rs-muted">Mostrando las primeras 500 reservas — afiná los filtros para ver el resto.</p>}
     </div>
   )

@@ -20,6 +20,8 @@ export interface Reserva {
   id: string
   numero: number
   cliente_id: string | null
+  sucursal_id: string | null
+  ubicacion: string | null
   cliente_nombre: string | null
   cliente_telefono: string | null
   fecha: string | null
@@ -37,7 +39,7 @@ export interface Reserva {
 }
 
 export const RESERVA_COLS =
-  'id, numero, cliente_id, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, creado_en'
+  'id, numero, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, creado_en'
 
 /** Reservas que ocupan lugar (cuentan para aforo y para "hoy"). */
 export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => r.estado === 'nueva' || r.estado === 'confirmada'

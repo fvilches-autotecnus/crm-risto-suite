@@ -22,6 +22,7 @@ export interface MembresiaUI {
   negocio_nombre: string
   rol: Rol
   activo: boolean
+  sucursal_ids: string[] // vacío = todas las sedes del negocio
 }
 export interface UsuarioUI {
   id: string

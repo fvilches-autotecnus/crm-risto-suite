@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import Modal from '@/components/modal'
 import type { ActionResult } from '@/app/(panel)/actions'
-import { actualizarNegocio, crearNegocio } from '@/app/(panel)/admin-actions'
+import { actualizarNegocio, crearNegocio, generarSecretoWebhook } from '@/app/(panel)/admin-actions'
 
 export interface NegocioAdmin {
   id: string
@@ -14,6 +14,8 @@ export interface NegocioAdmin {
   aforo_maximo_reservas: number | null
   activo: boolean
   apagado_bot: boolean
+  estado_inicial: 'nueva' | 'confirmada'
+  tiene_secreto: boolean
   usuarios: number
 }
 
@@ -53,12 +55,54 @@ function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
           <input type="checkbox" name="activo" defaultChecked={n.activo} className="h-4 w-4 accent-[#c8e62b]" /> Negocio activo (si se desmarca, sus usuarios no lo ven)
         </label>
       )}
+      {n && (
+        <div className="col-span-2">
+          <label className="label" htmlFor="n_estado">Estado de las reservas que llegan por el bot</label>
+          <select id="n_estado" name="estado_inicial" defaultValue={n.estado_inicial} className="input w-full">
+            <option value="nueva">Nueva (hay que confirmarla desde el panel)</option>
+            <option value="confirmada">Confirmada (el bot ya la confirma)</option>
+          </select>
+        </div>
+      )}
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
         <button disabled={pending} className="btn btn-primary">{pending ? 'Guardando…' : n ? 'Guardar cambios' : 'Crear negocio'}</button>
       </div>
     </form>
+  )
+}
+
+function WebhookBox({ n }: { n: NegocioAdmin }) {
+  const [secret, setSecret] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/reservas/${n.slug}`
+  const generar = async () => {
+    if (n.tiene_secreto && !confirm('Ya hay un secreto. Si generás uno nuevo, el anterior deja de funcionar y hay que actualizar el bot. ¿Continuar?')) return
+    setPending(true); setError(null)
+    const r = await generarSecretoWebhook(n.id)
+    setPending(false)
+    r.ok ? setSecret(r.secret ?? null) : setError(r.error ?? 'Error')
+  }
+  return (
+    <div className="mt-5 border-t border-rs-border pt-4 text-sm">
+      <h3 className="card-title">Webhook de reservas (BotConversa / n8n)</h3>
+      <p className="mt-1 text-xs text-rs-muted">El bot envía un POST a esta URL, con el secreto en el header <code>X-Webhook-Secret</code>, para crear reservas en este negocio.</p>
+      <div className="mt-2 break-all rounded-rs bg-rs-input px-3 py-2 font-mono text-xs">{url}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" disabled={pending} onClick={generar} className="btn btn-sm">{n.tiene_secreto || secret ? 'Generar secreto nuevo' : 'Generar secreto'}</button>
+        <span className="text-xs text-rs-muted">{secret ? '' : n.tiene_secreto ? 'Ya tiene un secreto activo (no se puede volver a ver).' : 'Todavía no tiene secreto: el webhook rechaza todo.'}</span>
+      </div>
+      {secret && (
+        <div className="mt-2 rounded-rs border border-rs-lime/40 bg-rs-lime/10 p-3">
+          <div className="text-xs text-rs-lime">Copialo ahora: no se vuelve a mostrar.</div>
+          <div className="mt-1 break-all font-mono text-xs">{secret}</div>
+          <button type="button" onClick={() => navigator.clipboard?.writeText(secret)} className="btn btn-sm mt-2">Copiar</button>
+        </div>
+      )}
+      {error && <p role="alert" className="mt-2 text-sm text-rs-danger">{error}</p>}
+    </div>
   )
 }
 
@@ -90,7 +134,7 @@ export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[]
         </table>
       </div>
       {nuevo && <Modal titulo="Nuevo negocio" onClose={() => setNuevo(false)}><Form onDone={() => setNuevo(false)} /></Modal>}
-      {editando && <Modal titulo={`Editar ${editando.nombre}`} onClose={() => setEditando(null)}><Form n={editando} onDone={() => setEditando(null)} /></Modal>}
+      {editando && <Modal titulo={`Editar ${editando.nombre}`} onClose={() => setEditando(null)}><Form n={editando} onDone={() => setEditando(null)} /><WebhookBox n={editando} /></Modal>}
     </div>
   )
 }
