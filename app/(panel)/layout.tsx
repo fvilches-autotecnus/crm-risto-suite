@@ -30,7 +30,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             </form>
           </div>
         </div>
-        <Nav />
+        <Nav esSuperadmin={ctx.esSuperadmin} />
       </header>
       {ctx.tieneApagadoBot && !ctx.negocio.bot_activo && (
         <div role="status" className="border-b border-rs-danger/30 bg-rs-danger/10 px-4 py-2 text-center text-sm text-rs-danger">

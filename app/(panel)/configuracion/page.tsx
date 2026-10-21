@@ -1,5 +1,7 @@
 import { getContexto } from '@/lib/context'
 import { hoyEn } from '@/lib/fechas'
+import GestionUsuarios from '@/components/usuarios-ui'
+import type { UsuarioUI } from '@/lib/roles'
 import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm } from './forms'
 import { fechaCorta } from '@/lib/fechas'
 
@@ -13,12 +15,17 @@ export default async function ConfiguracionPage() {
   const [{ data: bloqueos }, { data: miembros }] = await Promise.all([
     supabase.from('fechas_bloqueadas_reservas').select('id, fecha, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).gte('fecha', hoy).order('fecha'),
     ctx.puedeAdministrar
-      ? supabase.from('membresias').select('rol, activo, perfiles(usuario, nombre)').eq('negocio_id', negocio.id)
+      ? supabase.from('membresias').select('user_id, rol, activo, perfiles(id, usuario, nombre, activo, es_superadmin)').eq('negocio_id', negocio.id)
       : Promise.resolve({ data: null }),
   ])
 
+  const usuarios: UsuarioUI[] = ((miembros ?? []) as any[]).filter((m) => m.perfiles).map((m) => ({
+    id: m.perfiles.id, usuario: m.perfiles.usuario, nombre: m.perfiles.nombre, activo: m.perfiles.activo, es_superadmin: m.perfiles.es_superadmin,
+    membresias: [{ negocio_id: negocio.id, negocio_nombre: negocio.nombre, rol: m.rol, activo: m.activo }],
+  }))
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <section className="card p-5">
         <h2 className="card-title">Negocio</h2>
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-4">
@@ -61,17 +68,13 @@ export default async function ConfiguracionPage() {
       )}
 
       {ctx.puedeAdministrar && (
-        <section className="card p-5">
-          <h2 className="card-title">Usuarios del negocio</h2>
-          <ul className="mt-3 divide-y divide-rs-border/60">
-            {(miembros ?? []).map((m: any, i: number) => (
-              <li key={i} className="flex items-center justify-between py-2.5 text-sm">
-                <span><span className="font-medium">{m.perfiles?.nombre}</span> <span className="text-rs-muted">@{m.perfiles?.usuario}</span></span>
-                <span className="badge bg-rs-raised text-rs-lime">{ROL[m.rol] ?? m.rol}{m.activo ? '' : ' · inactivo'}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs text-rs-muted">Para sumar o quitar usuarios, escribile a Risto Suite.</p>
+        <section>
+          <h2 className="card-title mb-3">Usuarios del negocio</h2>
+          <GestionUsuarios
+            usuarios={usuarios}
+            negocios={[{ id: negocio.id, nombre: negocio.nombre }]}
+            modo="negocio" negocioActual={negocio.id} esSuperadmin={ctx.esSuperadmin} miRol={ctx.rol} yoId={ctx.userId}
+          />
         </section>
       )}
     </div>

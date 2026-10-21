@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Users } from 'lucide-react'
+import { Building2, CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -13,11 +13,12 @@ const TABS = [
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav() {
+export default function Nav({ esSuperadmin = false }: { esSuperadmin?: boolean }) {
   const pathname = usePathname()
+  const tabs = esSuperadmin ? [...TABS, { href: '/administracion', label: 'Administración', icon: Building2 }] : TABS
   return (
     <nav className="mx-auto flex max-w-[1280px] gap-2 overflow-x-auto px-4 pb-3">
-      {TABS.map(({ href, label, icon: Icon }) => {
+      {tabs.map(({ href, label, icon: Icon }) => {
         const activo = href === '/' ? pathname === '/' : pathname.startsWith(href)
         return (
           <Link

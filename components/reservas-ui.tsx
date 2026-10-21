@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from 'react'
 import { Check, Pencil, Plus, Trash2, X, UserX } from 'lucide-react'
 import { cambiarEstadoReserva, eliminarReserva, guardarReserva, type ActionResult } from '@/app/(panel)/actions'
+import Modal from '@/components/modal'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { TIPOS_RESERVA, labelEstado, labelTipo, type Reserva } from '@/lib/reservas'
 
@@ -15,25 +16,6 @@ const ESTADO_CLS: Record<string, string> = {
 
 export function EstadoBadge({ estado }: { estado: string }) {
   return <span className={'badge ' + (ESTADO_CLS[estado] ?? 'bg-rs-raised text-rs-muted')}>{labelEstado(estado)}</span>
-}
-
-function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={titulo} className="card my-4 w-full max-w-lg border-rs-control p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold">{titulo}</h2>
-          <button onClick={onClose} aria-label="Cerrar" className="text-rs-muted hover:text-rs-text"><X size={18} /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
 }
 
 function ReservaForm({ reserva, fechaDefault, onDone }: { reserva?: Reserva; fechaDefault?: string; onDone: () => void }) {
