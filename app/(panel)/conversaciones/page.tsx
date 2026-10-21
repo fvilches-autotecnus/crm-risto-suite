@@ -60,7 +60,6 @@ export default async function ConversacionesPage({ searchParams }: { searchParam
                 </div>
               ))}
             </div>
-            <footer className="border-t border-rs-border px-5 py-2.5 text-xs text-rs-muted">Vista de solo lectura. Responder desde el panel se habilita al conectar el bot de WhatsApp.</footer>
           </>
         )}
       </section>

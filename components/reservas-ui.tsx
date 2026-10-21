@@ -184,7 +184,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       )}
       {cancelando && (
         <Modal titulo={`Cancelar reserva #${cancelando.numero}`} onClose={() => setCancelando(null)}>
-          <label className="label" htmlFor="motivo">Motivo (opcional, se le informa al cliente)</label>
+          <label className="label" htmlFor="motivo">Motivo (opcional)</label>
           <textarea id="motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} className="input w-full" />
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setCancelando(null)} className="btn">Volver</button>
