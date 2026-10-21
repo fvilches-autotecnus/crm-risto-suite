@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { TZ_AR } from '@/lib/fechas'
 
 export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura'
 
@@ -14,7 +15,7 @@ export interface Negocio {
   zona_horaria: string
   aforo_maximo_reservas: number | null
   bot_activo: boolean
-  modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean }
+  modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean }
 }
 
 export interface Contexto {
@@ -26,6 +27,7 @@ export interface Contexto {
   rol: Rol | 'superadmin'
   puedeEscribir: boolean
   puedeAdministrar: boolean
+  tieneApagadoBot: boolean // el negocio tiene habilitado el botón de apagado (lo configura Autotecnus)
   puedeApagarBot: boolean
   supabase: Awaited<ReturnType<typeof createClient>>
 }
@@ -52,7 +54,10 @@ export const getContexto = cache(async (): Promise<Contexto> => {
 
   const cookieStore = await cookies()
   const elegido = cookieStore.get(NEGOCIO_COOKIE)?.value
-  const negocio = (negocios.find((n) => n.id === elegido) ?? negocios[0]) as Negocio
+  // Horario de Argentina para todo, sin importar lo que diga la columna zona_horaria.
+  const lista = (negocios as Negocio[]).map((n) => ({ ...n, zona_horaria: TZ_AR }))
+  const negocio = lista.find((n) => n.id === elegido) ?? lista[0]
+  const tieneApagadoBot = negocio.modulos?.apagado_bot === true
 
   const rol: Rol | 'superadmin' = perfil.es_superadmin
     ? 'superadmin'
@@ -62,12 +67,13 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     userId,
     nombreUsuario: perfil.nombre,
     esSuperadmin: perfil.es_superadmin,
-    negocios: negocios as Negocio[],
+    negocios: lista,
     negocio,
     rol,
     puedeEscribir: rol !== 'solo_lectura',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
-    puedeApagarBot: rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado',
+    tieneApagadoBot,
+    puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
     supabase,
   }
 })

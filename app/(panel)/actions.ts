@@ -38,9 +38,25 @@ export async function cambiarNegocio(formData: FormData) {
 // solo deja editar el negocio a owner/admin, se escribe con service_role después de validar el rol acá.
 export async function cambiarEstadoBot(activo: boolean): Promise<ActionResult> {
   const ctx = await getContexto()
+  if (!ctx.tieneApagadoBot) return fail('Este negocio no tiene habilitado el botón de apagado del bot')
   if (!ctx.puedeApagarBot) return fail('No tenés permiso para cambiar el estado del bot')
   const { error } = await createAdminClient().from('negocios').update({ bot_activo: !!activo }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo cambiar el estado del bot')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+// Funciones por negocio (plan comercial): solo Autotecnus. Hoy: el botón de apagado del bot.
+// Al deshabilitarlo, un trigger de la base vuelve a dejar el bot encendido (bot_activo = true).
+export async function guardarFuncionesNegocio(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar las funciones del negocio')
+  const admin = createAdminClient()
+  const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
+  if (e1 || !actual) return fail('No se pudo leer el negocio')
+  const modulos = { ...(actual.modulos as Record<string, unknown>), apagado_bot: fd.get('apagado_bot') === 'on' }
+  const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
+  if (error) return fail('No se pudo guardar')
   revalidatePath('/', 'layout')
   return { ok: true }
 }

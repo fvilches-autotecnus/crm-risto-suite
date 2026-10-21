@@ -2,7 +2,7 @@
 
 import { useActionState, useTransition } from 'react'
 import { Trash2 } from 'lucide-react'
-import { agregarFechaBloqueada, borrarFechaBloqueada, guardarAforo, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, borrarFechaBloqueada, guardarAforo, guardarFuncionesNegocio, type ActionResult } from '../actions'
 
 function Estado({ state }: { state: ActionResult | null }) {
   if (!state) return null
@@ -41,5 +41,24 @@ export function BorrarBloqueo({ id }: { id: string }) {
     <button disabled={pending} onClick={() => confirm('¿Desbloquear esta fecha?') && start(async () => { await borrarFechaBloqueada(id) })} aria-label="Desbloquear fecha" className="btn btn-sm btn-danger">
       <Trash2 size={14} />
     </button>
+  )
+}
+
+export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(guardarFuncionesNegocio, null)
+  return (
+    <form action={action} className="mt-3 space-y-3">
+      <label className="flex cursor-pointer items-start gap-3 text-sm">
+        <input type="checkbox" name="apagado_bot" defaultChecked={apagadoBot} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" />
+        <span>
+          <span className="font-medium">Botón de apagado del bot</span>
+          <span className="block text-rs-muted">Muestra el botón para apagar y encender el bot de WhatsApp a dueños, administradores y encargados. Si se deshabilita, el bot queda siempre encendido.</span>
+        </span>
+      </label>
+      <div className="flex items-center gap-3">
+        <button disabled={pending} className="btn btn-primary">{pending ? 'Guardando…' : 'Guardar'}</button>
+        <Estado state={state} />
+      </div>
+    </form>
   )
 }

@@ -23,7 +23,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />
+            {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
             <span className="hidden text-sm font-semibold sm:inline">{ctx.nombreUsuario}</span>
             <form action={cerrarSesion}>
               <button className="btn btn-sm h-8 px-3"><LogOut size={14} /> Salir</button>
@@ -32,7 +32,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </div>
         <Nav />
       </header>
-      {!ctx.negocio.bot_activo && (
+      {ctx.tieneApagadoBot && !ctx.negocio.bot_activo && (
         <div role="status" className="border-b border-rs-danger/30 bg-rs-danger/10 px-4 py-2 text-center text-sm text-rs-danger">
           El bot está apagado: no responde los mensajes de WhatsApp. {ctx.puedeApagarBot ? 'Encendelo desde el botón de arriba.' : 'Pedile a un encargado que lo encienda.'}
         </div>

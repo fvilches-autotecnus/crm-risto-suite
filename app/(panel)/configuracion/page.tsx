@@ -1,6 +1,6 @@
 import { getContexto } from '@/lib/context'
 import { hoyEn } from '@/lib/fechas'
-import { AforoForm, BloqueoForm, BorrarBloqueo } from './forms'
+import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm } from './forms'
 import { fechaCorta } from '@/lib/fechas'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
@@ -21,9 +21,10 @@ export default async function ConfiguracionPage() {
     <div className="max-w-3xl space-y-6">
       <section className="card p-5">
         <h2 className="card-title">Negocio</h2>
-        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-4">
           <div><dt className="text-xs text-rs-muted">Nombre</dt><dd className="mt-0.5 font-medium">{negocio.nombre}</dd></div>
           <div><dt className="text-xs text-rs-muted">WhatsApp</dt><dd className="mt-0.5 font-medium">{negocio.whatsapp_nro ?? '—'}</dd></div>
+          <div><dt className="text-xs text-rs-muted">Horario</dt><dd className="mt-0.5 font-medium">Argentina (GMT-3)</dd></div>
           <div><dt className="text-xs text-rs-muted">Tu rol</dt><dd className="mt-0.5 font-medium">{ctx.rol === 'superadmin' ? 'Superadmin' : ROL[ctx.rol]}</dd></div>
         </dl>
       </section>
@@ -51,6 +52,13 @@ export default async function ConfiguracionPage() {
           ))}
         </ul>
       </section>
+
+      {ctx.esSuperadmin && (
+        <section className="card border-rs-lime/30 p-5">
+          <h2 className="card-title">Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></h2>
+          <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
+        </section>
+      )}
 
       {ctx.puedeAdministrar && (
         <section className="card p-5">

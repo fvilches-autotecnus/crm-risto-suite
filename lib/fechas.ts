@@ -1,6 +1,9 @@
-// Fechas como strings 'YYYY-MM-DD' en la zona horaria del negocio (la columna es DATE, sin hora).
+// El panel trabaja SIEMPRE en horario de Argentina, sin importar dónde corra el servidor (Vercel está en UTC).
+export const TZ_AR = 'America/Argentina/Buenos_Aires'
 
-export function hoyEn(tz: string, ahora = new Date()): string {
+// Fechas como strings 'YYYY-MM-DD' en la zona horaria dada (la columna es DATE, sin hora).
+
+export function hoyEn(tz: string = TZ_AR, ahora = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora)
 }
 
@@ -38,6 +41,6 @@ export function horaCorta(hora: string | null): string {
   return hora ? hora.slice(0, 5) : '—'
 }
 
-export function fechaHoraCorta(iso: string, tz: string): string {
+export function fechaHoraCorta(iso: string, tz: string = TZ_AR): string {
   return new Intl.DateTimeFormat('es-AR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 }

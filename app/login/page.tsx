@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { hoyEn } from '@/lib/fechas'
 import LoginForm from './login-form'
 
 export default function LoginPage() {
@@ -15,7 +16,7 @@ export default function LoginPage() {
       <h1 className="mt-5 text-2xl font-bold text-rs-lime">RistoSuite</h1>
       <p className="mt-1 text-sm text-rs-muted">Portal CRM</p>
       <LoginForm />
-      <p className="mt-6 text-xs text-rs-muted/70">Risto Suite © {new Date().getFullYear()}</p>
+      <p className="mt-6 text-xs text-rs-muted/70">Risto Suite © {hoyEn().slice(0, 4)}</p>
     </main>
   )
 }
