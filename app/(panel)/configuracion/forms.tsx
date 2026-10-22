@@ -3,6 +3,7 @@
 import {useEffect, useState, useTransition} from 'react'
 import { Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useConfirm, useResultado, useToast } from '@/components/feedback'
+import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
@@ -58,8 +59,8 @@ function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: 
           </select>
         </div>
       )}
-      <div><label className="label" htmlFor="r_desde">Franja desde</label><input id="r_desde" name="hora_desde" type="time" defaultValue={regla?.hora_desde?.slice(0, 5) ?? ''} className="input w-full" /></div>
-      <div><label className="label" htmlFor="r_hasta">Franja hasta</label><input id="r_hasta" name="hora_hasta" type="time" defaultValue={regla?.hora_hasta?.slice(0, 5) ?? ''} className="input w-full" /></div>
+      <div><label className="label" htmlFor="r_desde">Franja desde</label><HoraInput id="r_desde" name="hora_desde" defaultValue={regla?.hora_desde?.slice(0, 5) ?? ''} /></div>
+      <div><label className="label" htmlFor="r_hasta">Franja hasta</label><HoraInput id="r_hasta" name="hora_hasta" defaultValue={regla?.hora_hasta?.slice(0, 5) ?? ''} /></div>
       <p className="col-span-2 -mt-1 text-xs text-rs-muted">Dejá la franja vacía para que valga todo el día. La reserva entra en la franja si su hora es desde ≤ hora &lt; hasta.</p>
       <div className="col-span-2">
         <label className="label" htmlFor="r_max">Máximo de personas *</label>
@@ -125,9 +126,9 @@ export function BloqueoForm({ sedes = [], puedeTodas = true }: { sedes?: { id: s
             {sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
           </select></div>
       )}
-      <div><label className="label" htmlFor="b_fecha">Fecha</label><input id="b_fecha" name="fecha" type="date" required className="input" /></div>
-      <div><label className="label" htmlFor="b_desde">Desde</label><input id="b_desde" name="hora_desde" type="time" className="input" /></div>
-      <div><label className="label" htmlFor="b_hasta">Hasta</label><input id="b_hasta" name="hora_hasta" type="time" className="input" /></div>
+      <div><label className="label" htmlFor="b_fecha">Fecha</label><FechaInput id="b_fecha" name="fecha" required className="w-40" /></div>
+      <div><label className="label" htmlFor="b_desde">Desde</label><HoraInput id="b_desde" name="hora_desde" className="w-28" /></div>
+      <div><label className="label" htmlFor="b_hasta">Hasta</label><HoraInput id="b_hasta" name="hora_hasta" className="w-28" /></div>
       <div className="min-w-[160px] flex-1"><label className="label" htmlFor="b_motivo">Motivo</label><input id="b_motivo" name="motivo" placeholder="Opcional" className="input w-full" /></div>
       <Guardar pending={pending}>Bloquear</Guardar>
     </form>
@@ -155,7 +156,7 @@ export function BorrarBloqueo({ id }: { id: string }) {
 // ---------------------------------------------------------------------------
 // Funciones del negocio (superadmin)
 // ---------------------------------------------------------------------------
-export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean } }) {
+export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean } }) {
   const { state, pending, formProps } = useAccionFormulario(guardarModulos)
   useResultado(state, 'Módulos guardados')
   const fila = (name: string, titulo: string, texto: string, on: boolean) => (
@@ -170,6 +171,8 @@ export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumplea
       {fila('cumpleanos', 'Cumpleaños', 'Lista de próximos cumpleaños de clientes y regalo pendiente.', modulos.cumpleanos)}
       {fila('vouchers', 'Vouchers', 'Códigos de beneficio y su estado de uso.', modulos.vouchers)}
       {fila('metricas', 'Métricas', 'Gráficos de reservas, horarios y clientes recurrentes.', modulos.metricas)}
+      {fila('resenas', 'Reseñas', 'Reseñas conseguidas, puntaje promedio y filtros.', modulos.resenas)}
+      {fila('conversaciones', 'Conversaciones', 'Chats del bot de WhatsApp (oculto por defecto).', modulos.conversaciones)}
       <Guardar pending={pending} />
     </form>
   )
@@ -205,12 +208,12 @@ function SedeForm({ sede, onDone }: { sede?: SedeEditable; onDone: () => void })
     <form {...formProps} className="grid grid-cols-2 gap-3">
       {sede && <input type="hidden" name="id" value={sede.id} />}
       <div className="col-span-2"><label className="label" htmlFor="s_nombre">Nombre de la sede *</label><input id="s_nombre" name="nombre" defaultValue={sede?.nombre ?? ''} className="input w-full" required /></div>
-      <div><label className="label" htmlFor="s_wa">WhatsApp de la sede</label><input id="s_wa" name="whatsapp_nro" inputMode="tel" placeholder="5493415551234" defaultValue={sede?.whatsapp_nro ?? ''} className="input w-full" /></div>
-      <div><label className="label" htmlFor="s_aforo">Aforo total por día</label><input id="s_aforo" name="aforo" type="number" min={1} placeholder="Usa el del negocio" defaultValue={sede?.aforo_maximo_reservas ?? ''} className="input w-full" /></div>
+      <div className="col-span-2"><TelefonoInput name="whatsapp_nro" label="WhatsApp de la sede" defaultValue={sede?.whatsapp_nro ?? ''} /></div>
+      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="s_aforo">Aforo total por día</label><input id="s_aforo" name="aforo" type="number" min={1} placeholder="Usa el del negocio" defaultValue={sede?.aforo_maximo_reservas ?? ''} className="input w-full" /></div>
       <p className="col-span-2 -mt-1 text-xs text-rs-muted">Varias sedes pueden compartir el mismo WhatsApp: en ese caso el bot pregunta de qué sede es la reserva.</p>
       <div className="col-span-2"><label className="label" htmlFor="s_dir">Dirección</label><input id="s_dir" name="direccion" placeholder="Calle y número, localidad" defaultValue={sede?.direccion ?? ''} className="input w-full" /></div>
-      <div><label className="label" htmlFor="s_tel">Teléfono de contacto</label><input id="s_tel" name="telefono" inputMode="tel" defaultValue={sede?.telefono ?? ''} className="input w-full" /></div>
-      <div><label className="label" htmlFor="s_maps">Link de Google Maps</label><input id="s_maps" name="maps_url" type="url" placeholder="https://maps.app.goo.gl/…" defaultValue={sede?.maps_url ?? ''} className="input w-full" /></div>
+      <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono de contacto" defaultValue={sede?.telefono ?? ''} /></div>
+      <div className="col-span-2"><label className="label" htmlFor="s_maps">Link de Google Maps</label><input id="s_maps" name="maps_url" type="url" placeholder="https://maps.app.goo.gl/…" defaultValue={sede?.maps_url ?? ''} className="input w-full" /></div>
       <p className="col-span-2 -mt-1 text-xs text-rs-muted">La dirección, el teléfono y el link quedan guardados; por ahora el bot no los usa.</p>
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">

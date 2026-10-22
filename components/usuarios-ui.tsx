@@ -6,6 +6,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
+import { fechaHoraLarga } from '@/lib/fechas'
 import type { ActionResult } from '@/app/(panel)/actions'
 import { activarMembresia, activarUsuario, agregarMembresia, cambiarRol, crearUsuario, guardarSedesMembresia, quitarMembresia, resetearPassword } from '@/app/(panel)/admin-actions'
 import { ROLES, ROLES_BAJOS, labelRol, type MembresiaUI, type UsuarioUI } from '@/lib/roles'
@@ -221,9 +222,9 @@ export default function GestionUsuarios(p: Props) {
       {error && <p role="alert" className="mb-3 text-sm text-rs-danger">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Usuario</th><th className="th">Accesos</th><th className="th">Estado</th><th className="th text-right">Acciones</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><th className="th">Usuario</th><th className="th">Accesos</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
           <tbody>
-            {p.usuarios.length === 0 && <tr><td colSpan={4} className="td py-8 text-center text-rs-muted">Todavía no hay usuarios.</td></tr>}
+            {p.usuarios.length === 0 && <tr><td colSpan={5} className="td py-8 text-center text-rs-muted">Todavía no hay usuarios.</td></tr>}
             {p.usuarios.map((u) => (
               <tr key={u.id} className="border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/40">
                 <td className="td"><div className="font-medium">{u.nombre} {u.es_superadmin && <ShieldCheck size={14} className="ml-1 inline text-rs-lime" aria-label="Superadmin" />}</div><div className="text-xs text-rs-muted">@{u.usuario}</div></td>
@@ -234,6 +235,7 @@ export default function GestionUsuarios(p: Props) {
                   </div>
                 </td>
                 <td className="td">{u.activo ? <span className="badge bg-rs-ok/15 text-rs-ok">Activo</span> : <span className="badge bg-rs-danger/15 text-rs-danger">Desactivado</span>}</td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{u.creado_en ? fechaHoraLarga(u.creado_en) : '—'}</td>
                 <td className="td">
                   <div className="flex justify-end gap-1.5">
                     <button onClick={() => setAccesos(u.id)} className="btn btn-sm"><UserCog size={13} /> Accesos</button>

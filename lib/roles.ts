@@ -30,5 +30,6 @@ export interface UsuarioUI {
   nombre: string
   activo: boolean
   es_superadmin: boolean
+  creado_en?: string
   membresias: MembresiaUI[]
 }

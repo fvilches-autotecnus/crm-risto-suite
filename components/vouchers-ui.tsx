@@ -4,10 +4,11 @@ import { useState, useTransition } from 'react'
 import { Check, Copy, Gift, Plus, RotateCcw, Ticket, Trash2 } from 'lucide-react'
 import { cambiarEstadoVoucher, crearVoucher, eliminarVoucher } from '@/app/(panel)/modulos-actions'
 import { useConfirm, useToast } from '@/components/feedback'
+import { FechaInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
-import { fechaCorta } from '@/lib/fechas'
+import { fechaCorta, fechaHoraLarga } from '@/lib/fechas'
 import { labelCampana } from '@/lib/vouchers'
 import { useEffect } from 'react'
 
@@ -31,8 +32,8 @@ function VoucherForm({ prefill, onDone }: { prefill?: { cliente_id?: string; nom
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       {prefill?.cliente_id && <input type="hidden" name="cliente_id" value={prefill.cliente_id} />}
-      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="v_nombre">Nombre</label><input id="v_nombre" name="nombre" defaultValue={prefill?.nombre ?? ''} className="input w-full" /></div>
-      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="v_tel">Teléfono</label><input id="v_tel" name="telefono" inputMode="tel" placeholder="5493415551234" defaultValue={prefill?.telefono ?? ''} className="input w-full" /></div>
+      <div className="col-span-2"><label className="label" htmlFor="v_nombre">Nombre</label><input id="v_nombre" name="nombre" defaultValue={prefill?.nombre ?? ''} className="input w-full" /></div>
+      <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono" defaultValue={prefill?.telefono ?? ''} /></div>
       <div className="col-span-2"><label className="label" htmlFor="v_ben">Beneficio *</label><input id="v_ben" name="beneficio" placeholder='Ej. "1 postre de regalo"' className="input w-full" required /></div>
       <div>
         <label className="label" htmlFor="v_camp">Campaña</label>
@@ -42,7 +43,7 @@ function VoucherForm({ prefill, onDone }: { prefill?: { cliente_id?: string; nom
       </div>
       {campana === 'otra' ? <div><label className="label" htmlFor="v_otra">Nombre de la campaña</label><input id="v_otra" name="campana_otra" placeholder="Ej. Black Friday" className="input w-full" /></div> : <div />}
       <div><label className="label" htmlFor="v_cod">Código</label><input id="v_cod" name="codigo" placeholder="Se genera solo" className="input w-full font-mono uppercase" /></div>
-      <div><label className="label" htmlFor="v_vence">Vence el</label><input id="v_vence" name="vence_el" type="date" className="input w-full" /></div>
+      <div><label className="label" htmlFor="v_vence">Vence el</label><FechaInput id="v_vence" name="vence_el" /></div>
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
@@ -96,8 +97,8 @@ export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar }: {
   return (
     <>
       <div className="card hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[860px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Código</th><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Beneficio</th><th className="th">Campaña</th><th className="th">Vence</th><th className="th">Estado</th>{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+        <table className="w-full min-w-[940px]">
+          <thead className="border-b border-rs-border"><tr><th className="th">Código</th><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Beneficio</th><th className="th">Campaña</th><th className="th">Vence</th><th className="th">Estado</th><th className="th">Alta</th>{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {vouchers.map((v, i) => (
               <tr key={v.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
@@ -108,6 +109,7 @@ export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar }: {
                 <td className="td text-rs-muted">{labelCampana(v.campana)}</td>
                 <td className="td text-rs-muted">{v.vence_el ? fechaCorta(v.vence_el) : 'Sin vencimiento'}</td>
                 <td className="td"><BadgeVoucher estado={v.estado} vencido={vencido(v)} /></td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(v.creado_en)}</td>
                 {puedeEscribir && <td className="td">{acciones(v)}</td>}
               </tr>
             ))}

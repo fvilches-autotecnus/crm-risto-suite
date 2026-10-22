@@ -5,7 +5,7 @@ import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import { cargarReglas, usoPorRegla } from '@/lib/aforo'
 import { getContexto } from '@/lib/context'
 import { fechaLarga, hoyEn, inicioSemana, sumarDias } from '@/lib/fechas'
-import { RESERVA_COLS, ocupaLugar, type Reserva } from '@/lib/reservas'
+import { ESTADOS_OCUPAN, RESERVA_COLS, ocupaLugar, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import { cargarOpciones } from '@/lib/sedes'
 
 const delta = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
@@ -47,7 +47,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const personasDia = activas.reduce((s, r) => s + (r.cantidad_personas ?? 0), 0)
 
   const filas = rango ?? []
-  const contar = (desde: string, hasta: string) => filas.filter((f) => f.fecha! >= desde && f.fecha! <= hasta && (f.estado === 'nueva' || f.estado === 'confirmada'))
+  const contar = (desde: string, hasta: string) => filas.filter((f) => f.fecha! >= desde && f.fecha! <= hasta && ESTADOS_OCUPAN.includes(f.estado as EstadoReserva))
   const ayer = contar(sumarDias(dia, -1), sumarDias(dia, -1)).length
   const semanaActual = contar(semana, finSemana)
   const semanaPrevia = contar(semanaAnt, sumarDias(semana, -1))

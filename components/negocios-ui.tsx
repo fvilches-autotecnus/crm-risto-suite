@@ -4,7 +4,9 @@ import {useEffect, useState} from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Plus } from 'lucide-react'
 import { useToast } from '@/components/feedback'
+import { TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
+import { fechaHoraLarga } from '@/lib/fechas'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import type { ActionResult } from '@/app/(panel)/actions'
@@ -21,6 +23,7 @@ export interface NegocioAdmin {
   apagado_bot: boolean
   usuarios: number
   sedes: number
+  creado_en: string
 }
 
 const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
@@ -43,11 +46,10 @@ function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
         <label className="label" htmlFor="n_slug">Identificador {n ? '(no se puede cambiar)' : '*'}</label>
         <input id="n_slug" name="slug" value={slug} onChange={(e) => { setSlug(e.target.value); setSlugManual(true) }} disabled={!!n} className="input w-full font-mono" required={!n} />
       </div>
-      <div>
-        <label className="label" htmlFor="n_wa">WhatsApp del negocio</label>
-        <input id="n_wa" name="whatsapp_nro" inputMode="tel" placeholder="5493415551234" defaultValue={n?.whatsapp_nro ?? ''} className="input w-full" />
+      <div className="col-span-2">
+        <TelefonoInput name="whatsapp_nro" label="WhatsApp del negocio" defaultValue={n?.whatsapp_nro ?? ''} />
       </div>
-      <div>
+      <div className="col-span-2 sm:col-span-1">
         <label className="label" htmlFor="n_aforo">Aforo máximo por día</label>
         <input id="n_aforo" name="aforo" type="number" min={1} placeholder="Sin límite" defaultValue={n?.aforo_maximo_reservas ?? ''} className="input w-full" />
       </div>
@@ -91,7 +93,7 @@ export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[]
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Negocio</th><th className="th">WhatsApp</th><th className="th">Aforo</th><th className="th">Usuarios</th><th className="th">Sedes</th><th className="th">Botón bot</th><th className="th">Estado</th><th className="th text-right">Acciones</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><th className="th">Negocio</th><th className="th">WhatsApp</th><th className="th">Aforo</th><th className="th">Usuarios</th><th className="th">Sedes</th><th className="th">Botón bot</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
           <tbody>
             {negocios.map((n) => (
               <tr key={n.id} className="border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/40">
@@ -102,6 +104,7 @@ export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[]
                 <td className="td">{n.sedes || <span className="text-rs-muted">—</span>}</td>
                 <td className="td">{n.apagado_bot ? <span className="badge bg-rs-lime/15 text-rs-lime">Habilitado</span> : <span className="text-rs-muted">—</span>}</td>
                 <td className="td">{n.activo ? <span className="badge bg-rs-ok/15 text-rs-ok">Activo</span> : <span className="badge bg-rs-danger/15 text-rs-danger">Inactivo</span>}</td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(n.creado_en)}</td>
                 <td className="td"><div className="flex justify-end gap-1.5"><button onClick={() => setEditando(n)} className="btn btn-sm"><Pencil size={13} /> Editar</button><IrASedes id={n.id} /></div></td>
               </tr>
             ))}

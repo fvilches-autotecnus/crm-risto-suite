@@ -7,7 +7,7 @@ import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado } from '@/lib/notify'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
-import { TIPOS_RESERVA } from '@/lib/reservas'
+import { ESTADOS, ESTADOS_OCUPAN, type EstadoReserva } from '@/lib/reservas'
 
 export interface ActionResult {
   ok: boolean
@@ -31,7 +31,9 @@ export async function cambiarNegocio(formData: FormData) {
   const ctx = await getContexto()
   const id = text(formData, 'negocio_id')
   if (ctx.negocios.some((n) => n.id === id)) {
-    ;(await cookies()).set(NEGOCIO_COOKIE, id, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
+    const jar = await cookies()
+    jar.set(NEGOCIO_COOKIE, id, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
+    jar.delete(SEDE_COOKIE) // la sede elegida era del negocio anterior
   }
   revalidatePath('/', 'layout')
 }
@@ -97,7 +99,7 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   if (fecha && !FECHA_RE.test(fecha)) return fail('La fecha no es válida')
   if (hora && !HORA_RE.test(hora)) return fail('La hora no es válida')
   if (!Number.isInteger(cantidad) || cantidad <= 0) return fail('La cantidad de personas no es válida')
-  if (!TIPOS_RESERVA.some((t) => t.value === tipo)) return fail('Tipo de reserva no válido')
+  if (!/^[a-z0-9_]{2,40}$/.test(tipo)) return fail('Tipo de reserva no válido')
   if (telefono && telefono.replace(/\D/g, '').length < 6) return fail('El teléfono no es válido')
   if (!!diaCump !== !!mesCump) return fail('Falta el día o el mes del cumpleaños')
   if (ctx.sedes.length > 0 && !sucursalId) return fail('Elegí la sede de la reserva')
@@ -122,7 +124,7 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
     let ocupa = true
     if (id) {
       const { data: actual } = await ctx.supabase.from('reservas').select('estado').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
-      ocupa = !actual || actual.estado === 'nueva' || actual.estado === 'confirmada'
+      ocupa = !actual || ESTADOS_OCUPAN.includes(actual.estado as EstadoReserva)
     }
     if (ocupa) {
       const chk = await chequearReserva(ctx, { sucursal_id: sucursalId, ubicacion, hora: hora || null, fecha, personas: cantidad, excluirId: id || undefined })
@@ -141,10 +143,10 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   return { ok: true }
 }
 
-export async function cambiarEstadoReserva(id: string, estado: 'nueva' | 'confirmada' | 'cancelada' | 'no_show', motivo?: string): Promise<ActionResult> {
+export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
-  if (!['nueva', 'confirmada', 'cancelada', 'no_show'].includes(estado)) return fail('Estado no válido')
+  if (!ESTADOS.some((e) => e.value === estado)) return fail('Estado no válido')
 
   const { supabase, negocio } = ctx
   const { data: r, error } = await supabase

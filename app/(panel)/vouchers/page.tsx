@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Search, Ticket } from 'lucide-react'
+import OrdenSelect from '@/components/orden-select'
 import { NuevoVoucherBtn, ListaVouchers, type VoucherUI } from '@/components/vouchers-ui'
 import { getContexto } from '@/lib/context'
 import { hoyEn } from '@/lib/fechas'
 
 const FILTROS = [{ v: 'todos', l: 'Todos' }, { v: 'vigentes', l: 'Vigentes' }, { v: 'usados', l: 'Usados' }, { v: 'vencidos', l: 'Vencidos' }]
 
-export default async function VouchersPage({ searchParams }: { searchParams: Promise<{ estado?: string; q?: string }> }) {
+export default async function VouchersPage({ searchParams }: { searchParams: Promise<{ estado?: string; q?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.vouchers) redirect('/')
   const { supabase, negocio } = ctx
@@ -18,14 +19,15 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
 
   let consulta = supabase.from('vouchers').select('id, codigo, nombre, telefono, beneficio, campana, estado, vence_el, creado_en').eq('negocio_id', negocio.id)
   if (q) consulta = consulta.or(`codigo.ilike.%${q}%,nombre.ilike.%${q}%,telefono.ilike.%${q}%`)
-  const { data } = await consulta.order('creado_en', { ascending: false }).limit(500)
+  const orden = sp.orden === 'alta_asc' ? 'alta_asc' : 'alta_desc'
+  const { data } = await consulta.order('creado_en', { ascending: orden === 'alta_asc' }).limit(500)
   const todos = (data ?? []) as VoucherUI[]
 
   const vencido = (v: VoucherUI) => v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy
   const conteo = { vigentes: todos.filter((v) => v.estado === 'vigente' && !vencido(v)).length, usados: todos.filter((v) => v.estado === 'usado').length, vencidos: todos.filter(vencido).length }
   const lista = todos.filter((v) => filtro === 'todos' ? true : filtro === 'vigentes' ? v.estado === 'vigente' && !vencido(v) : filtro === 'usados' ? v.estado === 'usado' : vencido(v))
 
-  const link = (estado: string) => `/vouchers?estado=${estado}${q ? `&q=${encodeURIComponent(q)}` : ''}`
+  const link = (estado: string) => `/vouchers?estado=${estado}${q ? `&q=${encodeURIComponent(q)}` : ''}${orden === 'alta_asc' ? '&orden=alta_asc' : ''}`
 
   return (
     <div className="space-y-5">
@@ -45,11 +47,13 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTROS.map((f) => <Link key={f.v} href={link(f.v)} className={'btn btn-sm ' + (filtro === f.v ? 'btn-primary' : '')}>{f.l}</Link>)}
-        <form className="relative ml-auto w-full sm:w-64">
-          <input type="hidden" name="estado" value={filtro} />
+        <div className="ml-auto flex flex-wrap items-center gap-2"><OrdenSelect />
+        <form className="relative w-full sm:w-64">
+          <input type="hidden" name="estado" value={filtro} />{orden === 'alta_asc' && <input type="hidden" name="orden" value="alta_asc" />}
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
           <input name="q" defaultValue={q} placeholder="Buscar por código, nombre o teléfono" className="input w-full pl-9" />
         </form>
+        </div>
       </div>
 
       <ListaVouchers vouchers={lista} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />

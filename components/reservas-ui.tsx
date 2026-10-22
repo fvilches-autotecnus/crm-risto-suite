@@ -4,25 +4,28 @@ import { useEffect, useState, useTransition } from 'react'
 import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X } from 'lucide-react'
 import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
+import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
+import MenuEstado, { PUNTO_ESTADO } from '@/components/menu-estado'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
-import { fechaCorta, horaCorta } from '@/lib/fechas'
-import { TIPOS_RESERVA, labelEstado, labelTipo, type Reserva } from '@/lib/reservas'
+import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
+import { TIPOS_RESERVA, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
 
 const ESTADO_CLS: Record<string, string> = {
   nueva: 'bg-rs-lav/15 text-rs-lav',
   confirmada: 'bg-rs-ok/15 text-rs-ok',
+  pendiente_pago: 'bg-rs-warn/15 text-rs-warn',
+  revisar_pago: 'bg-[#ffb86b]/15 text-[#ffb86b]',
   cancelada: 'bg-rs-danger/15 text-rs-danger',
   no_show: 'bg-rs-muted/20 text-rs-muted',
 }
-const PUNTO_CLS: Record<string, string> = { nueva: 'bg-rs-lav', confirmada: 'bg-rs-ok', cancelada: 'bg-rs-danger', no_show: 'bg-rs-muted' }
 
 export function EstadoBadge({ estado }: { estado: string }) {
   return (
     <span className={'badge transition-colors ' + (ESTADO_CLS[estado] ?? 'bg-rs-raised text-rs-muted')}>
-      <span className={'h-1.5 w-1.5 rounded-full ' + (PUNTO_CLS[estado] ?? 'bg-rs-muted')} />
+      <span className={'h-1.5 w-1.5 rounded-full ' + (PUNTO_ESTADO[estado] ?? 'bg-rs-muted')} />
       {labelEstado(estado)}
     </span>
   )
@@ -32,6 +35,7 @@ export interface OpcionesSede {
   sedes: { id: string; nombre: string }[]          // sedes a las que el usuario tiene acceso
   nombresSede: Record<string, string>              // id -> nombre de todas las sedes (para la tabla)
   sedeDefault: string | null                        // sede elegida en el selector del encabezado
+  tipos: string[]                                   // tipos de reserva que ya existen en los datos
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
 }
 
@@ -68,6 +72,8 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
   const [detalle, setDetalle] = useState<ChequeoAforo[]>([])
 
   // las ubicaciones de la sede elegida + las que valen para todas las sedes
+  // tipos: los de siempre + los que ya existen en los datos (y el de la reserva que se edita)
+  const tiposForm = [...new Set([...TIPOS_RESERVA.map((t) => t.value as string), ...op.tipos, ...(reserva?.tipo_reserva ? [reserva.tipo_reserva] : [])])]
   const ubicacionesSede = [...new Set(op.ubicaciones.filter((u) => !u.sucursal_id || u.sucursal_id === sedeElegida).map((u) => u.nombre))]
   useEffect(() => { if (ubic && !ubicacionesSede.includes(ubic)) setUbic('') }, [sedeElegida]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -96,16 +102,15 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
         <input id="cliente_nombre" name="cliente_nombre" defaultValue={reserva?.cliente_nombre ?? ''} className="input w-full" required />
       </div>
       <div className="col-span-2">
-        <label className="label" htmlFor="cliente_telefono">Teléfono (WhatsApp)</label>
-        <input id="cliente_telefono" name="cliente_telefono" inputMode="tel" placeholder="5493415551234" defaultValue={reserva?.cliente_telefono ?? ''} className="input w-full" />
+        <TelefonoInput name="cliente_telefono" label="Teléfono (WhatsApp)" defaultValue={reserva?.cliente_telefono ?? ''} />
       </div>
       <div>
         <label className="label" htmlFor="fecha">Fecha</label>
-        <input id="fecha" name="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="input w-full" />
+        <FechaInput id="fecha" name="fecha" value={fecha} onChange={setFecha} />
       </div>
       <div>
         <label className="label" htmlFor="hora">Hora</label>
-        <input id="hora" name="hora" type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="input w-full" />
+        <HoraInput id="hora" name="hora" value={hora} onChange={setHora} />
       </div>
       {op.sedes.length > 0 && (
         <div>
@@ -132,7 +137,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       <div>
         <label className="label" htmlFor="tipo_reserva">Tipo</label>
         <select id="tipo_reserva" name="tipo_reserva" defaultValue={reserva?.tipo_reserva ?? 'comun'} className="input w-full">
-          {TIPOS_RESERVA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {tiposForm.map((t) => <option key={t} value={t}>{labelTipo(t)}</option>)}
         </select>
       </div>
       <HintAforo detalle={detalle} />
@@ -211,10 +216,10 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       r.ok ? ok?.() : toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' })
     })
 
-  const cambiarEstado = (r: Reserva, estado: Reserva['estado'], motivoCancel?: string) =>
+  const cambiarEstado = (r: Reserva, estado: EstadoReserva, motivoCancel?: string) =>
     correr(r.id, () => cambiarEstadoReserva(r.id, estado, motivoCancel), () =>
       toast({
-        texto: `Reserva #${r.numero} ${estado === 'confirmada' ? 'confirmada' : estado === 'cancelada' ? 'cancelada' : estado === 'no_show' ? 'marcada como no-show' : 'actualizada'}`,
+        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}`,
         accion: { label: 'Deshacer', onClick: () => { void cambiarEstadoReserva(r.id, r.estado) } },
       }))
 
@@ -226,7 +231,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
     <div className="flex justify-end gap-1.5">
       {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
       {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => { setMotivo(''); setCancelando(r) }} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
-      {r.estado === 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'no_show')} title="Marcar no-show" aria-label="Marcar no-show" className="btn btn-sm"><UserX size={14} /></button>}
+      <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => (e === 'cancelada' ? (setMotivo(''), setCancelando(r)) : cambiarEstado(r, e))} />
       <button onClick={() => setEditando(r)} title="Editar" aria-label="Editar" className="btn btn-sm"><Pencil size={14} /></button>
       <button disabled={pending} onClick={() => eliminar(r)} title="Eliminar" aria-label="Eliminar" className="btn btn-sm btn-danger"><Trash2 size={14} /></button>
     </div>
@@ -252,7 +257,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <thead className="sticky top-0 border-b border-rs-border bg-rs-card">
             <tr>
               <th className="th">#</th><th className="th">Nombre</th><th className="th">Tel</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Fecha</th><th className="th">Hora</th>
-              <th className="th">Personas</th><th className="th">Tipo</th>{mostrarUbicacion && <th className="th">Ubicación</th>}<th className="th">Observaciones</th><th className="th">Estado</th>
+              <th className="th">Personas</th><th className="th">Tipo</th>{mostrarUbicacion && <th className="th">Ubicación</th>}<th className="th">Observaciones</th><th className="th">Estado</th><th className="th">Alta</th>
               {puedeEscribir && <th className="th text-right">Acciones</th>}
             </tr>
           </thead>
@@ -270,6 +275,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
                 <td className="td"><EstadoBadge estado={r.estado} /></td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
             ))}
@@ -285,6 +291,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
               <div>
                 <p className="font-semibold"><span className="text-rs-lime">#{r.numero}</span> {r.cliente_nombre ?? '—'}</p>
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
+                <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>
               <EstadoBadge estado={r.estado} />
             </div>

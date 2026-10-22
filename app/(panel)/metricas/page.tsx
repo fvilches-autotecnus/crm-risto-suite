@@ -6,13 +6,13 @@ import { Tile } from '@/components/dashboard-ui'
 import SelectorPeriodo from '@/components/selector-periodo'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
-import { calcularMetricas, type FilaReserva } from '@/lib/metricas'
+import { agrupacionAuto, calcularMetricas, serieEvolucion, type Agrupacion, type FilaReserva } from '@/lib/metricas'
 import { labelEstado } from '@/lib/reservas'
 
-const COLOR_ESTADO: Record<string, string> = { nueva: '#a5b4fc', confirmada: '#5ecc6e', cancelada: '#f0706b', no_show: '#7a9050' }
+const COLOR_ESTADO: Record<string, string> = { nueva: '#a5b4fc', confirmada: '#5ecc6e', pendiente_pago: '#f5b942', revisar_pago: '#ffb86b', cancelada: '#f0706b', no_show: '#7a9050' }
 const DIAS_VALIDOS = [7, 14, 30, 90, 180]
 
-export default async function MetricasPage({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
+export default async function MetricasPage({ searchParams }: { searchParams: Promise<{ dias?: string; agrupar?: string; acum?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.metricas) redirect('/')
   const { supabase, negocio, sede } = ctx
@@ -20,6 +20,9 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
   const dias = DIAS_VALIDOS.includes(Number(sp.dias)) ? Number(sp.dias) : 30
   const hoy = hoyEn(negocio.zona_horaria)
   const desde = sumarDias(hoy, -(dias - 1))
+  const agrupar = ['dia', 'semana', 'mes'].includes(sp.agrupar ?? '') ? sp.agrupar! : 'auto'
+  const modo: Agrupacion = agrupar === 'auto' ? agrupacionAuto(dias) : (agrupar as Agrupacion)
+  const acumulado = sp.acum === '1'
 
   // Reservas del período (RLS + sede elegida)
   let q = supabase.from('reservas').select('cliente_id, fecha, hora, cantidad_personas, estado, sucursal_id').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', desde).lte('fecha', hoy)
@@ -38,6 +41,8 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
   }
 
   const m = calcularMetricas(periodo, previos, dias, hoy)
+  const serie = serieEvolucion(m.porDia, modo, acumulado)
+  const nombreModo = modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'
 
   const { data: top } = m.topRecurrentes.length
     ? await supabase.from('clientes').select('id, nombre, telefono').in('id', m.topRecurrentes.map((t) => t.cliente_id))
@@ -55,7 +60,7 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><BarChart3 className="text-rs-lime" size={22} />Métricas</h1>
           <p className="text-sm text-rs-muted">{negocio.nombre}{sede ? ` · ${sede.nombre}` : ''} · {fechaCorta(desde)} al {fechaCorta(hoy)}</p>
         </div>
-        <SelectorPeriodo dias={dias} />
+        <SelectorPeriodo dias={dias} agrupar={agrupar} acumulado={acumulado} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -71,8 +76,8 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <TarjetaGrafico i={3} titulo={`Evolución — últimos ${dias} días`} vacio={vacio} columnas={['Fecha', 'Reservas']} filas={m.porDia.map((d) => [fechaCorta(d.fecha), d.valor])}>
-          <GraficoLinea puntos={m.porDia.map((d) => ({ x: d.fecha, valor: d.valor }))} />
+        <TarjetaGrafico i={3} titulo={`Evolución ${nombreModo}${acumulado ? ' (acumulada)' : ''} — últimos ${dias} días`} vacio={vacio} columnas={[modo === 'dia' ? 'Día' : modo === 'semana' ? 'Semana' : 'Mes', acumulado ? 'Reservas acumuladas' : 'Reservas']} filas={serie.map((d) => [d.titulo, d.valor])} ancho>
+          <GraficoLinea puntos={serie} tendencia={!acumulado} />
         </TarjetaGrafico>
         <TarjetaGrafico i={4} titulo={`Días más fuertes — últimos ${dias} días`} vacio={vacio} columnas={['Día', 'Reservas']} filas={m.porDiaSemana.map((d) => [d.etiqueta, d.valor])}>
           <GraficoColumnas datos={m.porDiaSemana} />

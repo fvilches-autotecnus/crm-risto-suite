@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Table2, BarChart3 } from 'lucide-react'
 
 // Gráficos SVG propios (sin librerías). Reglas: una sola escala, marcas finas (líneas de 2px, barras de hasta 24px con
@@ -47,10 +47,10 @@ function columna(x: number, y: number, w: number, h: number, r = 4) {
 // ---------------------------------------------------------------------------
 // Tarjeta con vista de gráfico / tabla
 // ---------------------------------------------------------------------------
-export function TarjetaGrafico({ titulo, children, columnas, filas, vacio, i = 0 }: { titulo: string; children: React.ReactNode; columnas: string[]; filas: (string | number)[][]; vacio?: boolean; i?: number }) {
+export function TarjetaGrafico({ titulo, children, columnas, filas, vacio, i = 0, ancho = false }: { titulo: string; children: React.ReactNode; columnas: string[]; filas: (string | number)[][]; vacio?: boolean; i?: number; ancho?: boolean }) {
   const [tabla, setTabla] = useState(false)
   return (
-    <section className="reveal card min-w-0 p-5" style={{ ['--i' as string]: i }}>
+    <section className={'reveal card min-w-0 p-5 ' + (ancho ? 'lg:col-span-2' : '')} style={{ ['--i' as string]: i }}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <h2 className="card-title">{titulo}</h2>
         {!vacio && (
@@ -83,48 +83,97 @@ function Tooltip({ x, y, ancho, titulo, valor }: { x: number; y: number; ancho: 
 }
 
 // ---------------------------------------------------------------------------
-// Línea (evolución en el tiempo)
+// Línea (evolución en el tiempo): curva suave, área degradada, tendencia opcional
 // ---------------------------------------------------------------------------
-export function GraficoLinea({ puntos, unidad = 'reservas' }: { puntos: { x: string; valor: number }[]; unidad?: string }) {
-  const etiqueta = (x: string) => { const [, mm, dd] = x.split('-'); return `${dd}/${mm}` } // x = 'YYYY-MM-DD'
+export interface PuntoLinea { x: string; valor: number; etiqueta: string; titulo: string }
+
+/** Interpolación cúbica monótona (Fritsch-Carlson): suaviza sin inventar picos ni valores negativos. */
+function curva(pts: { x: number; y: number }[]): string {
+  const n = pts.length
+  if (n === 0) return ''
+  if (n === 1) return `M${pts[0].x},${pts[0].y}`
+  const dx = pts.slice(1).map((p, i) => p.x - pts[i].x)
+  const m = pts.slice(1).map((p, i) => (p.y - pts[i].y) / dx[i])
+  const t = new Array(n).fill(0)
+  t[0] = m[0]; t[n - 1] = m[n - 2]
+  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], h = Math.hypot(a, b)
+    if (h > 3) { t[i] = (3 * a * m[i]) / h; t[i + 1] = (3 * b * m[i]) / h }
+  }
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`
+  for (let i = 0; i < n - 1; i++) {
+    const c1x = pts[i].x + dx[i] / 3, c1y = pts[i].y + (t[i] * dx[i]) / 3
+    const c2x = pts[i + 1].x - dx[i] / 3, c2y = pts[i + 1].y - (t[i + 1] * dx[i]) / 3
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${pts[i + 1].x.toFixed(1)},${pts[i + 1].y.toFixed(1)}`
+  }
+  return d
+}
+
+export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }: { puntos: PuntoLinea[]; unidad?: string; tendencia?: boolean }) {
   const [ref, W] = useAncho<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
-  const H = 220, m = { l: 34, r: 14, t: 14, b: 26 }
+  const idGrad = useId().replace(/:/g, '')
+  const H = 240, m = { l: 36, r: 16, t: 16, b: 28 }
+  const n = puntos.length
   const max = Math.max(...puntos.map((p) => p.valor), 0)
   const { tope, marcas } = ejeY(max)
   const iw = W - m.l - m.r, ih = H - m.t - m.b
-  const px = (i: number) => m.l + (puntos.length <= 1 ? iw / 2 : (i / (puntos.length - 1)) * iw)
+  const px = (i: number) => m.l + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw)
   const py = (v: number) => m.t + ih - (v / tope) * ih
-  const linea = puntos.map((p, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(p.valor).toFixed(1)}`).join(' ')
-  const area = `${linea} L${px(puntos.length - 1).toFixed(1)},${m.t + ih} L${px(0).toFixed(1)},${m.t + ih} Z`
-  const pasoX = Math.max(1, Math.ceil(puntos.length / Math.max(2, Math.floor(iw / 70))))
-  const act = hover ?? puntos.length - 1
+  const xy = puntos.map((p, i) => ({ x: px(i), y: py(p.valor) }))
+  const trazo = curva(xy)
+  const area = n > 1 ? `${trazo} L${px(n - 1).toFixed(1)},${m.t + ih} L${px(0).toFixed(1)},${m.t + ih} Z` : ''
+
+  // Tendencia: recta de mínimos cuadrados sobre los puntos del período
+  let recta: { y0: number; y1: number } | null = null
+  if (tendencia && n >= 3) {
+    const sx = n * (n - 1) / 2, sxx = (n - 1) * n * (2 * n - 1) / 6, sy = puntos.reduce((s, p) => s + p.valor, 0), sxy = puntos.reduce((s, p, i) => s + i * p.valor, 0)
+    const den = n * sxx - sx * sx
+    if (den !== 0) { const b1 = (n * sxy - sx * sy) / den, b0 = (sy - b1 * sx) / n; recta = { y0: Math.max(0, b0), y1: Math.max(0, b0 + b1 * (n - 1)) } }
+  }
+
+  const pasoX = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 64))))
+  const marcadores = n <= 16
+  const act = hover ?? n - 1
 
   const buscar = (clientX: number, el: SVGElement) => {
     const r = el.getBoundingClientRect()
     const rel = ((clientX - r.left) / r.width) * W
-    return Math.min(puntos.length - 1, Math.max(0, Math.round(((rel - m.l) / iw) * (puntos.length - 1))))
+    return Math.min(n - 1, Math.max(0, Math.round(((rel - m.l) / iw) * (n - 1))))
   }
 
   return (
     <div ref={ref} className="relative w-full min-w-0 overflow-hidden" onPointerLeave={() => setHover(null)}>
-      <svg width={W} height={H} role="img" aria-label={`Evolución: ${puntos.reduce((s, p) => s + p.valor, 0)} ${unidad} en ${puntos.length} días`} tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'ArrowRight') setHover(Math.min(puntos.length - 1, (hover ?? -1) + 1)); if (e.key === 'ArrowLeft') setHover(Math.max(0, (hover ?? puntos.length) - 1)) }}
+      <svg width={W} height={H} role="img" aria-label={`Evolución: ${puntos.reduce((s, p) => s + p.valor, 0)} ${unidad} en ${n} puntos`} tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'ArrowRight') setHover(Math.min(n - 1, (hover ?? -1) + 1)); if (e.key === 'ArrowLeft') setHover(Math.max(0, (hover ?? n) - 1)) }}
         onBlur={() => setHover(null)} className="block overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-rs-lime/40">
+        <defs>
+          <linearGradient id={idGrad} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={LIMA} stopOpacity={0.28} /><stop offset="100%" stopColor={LIMA} stopOpacity={0} /></linearGradient>
+        </defs>
         {marcas.map((v) => (
           <g key={v}>
             <line x1={m.l} x2={W - m.r} y1={py(v)} y2={py(v)} stroke={GRILLA} strokeWidth={1} />
             <text x={m.l - 8} y={py(v) + 4} textAnchor="end" fontSize={11} fill={TEXTO_SUAVE}>{compacto(v)}</text>
           </g>
         ))}
-        {puntos.map((p, i) => i % pasoX === 0 || i === puntos.length - 1 ? <text key={p.x} x={px(i)} y={H - 6} textAnchor={i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle'} fontSize={11} fill={TEXTO_SUAVE}>{etiqueta(p.x)}</text> : null)}
-        <path d={area} fill={LIMA} opacity={0.1} />
-        <path d={linea} fill="none" stroke={LIMA} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw" />
+        {puntos.map((p, i) => i % pasoX === 0 || i === n - 1 ? <text key={p.x} x={px(i)} y={H - 8} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={TEXTO_SUAVE}>{p.etiqueta}</text> : null)}
+        {area && <path d={area} fill={`url(#${idGrad})`} />}
+        {recta && <line x1={px(0)} x2={px(n - 1)} y1={py(recta.y0)} y2={py(recta.y1)} stroke={TEXTO} strokeOpacity={0.45} strokeWidth={1.5} strokeLinecap="round" />}
+        <path d={trazo} fill="none" stroke={LIMA} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw" />
+        {marcadores && puntos.map((p, i) => <circle key={p.x} cx={px(i)} cy={py(p.valor)} r={4} fill={LIMA} stroke={SUPERFICIE} strokeWidth={2} opacity={hover === null || hover === i ? 1 : 0.55} />)}
         {hover !== null && <line x1={px(hover)} x2={px(hover)} y1={m.t} y2={m.t + ih} stroke={TEXTO_SUAVE} strokeWidth={1} />}
         <circle cx={px(act)} cy={py(puntos[act]?.valor ?? 0)} r={5} fill={LIMA} stroke={SUPERFICIE} strokeWidth={2} />
         <rect x={m.l} y={0} width={iw} height={H} fill="transparent" onPointerMove={(e) => setHover(buscar(e.clientX, e.currentTarget))} />
       </svg>
-      {hover !== null && <Tooltip x={px(hover)} y={py(puntos[hover].valor)} ancho={W} titulo={etiqueta(puntos[hover].x)} valor={`${puntos[hover].valor} ${unidad}`} />}
+      {(tendencia || true) && (
+        <div className="mt-2 flex items-center gap-4 text-xs text-rs-muted">
+          <span className="inline-flex items-center gap-2"><span className="h-0.5 w-4 rounded" style={{ background: LIMA }} />{unidad[0].toUpperCase() + unidad.slice(1)}</span>
+          {recta && <span className="inline-flex items-center gap-2"><span className="h-0.5 w-4 rounded" style={{ background: TEXTO, opacity: 0.45 }} />Tendencia</span>}
+        </div>
+      )}
+      {hover !== null && <Tooltip x={px(hover)} y={py(puntos[hover].valor)} ancho={W} titulo={puntos[hover].titulo} valor={`${puntos[hover].valor} ${unidad}`} />}
     </div>
   )
 }

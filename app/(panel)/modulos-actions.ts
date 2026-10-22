@@ -105,11 +105,12 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
 
   const tel = telefonoValido(text(fd, 'telefono'))
   const nombre = text(fd, 'nombre')
+  if (!nombre) return fail('El nombre es obligatorio')
   if (!tel) return fail('Ingresá un teléfono válido (con código de país)')
   const { data: existente } = await ctx.supabase.from('clientes').select('id').eq('negocio_id', ctx.negocio.id).eq('telefono', tel).maybeSingle()
   const { error } = existente
     ? await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes }).eq('id', existente.id)
-    : await ctx.supabase.from('clientes').insert({ negocio_id: ctx.negocio.id, nombre: nombre || 'Sin nombre', telefono: tel, cumple_dia: dia, cumple_mes: mes, canal_origen: 'manual' })
+    : await ctx.supabase.from('clientes').insert({ negocio_id: ctx.negocio.id, nombre, telefono: tel, cumple_dia: dia, cumple_mes: mes, canal_origen: 'manual' })
   if (error) return fail('No se pudo guardar el cumpleaños')
   refrescar()
   return { ok: true }
@@ -139,9 +140,66 @@ export async function guardarModulos(_prev: ActionResult | null, fd: FormData): 
     metricas: fd.get('metricas') === 'on',
     cumpleanos: fd.get('cumpleanos') === 'on',
     vouchers: fd.get('vouchers') === 'on',
+    resenas: fd.get('resenas') === 'on',
+    conversaciones: fd.get('conversaciones') === 'on',
   }
   const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
+  refrescar()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Consultas y reclamos
+// ---------------------------------------------------------------------------
+export async function cambiarTipoConsulta(id: string, tipo: 'consulta' | 'reclamo'): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  if (tipo !== 'consulta' && tipo !== 'reclamo') return fail('Tipo no válido')
+  const { error } = await ctx.supabase.from('consultas_reclamos').update({ tipo }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo actualizar el tipo')
+  refrescar()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Reseñas
+// ---------------------------------------------------------------------------
+const ORIGENES = ['google', 'encuesta', 'manual', 'otro']
+
+export async function guardarResena(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  const id = text(fd, 'id')
+  const nombre = text(fd, 'nombre')
+  const telRaw = text(fd, 'telefono')
+  const tel = telRaw ? telefonoValido(telRaw) : null
+  const puntaje = Number(text(fd, 'puntaje'))
+  const origen = ORIGENES.includes(text(fd, 'origen')) ? text(fd, 'origen') : 'manual'
+  const fecha = text(fd, 'fecha')
+  const sedeId = text(fd, 'sucursal_id') || null
+
+  if (!nombre) return fail('El nombre es obligatorio')
+  if (!tel) return fail('Ingresá un teléfono válido (con código de país)')
+  if (!Number.isInteger(puntaje) || puntaje < 1 || puntaje > 5) return fail('Elegí el puntaje (1 a 5 estrellas)')
+  if (fecha && !FECHA_RE.test(fecha)) return fail('La fecha no es válida')
+  if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  if (ctx.sedes.length > 0 && !sedeId) return fail('Elegí la sede de la reseña')
+
+  const fila = { nombre, telefono: tel, puntaje, comentario: text(fd, 'comentario') || null, origen, ...(fecha ? { fecha } : {}), sucursal_id: sedeId }
+  const { error } = id
+    ? await ctx.supabase.from('resenas').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    : await ctx.supabase.from('resenas').insert({ ...fila, negocio_id: ctx.negocio.id, cliente_id: text(fd, 'cliente_id') || null })
+  if (error) return fail('No se pudo guardar la reseña')
+  refrescar()
+  return { ok: true }
+}
+
+export async function eliminarResena(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('Solo un dueño o administrador puede eliminar reseñas')
+  const { error } = await ctx.supabase.from('resenas').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo eliminar la reseña')
   refrescar()
   return { ok: true }
 }

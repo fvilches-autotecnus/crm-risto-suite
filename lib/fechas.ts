@@ -41,6 +41,12 @@ export function horaCorta(hora: string | null): string {
   return hora ? hora.slice(0, 5) : '—'
 }
 
+/** 21/10/2026 19:45 (para columnas "Alta") */
+export function fechaHoraLarga(iso: string, tz: string = TZ_AR): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('es-AR', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  return `${p.day}/${p.month}/${p.year} ${p.hour === '24' ? '00' : p.hour}:${p.minute}`
+}
+
 export function fechaHoraCorta(iso: string, tz: string = TZ_AR): string {
   return new Intl.DateTimeFormat('es-AR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 }

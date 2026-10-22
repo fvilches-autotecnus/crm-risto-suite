@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BarChart3, Building2, Cake, CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Ticket, Users } from 'lucide-react'
+import { BarChart3, Building2, Cake, CalendarCheck, LayoutGrid, MessageCircleQuestion, MessagesSquare, Settings, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -11,13 +11,14 @@ const TABS = [
   { href: '/cumpleanos', label: 'Cumpleaños', icon: Cake, modulo: 'cumpleanos' },
   { href: '/vouchers', label: 'Vouchers', icon: Ticket, modulo: 'vouchers' },
   { href: '/metricas', label: 'Métricas', icon: BarChart3, modulo: 'metricas' },
+  { href: '/resenas', label: 'Reseñas', icon: Star, modulo: 'resenas' },
   { href: '/clientes', label: 'Clientes', icon: Users },
-  { href: '/consultas', label: 'Consultas', icon: MessageCircle },
-  { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare },
+  { href: '/consultas', label: 'Consultas y reclamos', icon: MessageCircleQuestion },
+  { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare, modulo: 'conversaciones' },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean } }) {
+export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean } }) {
   const pathname = usePathname()
   const visibles = TABS.filter((t) => !('modulo' in t) || modulos[t.modulo as keyof typeof modulos])
   const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles

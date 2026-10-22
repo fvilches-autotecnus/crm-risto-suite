@@ -2,19 +2,21 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getContexto } from '@/lib/context'
 import GestionNegocios, { type NegocioAdmin } from '@/components/negocios-ui'
+import OrdenSelect from '@/components/orden-select'
 import GestionUsuarios from '@/components/usuarios-ui'
 import type { UsuarioUI } from '@/lib/roles'
 
-export default async function Administracion({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function Administracion({ searchParams }: { searchParams: Promise<{ tab?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.esSuperadmin) redirect('/')
-  const { tab } = await searchParams
+  const { tab, orden: ordenParam } = await searchParams
+  const desc = ordenParam !== 'alta_asc'
   const activa = tab === 'usuarios' ? 'usuarios' : 'negocios'
 
   // Superadmin: RLS devuelve todo (incluye negocios inactivos). Solo se leen columnas permitidas.
   const [{ data: negocios }, { data: perfiles }, { data: membresias }, { data: sedes }] = await Promise.all([
-    ctx.supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, aforo_maximo_reservas, activo, modulos').order('nombre'),
-    ctx.supabase.from('perfiles').select('id, usuario, nombre, activo, es_superadmin').order('nombre'),
+    ctx.supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, aforo_maximo_reservas, activo, modulos, creado_en').order('creado_en', { ascending: !desc }),
+    ctx.supabase.from('perfiles').select('id, usuario, nombre, activo, es_superadmin, creado_en').order('creado_en', { ascending: !desc }),
     ctx.supabase.from('membresias').select('user_id, negocio_id, rol, activo, sucursal_ids'),
     ctx.supabase.from('sucursales').select('id, negocio_id, nombre').eq('activa', true).order('orden').order('nombre'),
   ])
@@ -28,7 +30,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
 
   const listaNegocios: NegocioAdmin[] = (negocios ?? []).map((n) => ({
     id: n.id, nombre: n.nombre, slug: n.slug, whatsapp_nro: n.whatsapp_nro, aforo_maximo_reservas: n.aforo_maximo_reservas,
-    activo: n.activo, apagado_bot: (n.modulos as { apagado_bot?: boolean } | null)?.apagado_bot === true, usuarios: conteo.get(n.id) ?? 0, sedes: (sedesPorNegocio[n.id] ?? []).length,
+    activo: n.activo, creado_en: n.creado_en, apagado_bot: (n.modulos as { apagado_bot?: boolean } | null)?.apagado_bot === true, usuarios: conteo.get(n.id) ?? 0, sedes: (sedesPorNegocio[n.id] ?? []).length,
   }))
   const usuarios: UsuarioUI[] = (perfiles ?? []).map((p) => ({
     ...p,
@@ -39,7 +41,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">{tabBtn('negocios', 'Negocios')}{tabBtn('usuarios', 'Usuarios')}</div>
+      <div className="flex flex-wrap items-center gap-2">{tabBtn('negocios', 'Negocios')}{tabBtn('usuarios', 'Usuarios')}<div className="ml-auto"><OrdenSelect /></div></div>
       {activa === 'negocios' ? (
         <GestionNegocios negocios={listaNegocios} />
       ) : (

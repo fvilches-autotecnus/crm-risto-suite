@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { Cake, Pencil, Plus, X } from 'lucide-react'
 import { guardarCumple, quitarCumple } from '@/app/(panel)/modulos-actions'
 import { useConfirm, useToast } from '@/components/feedback'
+import { TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
@@ -17,8 +18,8 @@ function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: strin
     <form {...formProps} className="grid grid-cols-2 gap-3">
       {cliente ? <input type="hidden" name="cliente_id" value={cliente.id} /> : (
         <>
-          <div className="col-span-2"><label className="label" htmlFor="c_nombre">Nombre</label><input id="c_nombre" name="nombre" className="input w-full" /></div>
-          <div className="col-span-2"><label className="label" htmlFor="c_tel">Teléfono *</label><input id="c_tel" name="telefono" inputMode="tel" placeholder="5493415551234" className="input w-full" required /></div>
+          <div className="col-span-2"><label className="label" htmlFor="c_nombre">Nombre *</label><input id="c_nombre" name="nombre" className="input w-full" required /></div>
+          <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono *" required /></div>
         </>
       )}
       <div><label className="label" htmlFor="c_dia">Día *</label><input id="c_dia" name="dia" type="number" min={1} max={31} defaultValue={cliente?.dia ?? ''} className="input w-full" required /></div>
@@ -29,7 +30,7 @@ function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: strin
           {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </select>
       </div>
-      {!cliente && <p className="col-span-2 -mt-1 text-xs text-rs-muted">Si el teléfono ya es de un cliente, se le carga el cumpleaños; si no, se crea el cliente.</p>}
+      {!cliente && <p className="col-span-2 -mt-1 text-xs text-rs-muted">Si el teléfono ya es de un cliente, se le carga el cumpleaños; si no, se crea el cliente con este nombre.</p>}
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>

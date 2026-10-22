@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
+import { ESTADOS_OCUPAN } from '@/lib/reservas'
 
 /** Una regla de aforo: tope de personas para una sede / ubicación / franja horaria (null = todas / todo el día). */
 export interface ReglaAforo {
@@ -53,7 +54,7 @@ export async function usoPorRegla(ctx: Contexto, fecha: string, reglas: ReglaAfo
   const { data } = await createAdminClient()
     .from('reservas')
     .select('id, sucursal_id, ubicacion, hora, cantidad_personas')
-    .eq('negocio_id', ctx.negocio.id).eq('fecha', fecha).is('eliminado_en', null).in('estado', ['nueva', 'confirmada'])
+    .eq('negocio_id', ctx.negocio.id).eq('fecha', fecha).is('eliminado_en', null).in('estado', ESTADOS_OCUPAN)
   const filas = (data ?? []).filter((r) => r.id !== excluirReservaId)
   return reglas.map((g) => ({ ...g, usado: filas.filter((r) => aplica(g, r)).reduce((s, r) => s + (r.cantidad_personas ?? 0), 0) }))
 }

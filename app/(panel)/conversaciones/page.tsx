@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { MessagesSquare } from 'lucide-react'
 import { EstadoVacio } from '@/components/ui'
 import { getContexto } from '@/lib/context'
@@ -7,7 +8,9 @@ import { fechaHoraCorta } from '@/lib/fechas'
 const AUTOR: Record<string, string> = { cliente: 'Cliente', bot: 'Bot', humano: 'Equipo' }
 
 export default async function ConversacionesPage({ searchParams }: { searchParams: Promise<{ tel?: string }> }) {
-  const { supabase, negocio, sede } = await getContexto()
+  const ctx = await getContexto()
+  if (!ctx.modulosActivos.conversaciones) redirect('/') // oculto por ahora: el superadmin puede habilitarlo por negocio
+  const { supabase, negocio, sede } = ctx
   const { tel } = await searchParams
 
   let sq = supabase

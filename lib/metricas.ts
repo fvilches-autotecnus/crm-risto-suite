@@ -1,11 +1,12 @@
-import { sumarDias } from '@/lib/fechas'
+import { fechaLarga, inicioSemana, sumarDias } from '@/lib/fechas'
+import type { EstadoReserva } from '@/lib/reservas'
 
 export interface FilaReserva {
   cliente_id: string | null
   fecha: string          // 'YYYY-MM-DD'
   hora: string | null    // 'HH:MM:SS'
   cantidad_personas: number | null
-  estado: 'nueva' | 'confirmada' | 'cancelada' | 'no_show'
+  estado: EstadoReserva
   sucursal_id: string | null
 }
 
@@ -80,4 +81,39 @@ export function calcularMetricas(periodo: FilaReserva[], previos: Set<string>, d
     pctRecurrentes: porCliente.size ? Math.round((recurrentes / porCliente.size) * 1000) / 10 : 0,
     topRecurrentes: recurrentesLista.map(([cliente_id, x]) => ({ cliente_id, reservas: x.n, ultima: x.ultima })).sort((a, b) => b.reservas - a.reservas || b.ultima.localeCompare(a.ultima)).slice(0, 10),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Serie de evolución agrupada (día / semana / mes), opcionalmente acumulada
+// ---------------------------------------------------------------------------
+export type Agrupacion = 'dia' | 'semana' | 'mes'
+export interface PuntoSerie { x: string; valor: number; etiqueta: string; titulo: string }
+
+/** Con períodos largos, un punto por día es ruido: se agrupa para que se vea la tendencia. */
+export const agrupacionAuto = (dias: number): Agrupacion => (dias <= 31 ? 'dia' : 'semana')
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const dm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`
+
+export function serieEvolucion(porDia: { fecha: string; valor: number }[], modo: Agrupacion, acumulado: boolean): PuntoSerie[] {
+  if (!porDia.length) return []
+  const desde = porDia[0].fecha, hasta = porDia[porDia.length - 1].fecha
+  const cubetas = new Map<string, { inicio: string; fin: string; valor: number }>()
+  for (const d of porDia) {
+    const clave = modo === 'dia' ? d.fecha : modo === 'semana' ? inicioSemana(d.fecha) : d.fecha.slice(0, 7)
+    const c = cubetas.get(clave) ?? { inicio: d.fecha, fin: d.fecha, valor: 0 }
+    c.valor += d.valor
+    if (d.fecha < c.inicio) c.inicio = d.fecha
+    if (d.fecha > c.fin) c.fin = d.fecha
+    cubetas.set(clave, c)
+  }
+  let acc = 0
+  return [...cubetas.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([clave, c]) => {
+    acc += c.valor
+    const valor = acumulado ? acc : c.valor
+    if (modo === 'dia') return { x: clave, valor, etiqueta: dm(clave), titulo: fechaLarga(clave) }
+    if (modo === 'semana') return { x: clave, valor, etiqueta: dm(c.inicio), titulo: `Semana del ${dm(c.inicio)} al ${dm(c.fin)}` }
+    const m = Number(clave.slice(5, 7)) - 1
+    return { x: clave, valor, etiqueta: MESES[m].slice(0, 3), titulo: `${MESES[m][0].toUpperCase()}${MESES[m].slice(1)} ${clave.slice(0, 4)}${c.inicio === desde && c.fin === hasta ? '' : ''}` }
+  })
 }

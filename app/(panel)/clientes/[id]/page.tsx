@@ -7,6 +7,7 @@ import { labelTipo } from '@/lib/reservas'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
 import { EditarCumple } from '@/components/cumples-ui'
+import { ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resenas-ui'
 import { BadgeVoucher, NuevoVoucherBtn } from '@/components/vouchers-ui'
 import { labelCampana } from '@/lib/vouchers'
 import { hoyEn } from '@/lib/fechas'
@@ -32,6 +33,9 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const { data: vouchersCliente } = ctx.modulosActivos.vouchers
     ? await supabase.from('vouchers').select('id, codigo, beneficio, campana, estado, vence_el').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(20)
     : { data: [] as { id: string; codigo: string; beneficio: string | null; campana: string | null; estado: 'vigente' | 'usado' | 'anulado'; vence_el: string | null }[] }
+  const { data: resenasCliente } = ctx.modulosActivos.resenas
+    ? await supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(50)
+    : { data: [] as ResenaUI[] }
   const prox = cliente.cumple_dia && cliente.cumple_mes ? proximoCumple(cliente.cumple_dia, cliente.cumple_mes, hoy) : null
 
   return (
@@ -45,7 +49,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           <div><dt className="card-title">Origen</dt><dd className="mt-1">{cliente.canal_origen === 'whatsapp' ? 'WhatsApp' : 'Manual'}</dd></div>
           <div><dt className="card-title">Cliente desde</dt><dd className="mt-1">{fechaCorta(cliente.creado_en.slice(0, 10))}</dd></div>
         </dl>
-        {cliente.telefono && (
+        {cliente.telefono && ctx.modulosActivos.conversaciones && (
           <Link href={`/conversaciones?tel=${cliente.telefono}`} className="btn btn-sm mt-4 inline-flex">Ver conversación</Link>
         )}
       </div>
@@ -77,6 +81,16 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {ctx.modulosActivos.resenas && (
+        <section>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="card-title">Reseñas</h2>
+            {ctx.puedeEscribir && <NuevaResenaBtn chico sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} hoy={hoy} prefill={{ cliente_id: cliente.id, nombre: cliente.nombre, telefono: cliente.telefono ?? '' }} />}
+          </div>
+          <ListaResenas resenas={(resenasCliente ?? []) as ResenaUI[]} mostrarCliente={false} sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} nombresSede={Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre]))} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
         </section>
       )}
 
