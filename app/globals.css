@@ -40,3 +40,12 @@ body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, sys
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* En celulares/tablets (pantallas táctiles) los campos van a 16 px: con menos, Safari de iOS hace zoom solo al tocarlos. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
