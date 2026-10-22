@@ -5,6 +5,8 @@ import { webhookCliente } from '@/lib/notify'
 import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
 import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
+import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
+import { integracionBC } from '@/lib/etiquetas'
 import { leerPausaAuto } from '@/lib/pausas'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
@@ -21,7 +23,10 @@ function Seccion({ id, titulo, texto, i, children, borde }: { id: string; titulo
 
 export default async function ConfiguracionPage() {
   const ctx = await getContexto()
-  const webhook = ctx.esSuperadmin ? await webhookCliente(ctx.negocio.id) : null
+  // las consultas propias de esta pantalla se lanzan juntas con las demás (cada una es un viaje a la base)
+  const pWebhook = ctx.esSuperadmin ? webhookCliente(ctx.negocio.id) : Promise.resolve(null)
+  const pBc = integracionBC(ctx.negocio.id)
+  const pEtiquetas = ctx.puedeAdministrar ? ctx.supabase.from('etiquetas').select('id, nombre, bc_tag_id, cliente_etiquetas(count)').eq('negocio_id', ctx.negocio.id).order('nombre') : Promise.resolve({ data: [] })
   const { supabase, negocio, sede } = ctx
   const hoy = hoyEn(negocio.zona_horaria)
   const conSedes = ctx.sedesTodas.length > 0
@@ -39,6 +44,8 @@ export default async function ConfiguracionPage() {
       : Promise.resolve({ data: null }),
   ])
 
+  const [webhook, bc, { data: etiquetasDb }] = await Promise.all([pWebhook, pBc, pEtiquetas])
+  const etiquetas: EtiquetaConfig[] = ((etiquetasDb ?? []) as unknown as { id: string; nombre: string; bc_tag_id: number | null; cliente_etiquetas: { count: number }[] }[]).map((e) => ({ id: e.id, nombre: e.nombre, total: e.cliente_etiquetas?.[0]?.count ?? 0, vinculada: !!e.bc_tag_id }))
   const usuarios: UsuarioUI[] = ((miembros ?? []) as any[]).filter((m) => m.perfiles).map((m) => ({
     id: m.perfiles.id, usuario: m.perfiles.usuario, nombre: m.perfiles.nombre, activo: m.perfiles.activo, es_superadmin: m.perfiles.es_superadmin,
     membresias: [{ negocio_id: negocio.id, negocio_nombre: negocio.nombre, rol: m.rol, activo: m.activo, sucursal_ids: m.sucursal_ids ?? [] }],
@@ -56,6 +63,7 @@ export default async function ConfiguracionPage() {
     { id: 'bloqueos', label: 'Fechas bloqueadas' },
     ...(ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
     ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
+    ...(ctx.puedeAdministrar ? [{ id: 'etiquetas', label: 'Etiquetas' }] : []),
     ...(ctx.tieneApagadoBot && ctx.puedeAdministrar ? [{ id: 'pausas', label: 'Chats pausados' }] : []),
     ...(ctx.puedeAdministrar ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
   ]
@@ -118,6 +126,7 @@ export default async function ConfiguracionPage() {
       {ctx.esSuperadmin && (
         <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo={<>Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></>}>
           <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
+          <BotconversaForm activo={bc.activo} tieneClave={bc.tieneClave} />
           {webhook && (
             <AvisosForm
               config={webhook}
@@ -128,6 +137,12 @@ export default async function ConfiguracionPage() {
             />
           )}
           <ModulosForm modulos={ctx.modulosActivos} />
+        </Seccion>
+      )}
+
+      {ctx.puedeAdministrar && (
+        <Seccion id="etiquetas" i={n++} titulo="Etiquetas de clientes" texto={bc.activo ? 'Las etiquetas vienen de BotConversa: al etiquetar un cliente también se aplica allá.' : 'Se usan para clasificar clientes y hacer seguimiento (por ejemplo, post visita).'}>
+          <EtiquetasConfig etiquetas={etiquetas} puedeAdministrar={ctx.puedeAdministrar} esBotconversa={bc.activo} />
         </Seccion>
       )}
 

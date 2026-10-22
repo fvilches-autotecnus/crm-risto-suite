@@ -6,6 +6,8 @@ import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { labelTipo } from '@/lib/reservas'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
+import { EtiquetasCliente, type EtiquetaUI } from '@/components/etiquetas-ui'
+import { integracionBC } from '@/lib/etiquetas'
 import { EditarCumple } from '@/components/cumples-ui'
 import { ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resenas-ui'
 import { BadgeVoucher, NuevoVoucherBtn } from '@/components/vouchers-ui'
@@ -36,6 +38,13 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const { data: resenasCliente } = ctx.modulosActivos.resenas
     ? await supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(50)
     : { data: [] as ResenaUI[] }
+  const [{ data: catalogoDb }, { data: aplicadasDb }, bc] = await Promise.all([
+    supabase.from('etiquetas').select('id, nombre').eq('negocio_id', negocio.id).order('nombre'),
+    supabase.from('cliente_etiquetas').select('etiquetas(id, nombre)').eq('cliente_id', id),
+    integracionBC(negocio.id),
+  ])
+  const catalogo = (catalogoDb ?? []) as EtiquetaUI[]
+  const aplicadas = ((aplicadasDb ?? []) as unknown as { etiquetas: EtiquetaUI | null }[]).map((x) => x.etiquetas).filter((x): x is EtiquetaUI => !!x).sort((a, b) => a.nombre.localeCompare(b.nombre))
   const prox = cliente.cumple_dia && cliente.cumple_mes ? proximoCumple(cliente.cumple_dia, cliente.cumple_mes, hoy) : null
 
   return (
@@ -53,6 +62,8 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           <Link href={`/conversaciones?tel=${cliente.telefono}`} className="btn btn-sm mt-4 inline-flex">Ver conversación</Link>
         )}
       </div>
+
+      <EtiquetasCliente clienteId={cliente.id} aplicadas={aplicadas} catalogo={catalogo} puedeEscribir={ctx.puedeEscribir} esBotconversa={bc.activo} />
 
       <NotasCliente id={cliente.id} notas={cliente.notas ?? ''} puedeEscribir={ctx.puedeEscribir} />
 
