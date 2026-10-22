@@ -3,20 +3,24 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Building2, CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Users } from 'lucide-react'
+import { BarChart3, Building2, Cake, CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
   { href: '/reservas', label: 'Reservas', icon: CalendarCheck },
+  { href: '/cumpleanos', label: 'Cumpleaños', icon: Cake, modulo: 'cumpleanos' },
+  { href: '/vouchers', label: 'Vouchers', icon: Ticket, modulo: 'vouchers' },
+  { href: '/metricas', label: 'Métricas', icon: BarChart3, modulo: 'metricas' },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/consultas', label: 'Consultas', icon: MessageCircle },
   { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav({ esSuperadmin = false }: { esSuperadmin?: boolean }) {
+export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean } }) {
   const pathname = usePathname()
-  const tabs = esSuperadmin ? [...TABS, { href: '/administracion', label: 'Administración', icon: Building2 }] : TABS
+  const visibles = TABS.filter((t) => !('modulo' in t) || modulos[t.modulo as keyof typeof modulos])
+  const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
   const activo = tabs.find((t) => (t.href === '/' ? pathname === '/' : pathname.startsWith(t.href)))?.href ?? null
   const refs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null)

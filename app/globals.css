@@ -23,9 +23,18 @@ body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, sys
   .td { @apply px-2.5 py-3 text-sm; }
   /* entrada escalonada: style={{ '--i': n }} */
   .reveal { animation: fade-up .45s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  .grow-y { transform-box: fill-box; transform-origin: bottom; animation: grow-y .6s cubic-bezier(.22, 1, .36, 1) both; }
+  .grow-x { transform-origin: left; animation: grow-x .7s cubic-bezier(.22, 1, .36, 1) both; }
+  .draw { stroke-dasharray: 1; stroke-dashoffset: 0; animation: draw 1.1s cubic-bezier(.22, 1, .36, 1) both; }
   .skeleton { @apply relative overflow-hidden rounded-rs bg-rs-raised/70; }
   .skeleton::after { content: ''; @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-rs-lime/10 to-transparent; }
 }
+
+/* keyframes usados por clases propias (Tailwind solo emite los de utilidades animate-*) */
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* quien prefiere menos movimiento no ve animaciones */
 @media (prefers-reduced-motion: reduce) {

@@ -6,6 +6,11 @@ import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { labelTipo } from '@/lib/reservas'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
+import { EditarCumple } from '@/components/cumples-ui'
+import { BadgeVoucher, NuevoVoucherBtn } from '@/components/vouchers-ui'
+import { labelCampana } from '@/lib/vouchers'
+import { hoyEn } from '@/lib/fechas'
+import { proximoCumple, textoCumple, textoFaltan } from '@/lib/cumples'
 
 export default async function ClienteDetalle({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getContexto()
@@ -13,7 +18,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound()
 
-  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
+  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
   if (!cliente) notFound()
 
   const { data: reservas } = await supabase
@@ -22,6 +27,12 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
     .eq('cliente_id', id)
     .is('eliminado_en', null)
     .order('fecha', { ascending: false, nullsFirst: true })
+
+  const hoy = hoyEn(negocio.zona_horaria)
+  const { data: vouchersCliente } = ctx.modulosActivos.vouchers
+    ? await supabase.from('vouchers').select('id, codigo, beneficio, campana, estado, vence_el').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(20)
+    : { data: [] as { id: string; codigo: string; beneficio: string | null; campana: string | null; estado: 'vigente' | 'usado' | 'anulado'; vence_el: string | null }[] }
+  const prox = cliente.cumple_dia && cliente.cumple_mes ? proximoCumple(cliente.cumple_dia, cliente.cumple_mes, hoy) : null
 
   return (
     <div className="space-y-6">
@@ -40,6 +51,34 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
       </div>
 
       <NotasCliente id={cliente.id} notas={cliente.notas ?? ''} puedeEscribir={ctx.puedeEscribir} />
+
+      {ctx.modulosActivos.cumpleanos && (
+        <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <h2 className="card-title">Cumpleaños</h2>
+            <p className="mt-1 text-sm">{prox ? <><span className="font-semibold">{textoCumple(cliente.cumple_dia!, cliente.cumple_mes!)}</span> <span className="text-rs-muted">· {textoFaltan(prox.dias)}</span></> : <span className="text-rs-muted">Sin cargar</span>}</p>
+          </div>
+          {ctx.puedeEscribir && <EditarCumple cliente={{ id: cliente.id, nombre: cliente.nombre, dia: cliente.cumple_dia, mes: cliente.cumple_mes }} />}
+        </section>
+      )}
+
+      {ctx.modulosActivos.vouchers && (
+        <section className="card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="card-title">Vouchers</h2>
+            {ctx.puedeEscribir && <NuevoVoucherBtn chico etiqueta="Nuevo voucher" prefill={{ cliente_id: cliente.id, nombre: cliente.nombre, telefono: cliente.telefono ?? '' }} />}
+          </div>
+          <ul className="mt-3 divide-y divide-rs-border/60">
+            {(vouchersCliente ?? []).length === 0 && <li className="py-3 text-sm text-rs-muted">Este cliente no tiene vouchers.</li>}
+            {(vouchersCliente ?? []).map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <span><span className="font-mono font-semibold text-rs-lime">{v.codigo}</span> <span className="text-rs-muted">· {v.beneficio ?? '—'} · {labelCampana(v.campana)}</span></span>
+                <BadgeVoucher estado={v.estado} vencido={v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h2 className="card-title mb-3">Historial de reservas</h2>

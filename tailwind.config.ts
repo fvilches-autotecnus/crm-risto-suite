@@ -34,6 +34,9 @@ const config: Config = {
         shimmer: { '100%': { transform: 'translateX(100%)' } },
         'toast-bar': { '0%': { transform: 'scaleX(1)' }, '100%': { transform: 'scaleX(0)' } },
         flash: { '0%': { backgroundColor: 'rgba(200,230,43,.28)' }, '100%': { backgroundColor: 'transparent' } },
+        'grow-y': { '0%': { transform: 'scaleY(0)' }, '100%': { transform: 'scaleY(1)' } },
+        'grow-x': { '0%': { transform: 'scaleX(0)' }, '100%': { transform: 'scaleX(1)' } },
+        draw: { '0%': { strokeDashoffset: '1' }, '100%': { strokeDashoffset: '0' } },
         drift: { '0%,100%': { transform: 'translate3d(0,0,0)' }, '50%': { transform: 'translate3d(3%,-3%,0)' } },
       },
       animation: {

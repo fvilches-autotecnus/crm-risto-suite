@@ -3,7 +3,7 @@ import GestionUsuarios from '@/components/usuarios-ui'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
-import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
+import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
 
@@ -114,6 +114,7 @@ export default async function ConfiguracionPage() {
       {ctx.esSuperadmin && (
         <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo={<>Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></>}>
           <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
+          <ModulosForm modulos={ctx.modulosActivos} />
         </Seccion>
       )}
 

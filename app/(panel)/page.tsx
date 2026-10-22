@@ -30,13 +30,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const semanaAnt = sumarDias(semana, -7)
   const finSemana = sumarDias(semana, 6)
 
-  const [{ data: rango }, { data: delDia }, { count: pendientes }, { data: bloqueos }, { count: consultas }, reglasTodas] = await Promise.all([
+  const [{ data: rango }, { data: delDia }, { count: pendientes }, { data: bloqueos }, { count: consultas }, reglasTodas, { count: cumplesHoy }] = await Promise.all([
     porSede(supabase.from('reservas').select('fecha, estado, cantidad_personas').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', semanaAnt).lte('fecha', finSemana)),
     porSede(supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', dia).order('hora')),
     porSede(supabase.from('reservas').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('estado', 'nueva').or(`fecha.gte.${hoy},fecha.is.null`)),
     (sede ? supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia).or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia)),
     porSede(supabase.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('estado', 'pendiente')),
     cargarReglas(ctx),
+    ctx.modulosActivos.cumpleanos
+      ? supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('cumple_dia', Number(hoy.slice(8, 10))).eq('cumple_mes', Number(hoy.slice(5, 7)))
+      : Promise.resolve({ count: 0 }),
   ])
 
   const reservasDia = (delDia ?? []) as Reserva[]
@@ -65,6 +68,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   }
   const sinConfirmar = reservasDia.filter((r) => r.estado === 'nueva').length
   if (sinConfirmar) alertas.push({ tono: 'warn', texto: `${sinConfirmar} reserva${sinConfirmar > 1 ? 's' : ''} de este día sin confirmar` })
+  if (dia === hoy && cumplesHoy) alertas.push({ tono: 'warn', texto: `${cumplesHoy} cumpleaños hoy — mirá la pestaña Cumpleaños para asignar el regalo` })
   if (consultas) alertas.push({ tono: 'warn', texto: `${consultas} consulta${consultas > 1 ? 's' : ''} pendiente${consultas > 1 ? 's' : ''} de respuesta` })
 
   const primerNombre = ctx.nombreUsuario.split(' ')[0]

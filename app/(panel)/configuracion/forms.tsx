@@ -7,6 +7,7 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
+import { guardarModulos } from '../modulos-actions'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
   return <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : children}</button>
@@ -154,6 +155,26 @@ export function BorrarBloqueo({ id }: { id: string }) {
 // ---------------------------------------------------------------------------
 // Funciones del negocio (superadmin)
 // ---------------------------------------------------------------------------
+export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean } }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarModulos)
+  useResultado(state, 'Módulos guardados')
+  const fila = (name: string, titulo: string, texto: string, on: boolean) => (
+    <label className="flex cursor-pointer items-start gap-3 text-sm">
+      <input type="checkbox" name={name} defaultChecked={on} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" />
+      <span><span className="font-medium">{titulo}</span><span className="block text-rs-muted">{texto}</span></span>
+    </label>
+  )
+  return (
+    <form {...formProps} className="mt-4 space-y-3 border-t border-rs-border pt-4">
+      <h3 className="text-sm font-semibold">Pestañas habilitadas</h3>
+      {fila('cumpleanos', 'Cumpleaños', 'Lista de próximos cumpleaños de clientes y regalo pendiente.', modulos.cumpleanos)}
+      {fila('vouchers', 'Vouchers', 'Códigos de beneficio y su estado de uso.', modulos.vouchers)}
+      {fila('metricas', 'Métricas', 'Gráficos de reservas, horarios y clientes recurrentes.', modulos.metricas)}
+      <Guardar pending={pending} />
+    </form>
+  )
+}
+
 export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
   const { state, pending, formProps } = useAccionFormulario(guardarFuncionesNegocio)
   useResultado(state, 'Funciones guardadas')
