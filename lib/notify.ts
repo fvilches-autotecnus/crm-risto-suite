@@ -66,11 +66,17 @@ export interface DatosAviso {
   tipoReserva?: string | null
   ubicacion?: string | null
   observaciones?: string | null
+  sede?: string | null
   prueba?: boolean
 }
 
 const fechaDMA = (f: string | null) => (f && /^\d{4}-\d{2}-\d{2}$/.test(f) ? f.split('-').reverse().join('-') : '')
 const horaHM = (h: string | null) => (h ? h.slice(0, 5) : '')
+/** "sábado" a partir de AAAA-MM-DD (se calcula al mediodía UTC para que ninguna zona horaria corra el día). */
+const diaSemana = (f: string | null) => {
+  const m = f && /^(\d{4})-(\d{2})-(\d{2})$/.exec(f)
+  return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString('es-AR', { weekday: 'long', timeZone: 'UTC' }) : ''
+}
 
 /** Arma el JSON según el destino. Para BotConversa, los nombres coinciden con los campos que ya tienen mapeados. */
 export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<string, unknown> {
@@ -83,7 +89,9 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
       nombre: d.clienteNombre ?? '',
       telefono,
       estado_reserva: d.estado,
+      sede: d.sede ?? '',
       fecha_reserva: fechaDMA(d.fecha),
+      dia_semana: diaSemana(d.fecha),
       hora_reserva: horaHM(d.hora),
       cantidad_reserva: d.cantidadPersonas ?? '',
       tipo_reserva: d.tipoReserva ? labelTipo(d.tipoReserva).toUpperCase() : '',
@@ -103,7 +111,9 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
     clienteNombre: d.clienteNombre,
     cantidadPersonas: d.cantidadPersonas,
     fecha: d.fecha,
+    diaSemana: diaSemana(d.fecha),
     hora: d.hora,
+    sede: d.sede ?? null,
     motivoCancelacion: d.motivoCancelacion ?? null,
     monto: d.monto ?? null,
     ...extra,
@@ -138,13 +148,13 @@ export async function avisarCambioDeEstado(input: DatosAviso & { negocioId: stri
 }
 
 /** Envía un aviso de ejemplo (marcado con prueba: true) al teléfono indicado, para armar y probar el flujo del otro lado. */
-export async function enviarPrueba(negocioId: string, telefono: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+export async function enviarPrueba(negocioId: string, telefono: string, sede?: string | null): Promise<{ ok: boolean; status?: number; error?: string }> {
   const c = await leer(negocioId)
   if (!listo(c)) return { ok: false, error: c.url ? 'Falta el secreto: n8n lo necesita para validar el aviso' : 'Todavía no cargaste la URL del webhook' }
   const hoy = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10)   // Argentina, UTC-3
   const r = await llamar(c, armarPayload(c.destino, {
     telefono, numero: 0, estado: 'confirmada', clienteNombre: 'PRUEBA Risto Suite', cantidadPersonas: 2, fecha: hoy, hora: '21:00',
-    tipoReserva: 'comun', ubicacion: '', observaciones: 'Aviso de prueba enviado desde Risto Suite', monto: 0, prueba: true,
+    tipoReserva: 'comun', ubicacion: '', sede: sede ?? null, observaciones: 'Aviso de prueba enviado desde Risto Suite', monto: 0, prueba: true,
   }))
   return r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: r.status ? `El webhook respondió ${r.status}` : 'No se pudo conectar con el webhook' }
 }

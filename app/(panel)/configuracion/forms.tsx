@@ -216,8 +216,8 @@ export function AvisosForm({ config }: { config: { destino: string; url: string;
           </label>
         )}
         <p className="text-xs text-rs-muted">{destino === 'botconversa'
-          ? 'Campos que recibe BotConversa: evento, id_bot, nombre, telefono, estado_reserva, fecha_reserva (DD-MM-AAAA), hora_reserva, cantidad_reserva, tipo_reserva, ubicacion_prefer, observaciones, motivo_cancelacion y sena. El teléfono va solo con dígitos (sin +).'
-          : 'Campos que recibe n8n: evento, telefono (solo dígitos, sin +), numero, estado, clienteNombre, cantidadPersonas, fecha, hora, motivoCancelacion y monto.'}</p>
+          ? 'Campos que recibe BotConversa: evento, id_bot, nombre, telefono, estado_reserva, sede, fecha_reserva (DD-MM-AAAA), dia_semana, hora_reserva, cantidad_reserva, tipo_reserva, ubicacion_prefer, observaciones, motivo_cancelacion y sena. El teléfono va solo con dígitos (sin +).'
+          : 'Campos que recibe n8n: evento, telefono (solo dígitos, sin +), numero, estado, clienteNombre, cantidadPersonas, fecha, diaSemana, hora, sede, motivoCancelacion y monto.'}</p>
         <div className="space-y-2 pt-1">
           <p className="text-xs text-rs-muted">Estados para los que el flujo del otro lado ya sabe armar el mensaje:</p>
           {fila('confirmada', 'Confirmada')}

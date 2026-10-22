@@ -105,7 +105,7 @@ export async function probarWebhookCliente(_prev: ActionResult | null, fd: FormD
   if (!ctx.esSuperadmin) return fail('Solo un superadmin puede probar el webhook')
   const tel = text(fd, 'telefono_prueba').replace(/\D/g, '')
   if (tel.length < 8) return fail('Ingresá un teléfono de prueba (con código de país)')
-  const r = await enviarPrueba(ctx.negocio.id, tel)
+  const r = await enviarPrueba(ctx.negocio.id, tel, ctx.sedes[0]?.nombre ?? null)
   return r.ok ? { ok: true } : fail(r.error ?? 'No se pudo enviar la prueba')
 }
 
@@ -199,7 +199,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
     .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
-    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones')
+    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones, sucursal_id')
     .maybeSingle()
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
@@ -220,6 +220,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       tipoReserva: r.tipo_reserva,
       ubicacion: r.ubicacion,
       observaciones: r.observaciones,
+      sede: ctx.sedesTodas.find((x) => x.id === r.sucursal_id)?.nombre ?? null,
     })
   }
   revalidatePath('/', 'layout')
