@@ -7,13 +7,14 @@ import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado } from '@/lib/notify'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
-import { ESTADOS, ESTADOS_OCUPAN, type EstadoReserva } from '@/lib/reservas'
+import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
 
 export interface ActionResult {
   ok: boolean
   error?: string
   aforo?: boolean            // true = la reserva supera un aforo (se puede guardar igual con forzar=1)
   detalle?: ChequeoAforo[]
+  aviso?: 'enviado' | 'no_disponible' | 'fallo'   // resultado del aviso al cliente (solo si se pidió avisar)
 }
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -61,6 +62,20 @@ export async function guardarFuncionesNegocio(_prev: ActionResult | null, fd: Fo
   if (e1 || !actual) return fail('No se pudo leer el negocio')
   const modulos = { ...(actual.modulos as Record<string, unknown>), apagado_bot: fd.get('apagado_bot') === 'on' }
   const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
+  if (error) return fail('No se pudo guardar')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+// Estados que el workflow de aviso del negocio sabe tratar (solo superadmin: depende de cómo esté armado el workflow en n8n).
+export async function guardarAvisosEstados(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar los avisos al cliente')
+  const admin = createAdminClient()
+  const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
+  if (e1 || !actual) return fail('No se pudo leer el negocio')
+  const avisos_estados = ESTADOS_AVISO.filter((e) => fd.get('aviso_' + e) === 'on')
+  const { error } = await admin.from('negocios').update({ modulos: { ...(actual.modulos as Record<string, unknown>), avisos_estados } }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
   revalidatePath('/', 'layout')
   return { ok: true }
@@ -143,7 +158,7 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   return { ok: true }
 }
 
-export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string, monto?: number): Promise<ActionResult> {
+export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string, monto?: number, notificar?: boolean): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
   if (!ESTADOS.some((e) => e.value === estado)) return fail('Estado no válido')
@@ -156,12 +171,14 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
     .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
-    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion')
+    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena')
     .maybeSingle()
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
-  if (estado === 'confirmada' || estado === 'cancelada') {
-    await avisarCambioDeEstado({
+  // El aviso al cliente solo sale si la persona del equipo lo eligió en el diálogo
+  let aviso: ActionResult['aviso']
+  if (notificar === true && esEstadoAviso(estado)) {
+    aviso = await avisarCambioDeEstado({
       negocioId: negocio.id,
       telefono: r.cliente_telefono,
       numero: r.numero,
@@ -171,10 +188,11 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       fecha: r.fecha,
       hora: r.hora,
       motivoCancelacion: r.motivo_cancelacion,
+      monto: r.monto_sena,
     })
   }
   revalidatePath('/', 'layout')
-  return { ok: true }
+  return { ok: true, aviso }
 }
 
 /** Vuelve una reserva a un estado y monto anteriores (Deshacer): no pide el monto de nuevo. */

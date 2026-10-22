@@ -5,12 +5,13 @@ import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX,
 import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
+import DialogoCambioEstado, { type DatosCambio } from '@/components/dialogo-estado'
 import MenuEstado, { PUNTO_ESTADO } from '@/components/menu-estado'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
-import { TIPOS_RESERVA, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
+import { TIPOS_RESERVA, esEstadoAviso, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
 
 const ESTADO_CLS: Record<string, string> = {
@@ -37,6 +38,7 @@ export interface OpcionesSede {
   sedeDefault: string | null                        // sede elegida en el selector del encabezado
   tipos: string[]                                   // tipos de reserva que ya existen en los datos
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
+  aviso: { disponible: boolean; estados: string[] }                // aviso al cliente por WhatsApp: si el negocio lo tiene y para qué estados
 }
 
 // ---------------------------------------------------------------------------
@@ -201,38 +203,36 @@ export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; o
 export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; op: OpcionesSede }) {
   const toast = useToast()
   const [editando, setEditando] = useState<Reserva | null>(null)
-  const [cancelando, setCancelando] = useState<Reserva | null>(null)
-  const [pagando, setPagando] = useState<Reserva | null>(null)
-  const [monto, setMonto] = useState('')
-  const [errorMonto, setErrorMonto] = useState('')
-  const [motivo, setMotivo] = useState('')
+  const [cambio, setCambio] = useState<{ r: Reserva; estado: EstadoReserva } | null>(null)
   const [pending, start] = useTransition()
   const [ocupada, setOcupada] = useState<string | null>(null)
   const mostrarSede = Object.keys(op.nombresSede).length > 0
   const mostrarUbicacion = op.ubicaciones.length > 0 || reservas.some((r) => r.ubicacion)
 
-  const correr = (id: string, fn: () => Promise<ActionResult>, ok?: () => void) =>
+  const correr = (id: string, fn: () => Promise<ActionResult>, ok?: (res: ActionResult) => void) =>
     start(async () => {
       setOcupada(id)
       const r = await fn()
       setOcupada(null)
-      r.ok ? ok?.() : toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' })
+      r.ok ? ok?.(r) : toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' })
     })
 
-  const cambiarEstado = (r: Reserva, estado: EstadoReserva, motivoCancel?: string, montoPago?: number) =>
-    correr(r.id, () => cambiarEstadoReserva(r.id, estado, motivoCancel, montoPago), () =>
+  const cambiarEstado = (r: Reserva, estado: EstadoReserva, d: Partial<DatosCambio> = {}) =>
+    correr(r.id, () => cambiarEstadoReserva(r.id, estado, d.motivo, d.monto, d.notificar), (res) => {
       toast({
-        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}${estado === 'pendiente_pago' && montoPago ? ` · ${formatoMonto(montoPago)}` : ''}`,
+        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}${estado === 'pendiente_pago' && d.monto ? ` · ${formatoMonto(d.monto)}` : ''}${res.aviso === 'enviado' ? ' · cliente avisado' : ''}`,
         accion: { label: 'Deshacer', onClick: () => { void restaurarEstadoReserva(r.id, r.estado, r.monto_sena) } },
-      }))
+      })
+      if (res.aviso === 'fallo') toast({ tipo: 'error', texto: `El estado se cambió, pero no se pudo avisar al cliente de la reserva #${r.numero}.` })
+      if (res.aviso === 'no_disponible') toast({ tipo: 'info', texto: 'El estado se cambió. Este negocio no tiene el aviso por WhatsApp habilitado para este estado.' })
+    })
 
-  // Pendiente de pago: antes de cambiar el estado se pide el valor de la seña o del pago
-  const pedirMonto = (r: Reserva) => { setErrorMonto(''); setMonto(r.monto_sena ? String(r.monto_sena) : ''); setPagando(r) }
-  const confirmarMonto = () => {
-    const r = pagando; if (!r) return
-    const n = Number(monto.replace(',', '.'))
-    if (!Number.isFinite(n) || n <= 0) { setErrorMonto('Ingresá un monto mayor a 0'); return }
-    setPagando(null); cambiarEstado(r, 'pendiente_pago', undefined, n)
+  // Confirmada, pendiente de pago, no-show y cancelada abren un diálogo cuando hay algo que pedir (monto, motivo)
+  // o algo que elegir (avisar o no al cliente). Nueva y revisar pago cambian directo.
+  const puedeAvisar = (r: Reserva, estado: EstadoReserva) => op.aviso.disponible && !!r.cliente_telefono && esEstadoAviso(estado) && op.aviso.estados.includes(estado)
+  const pedirCambio = (r: Reserva, estado: EstadoReserva) => {
+    if (estado === 'pendiente_pago' || estado === 'cancelada' || puedeAvisar(r, estado)) setCambio({ r, estado })
+    else cambiarEstado(r, estado)
   }
 
   const eliminar = (r: Reserva) =>
@@ -241,9 +241,9 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
 
   const acciones = (r: Reserva) => (
     <div className="flex justify-end gap-1.5">
-      {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
-      {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => { setMotivo(''); setCancelando(r) }} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
-      <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => (e === 'cancelada' ? (setMotivo(''), setCancelando(r)) : e === 'pendiente_pago' ? pedirMonto(r) : cambiarEstado(r, e))} />
+      {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => pedirCambio(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
+      {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => pedirCambio(r, 'cancelada')} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
+      <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => pedirCambio(r, e)} />
       <button onClick={() => setEditando(r)} title="Editar" aria-label="Editar" className="btn btn-sm"><Pencil size={14} /></button>
       <button disabled={pending} onClick={() => eliminar(r)} title="Eliminar" aria-label="Eliminar" className="btn btn-sm btn-danger"><Trash2 size={14} /></button>
     </div>
@@ -325,32 +325,12 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <ReservaForm reserva={editando} onDone={() => setEditando(null)} op={op} />
         </Modal>
       )}
-      {pagando && (
-        <Modal titulo={`Pendiente de pago · reserva #${pagando.numero}`} onClose={() => setPagando(null)}>
-          <form onSubmit={(e) => { e.preventDefault(); confirmarMonto() }}>
-            <label className="label" htmlFor="monto_pago">Valor de la seña o del pago que tiene que hacer *</label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted">$</span>
-              <input id="monto_pago" autoFocus type="number" inputMode="decimal" min="1" step="any" value={monto} onChange={(e) => { setMonto(e.target.value); setErrorMonto('') }} placeholder="Ej. 5000" className="input w-full pl-7 tabular-nums" required />
-            </div>
-            <p className="mt-1.5 text-xs text-rs-muted">{pagando.cliente_nombre ?? 'El cliente'}{pagando.cantidad_personas ? ` · ${pagando.cantidad_personas} personas` : ''}. Queda guardado en la reserva.</p>
-            {errorMonto && <p role="alert" className="mt-2 animate-fade-in text-sm text-rs-danger">{errorMonto}</p>}
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setPagando(null)} className="btn">Volver</button>
-              <button disabled={pending} className="btn btn-primary">Pasar a pendiente de pago</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {cancelando && (
-        <Modal titulo={`Cancelar reserva #${cancelando.numero}`} onClose={() => setCancelando(null)}>
-          <label className="label" htmlFor="motivo">Motivo (opcional)</label>
-          <textarea id="motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} className="input w-full" />
-          <div className="mt-4 flex justify-end gap-2">
-            <button onClick={() => setCancelando(null)} className="btn">Volver</button>
-            <button disabled={pending} onClick={() => { const r = cancelando; setCancelando(null); cambiarEstado(r, 'cancelada', motivo) }} className="btn btn-danger">Cancelar reserva</button>
-          </div>
-        </Modal>
+      {cambio && (
+        <DialogoCambioEstado
+          r={cambio.r} estado={cambio.estado} aviso={op.aviso} ocupado={pending}
+          onClose={() => setCambio(null)}
+          onConfirmar={(d) => { const c = cambio; setCambio(null); cambiarEstado(c.r, c.estado, d) }}
+        />
       )}
     </>
   )

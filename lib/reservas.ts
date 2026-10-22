@@ -56,3 +56,10 @@ export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => ESTADOS_OCUPAN.include
 
 /** Monto en pesos argentinos, sin decimales si es entero: "$ 5.000". */
 export const formatoMonto = (n: number) => '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+
+/** Estados en los que se puede avisar al cliente por WhatsApp (nueva y revisar pago nunca se avisan). */
+export const ESTADOS_AVISO = ['confirmada', 'pendiente_pago', 'no_show', 'cancelada'] as const
+export type EstadoAviso = (typeof ESTADOS_AVISO)[number]
+/** Lo que entienden hoy los workflows de aviso de los negocios. */
+export const ESTADOS_AVISO_POR_DEFECTO: EstadoAviso[] = ['confirmada', 'cancelada']
+export const esEstadoAviso = (e: string): e is EstadoAviso => (ESTADOS_AVISO as readonly string[]).includes(e)

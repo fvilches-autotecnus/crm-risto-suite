@@ -7,7 +7,7 @@ import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
-import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarAvisosEstados, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
@@ -174,6 +174,30 @@ export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumplea
       {fila('resenas', 'Reseñas', 'Reseñas conseguidas, puntaje promedio y filtros.', modulos.resenas)}
       {fila('derivadas', 'Derivadas', 'Reservas que toma el bot pero administra otra producción (oculto por defecto).', modulos.derivadas)}
       {fila('conversaciones', 'Conversaciones', 'Chats del bot de WhatsApp (oculto por defecto).', modulos.conversaciones)}
+      <Guardar pending={pending} />
+    </form>
+  )
+}
+
+export function AvisosForm({ estados, disponible }: { estados: string[]; disponible: boolean }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarAvisosEstados)
+  useResultado(state, 'Avisos guardados')
+  const fila = (e: string, titulo: string) => (
+    <label key={e} className="flex cursor-pointer items-center gap-3 text-sm">
+      <input type="checkbox" name={'aviso_' + e} defaultChecked={estados.includes(e)} className="h-4 w-4 accent-[#c8e62b]" />
+      <span className="font-medium">{titulo}</span>
+    </label>
+  )
+  return (
+    <form {...formProps} className="mt-4 space-y-3 border-t border-rs-border pt-4">
+      <h3 className="text-sm font-semibold">Aviso al cliente por WhatsApp</h3>
+      <p className="text-xs text-rs-muted">
+        {disponible ? 'El negocio tiene el webhook de aviso configurado.' : 'Este negocio todavía no tiene el webhook de aviso configurado: el diálogo de cambio de estado no ofrece avisar.'} Marcá solo los estados que el workflow de n8n del negocio ya sabe tratar: en esos, al cambiar el estado de una reserva se le pregunta a la persona si quiere avisar al cliente.
+      </p>
+      {fila('confirmada', 'Confirmada')}
+      {fila('pendiente_pago', 'Pendiente de pago (manda el monto a pagar)')}
+      {fila('no_show', 'No-show')}
+      {fila('cancelada', 'Cancelada (manda el motivo)')}
       <Guardar pending={pending} />
     </form>
   )

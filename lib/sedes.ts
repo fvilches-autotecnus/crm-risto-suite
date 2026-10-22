@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
 import type { OpcionesSede } from '@/components/reservas-ui'
+import { configuracionAviso } from '@/lib/notify'
 
 /** Opciones de sede/ubicación para los formularios y tablas de reservas. */
 export async function cargarOpciones(ctx: Contexto): Promise<OpcionesSede> {
@@ -15,5 +16,6 @@ export async function cargarOpciones(ctx: Contexto): Promise<OpcionesSede> {
     nombresSede: Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre])),
     sedeDefault: ctx.sede?.id ?? null,
     ubicaciones,
+    aviso: await configuracionAviso(ctx.negocio.id),
   }
 }
