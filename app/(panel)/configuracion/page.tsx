@@ -4,7 +4,8 @@ import { getContexto } from '@/lib/context'
 import { webhookCliente } from '@/lib/notify'
 import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
-import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
+import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
+import { leerPausaAuto } from '@/lib/pausas'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
 
@@ -55,6 +56,7 @@ export default async function ConfiguracionPage() {
     { id: 'bloqueos', label: 'Fechas bloqueadas' },
     ...(ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
     ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
+    ...(ctx.tieneApagadoBot && ctx.puedeAdministrar ? [{ id: 'pausas', label: 'Chats pausados' }] : []),
     ...(ctx.puedeAdministrar ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
   ]
 
@@ -126,6 +128,12 @@ export default async function ConfiguracionPage() {
             />
           )}
           <ModulosForm modulos={ctx.modulosActivos} />
+        </Seccion>
+      )}
+
+      {ctx.tieneApagadoBot && ctx.puedeAdministrar && (
+        <Seccion id="pausas" i={n++} titulo="Pausa automática de chats" texto="Cuánto tiempo queda pausado un chat que el bot derivó a una persona, antes de que el bot vuelva a atenderlo. También podés dejarlo indefinido y reactivarlo a mano desde la pestaña Chats pausados.">
+          <PausaAutoForm config={leerPausaAuto(ctx.negocio.modulos)} />
         </Seccion>
       )}
 

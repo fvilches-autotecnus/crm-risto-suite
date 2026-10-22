@@ -9,6 +9,8 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookSede, probarWebhookCliente, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
+import { guardarPausaAuto } from '../pausados-actions'
+import { UNIDADES_PAUSA, partirMinutos, type PausaAuto } from '@/lib/pausas'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
   return <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : children}</button>
@@ -458,5 +460,55 @@ export function UbicacionesPanel({ ubicaciones, sedes, puedeTodas }: { ubicacion
         <button disabled={pending} className="btn">{pending && <Spinner />}Agregar</button>
       </form>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Pausa automática de chats (negocios con el control del bot)
+// ---------------------------------------------------------------------------
+const MOTIVOS_FORM: { clave: keyof PausaAuto; titulo: string; ayuda: string }[] = [
+  { clave: 'consulta', titulo: 'Consulta o reclamo', ayuda: 'Cuando el cliente hace una consulta o un reclamo y el bot lo deriva a una persona.' },
+  { clave: 'reserva', titulo: 'Solicitud de reserva', ayuda: 'Cuando el bot deriva una reserva para que la confirme alguien del local.' },
+  { clave: 'otro', titulo: 'Otro motivo', ayuda: 'Cualquier otra pausa del bot.' },
+]
+
+function FilaPausa({ clave, titulo, ayuda, minutos }: { clave: string; titulo: string; ayuda: string; minutos: number | null }) {
+  const ini = partirMinutos(minutos)
+  const [modo, setModo] = useState(minutos ? 'tiempo' : 'indefinida')
+  return (
+    <div className="rounded-rs-lg border border-rs-border bg-rs-raised/30 p-3">
+      <p className="text-sm font-medium">{titulo}</p>
+      <p className="text-xs text-rs-muted">{ayuda}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select name={clave + '_modo'} value={modo} onChange={(e) => setModo(e.target.value)} aria-label={`Pausa de ${titulo}`} className="input">
+          <option value="indefinida">Indefinida (se reactiva a mano)</option>
+          <option value="tiempo">Reactivar solo después de…</option>
+        </select>
+        {modo === 'tiempo' && (
+          <>
+            <input name={clave + '_valor'} type="number" min={1} step="any" defaultValue={ini.valor} placeholder="Ej. 2" aria-label={`Duración de la pausa de ${titulo}`} className="input w-24" />
+            <select name={clave + '_unidad'} defaultValue={ini.unidad} aria-label="Unidad" className="input">
+              {UNIDADES_PAUSA.map((u) => <option key={u.v} value={u.v}>{u.l}</option>)}
+            </select>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function PausaAutoForm({ config }: { config: PausaAuto }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarPausaAuto)
+  const toast = useToast()
+  useEffect(() => {
+    if (state?.ok) toast({ texto: state.cantidad ? `Guardado. Se aplicó a ${state.cantidad} chat${state.cantidad === 1 ? '' : 's'} que ya estaban pausados` : 'Pausa automática guardada' })
+    else if (state && !state.ok) toast({ tipo: 'error', texto: state.error ?? 'No se pudo guardar' })
+  }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <form {...formProps} className="mt-4 space-y-3" noValidate>
+      {MOTIVOS_FORM.map((m) => <FilaPausa key={m.clave} clave={m.clave} titulo={m.titulo} ayuda={m.ayuda} minutos={config[m.clave]} />)}
+      <p className="text-xs text-rs-muted">El tiempo se cuenta desde que el bot pausa el chat. Pasado ese plazo, el bot vuelve a atender ese chat <strong className="font-semibold text-rs-text">cuando el cliente escribe de nuevo</strong>. Hasta entonces el chat deja de figurar como pausado en el panel. Los cambios también se aplican a los chats que ya están pausados.</p>
+      <Guardar pending={pending} />
+    </form>
   )
 }

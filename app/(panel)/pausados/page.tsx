@@ -5,7 +5,7 @@ import Paginacion from '@/components/paginacion'
 import { ListaPausados, ReactivarTodosBtn, type PausadoUI } from '@/components/pausados-ui'
 import { getContexto } from '@/lib/context'
 import { listarPausados } from '@/lib/pausados'
-import { MOTIVOS_PAUSA, labelMotivoPausa, motivoValido } from '@/lib/pausas'
+import { MOTIVOS_PAUSA, labelMotivoPausa, leerPausaAuto, motivoValido, textoPausa } from '@/lib/pausas'
 import { createAdminClient } from '@/lib/supabase/server'
 import { numPagina, paginar } from '@/lib/paginacion'
 
@@ -41,7 +41,8 @@ export default async function PausadosPage({ searchParams }: { searchParams: Pro
   const pg = paginar(filtrados, numPagina(sp.pagina))
   if (!q) await buscaEnCrm(pg.items.map((c) => c.telefono))
 
-  const chats: PausadoUI[] = pg.items.map((c) => ({ id: c.id, telefono: c.telefono, nombre: nombreDe(c), motivo_pausa: c.motivo_pausa, pausado_en: c.pausado_en, sede: c.sucursal_id ? nombresSede.get(c.sucursal_id) ?? null : null }))
+  const chats: PausadoUI[] = pg.items.map((c) => ({ id: c.id, telefono: c.telefono, nombre: nombreDe(c), motivo_pausa: c.motivo_pausa, pausado_en: c.pausado_en, reactivar_en: c.reactivar_en, sede: c.sucursal_id ? nombresSede.get(c.sucursal_id) ?? null : null }))
+  const auto = leerPausaAuto(ctx.negocio.modulos)
   const link = (m: string) => `/pausados${m !== 'todos' || q ? '?' : ''}${[m !== 'todos' ? `motivo=${m}` : '', q ? `q=${encodeURIComponent(q)}` : ''].filter(Boolean).join('&')}`
 
   return (
@@ -53,6 +54,11 @@ export default async function PausadosPage({ searchParams }: { searchParams: Pro
         </div>
         <ReactivarTodosBtn total={motivo === 'todos' ? todos.length : base.length} motivo={motivo === 'todos' ? undefined : motivo} etiquetaMotivo={motivo === 'todos' ? undefined : labelMotivoPausa(motivo)} />
       </div>
+
+      <p className="-mt-2 text-sm text-rs-muted">
+        Pausa automática: consulta o reclamo <span className="font-medium text-rs-text">{textoPausa(auto.consulta).toLowerCase()}</span> · solicitud de reserva <span className="font-medium text-rs-text">{textoPausa(auto.reserva).toLowerCase()}</span> · otros <span className="font-medium text-rs-text">{textoPausa(auto.otro).toLowerCase()}</span>.
+        {ctx.puedeAdministrar ? <> <Link href="/configuracion#pausas" className="text-rs-lime hover:underline">Cambiar</Link></> : null}
+      </p>
 
       <div className="grid grid-cols-3 gap-3">
         {[['Consultas', conteo.consulta, 'text-rs-warn'], ['Solicitudes de reserva', conteo.reserva, 'text-rs-lav'], ['Otros', conteo.otro, 'text-rs-muted']].map(([l, n, c], i) => (
