@@ -1,13 +1,13 @@
 'use client'
 
-import {useEffect, useState, useTransition} from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useConfirm, useResultado, useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
-import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarAvisosEstados, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, probarWebhookCliente, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
@@ -179,26 +179,78 @@ export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumplea
   )
 }
 
-export function AvisosForm({ estados, disponible }: { estados: string[]; disponible: boolean }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarAvisosEstados)
-  useResultado(state, 'Avisos guardados')
+export function AvisosForm({ config }: { config: { destino: string; url: string; tieneSecreto: boolean; estados: string[]; disponible: boolean } }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarWebhookCliente)
+  useResultado(state, 'Webhook guardado')
+  const [destino, setDestino] = useState(config.destino)
   const fila = (e: string, titulo: string) => (
     <label key={e} className="flex cursor-pointer items-center gap-3 text-sm">
-      <input type="checkbox" name={'aviso_' + e} defaultChecked={estados.includes(e)} className="h-4 w-4 accent-[#c8e62b]" />
+      <input type="checkbox" name={'aviso_' + e} defaultChecked={config.estados.includes(e)} className="h-4 w-4 accent-[#c8e62b]" />
       <span className="font-medium">{titulo}</span>
     </label>
   )
   return (
-    <form {...formProps} className="mt-4 space-y-3 border-t border-rs-border pt-4">
-      <h3 className="text-sm font-semibold">Aviso al cliente por WhatsApp</h3>
-      <p className="text-xs text-rs-muted">
-        {disponible ? 'El negocio tiene el webhook de aviso configurado.' : 'Este negocio todavía no tiene el webhook de aviso configurado: el diálogo de cambio de estado no ofrece avisar.'} Marcá solo los estados que el workflow de n8n del negocio ya sabe tratar: en esos, al cambiar el estado de una reserva se le pregunta a la persona si quiere avisar al cliente.
+    <div className="mt-4 border-t border-rs-border pt-4">
+      <h3 className="text-sm font-semibold">Webhook para avisar al cliente</h3>
+      <p className="mt-1 text-xs text-rs-muted">
+        {config.disponible ? 'Listo: al cambiar el estado de una reserva se le pregunta a la persona si quiere avisar al cliente.' : 'Sin configurar: el diálogo de cambio de estado no ofrece avisar al cliente.'} Solo se envía cuando la persona elige «y avisar».
       </p>
-      {fila('confirmada', 'Confirmada')}
-      {fila('pendiente_pago', 'Pendiente de pago (manda el monto a pagar)')}
-      {fila('no_show', 'No-show')}
-      {fila('cancelada', 'Cancelada (manda el motivo)')}
-      <Guardar pending={pending} />
+      <form {...formProps} className="mt-3 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+          <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Destino</span>
+            <select name="destino" value={destino} onChange={(e) => setDestino(e.target.value)} className="input w-full">
+              <option value="n8n">n8n</option>
+              <option value="botconversa">BotConversa</option>
+            </select>
+          </label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">URL del webhook</span>
+            <input name="url" type="text" inputMode="url" defaultValue={config.url} placeholder="https://…" autoComplete="off" spellCheck={false} className="input w-full" />
+          </label>
+        </div>
+        <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Secreto {destino === 'n8n' ? '(n8n lo valida en el header X-Toque-Secret)' : '(opcional: BotConversa no lo necesita, su URL ya lleva el token)'}</span>
+          <input name="secreto" type="password" autoComplete="new-password" placeholder={config.tieneSecreto ? '•••••••• (cargado; dejalo vacío para conservarlo)' : 'Sin secreto'} className="input w-full sm:max-w-md" />
+        </label>
+        {config.tieneSecreto && (
+          <label className="flex cursor-pointer items-center gap-3 text-sm text-rs-muted">
+            <input type="checkbox" name="quitar_secreto" className="h-4 w-4 accent-[#c8e62b]" /> Quitar el secreto guardado
+          </label>
+        )}
+        <p className="text-xs text-rs-muted">{destino === 'botconversa'
+          ? 'Campos que recibe BotConversa: evento, id_bot, nombre, telefono, estado_reserva, fecha_reserva (DD-MM-AAAA), hora_reserva, cantidad_reserva, tipo_reserva, ubicacion_prefer, observaciones, motivo_cancelacion y sena. El teléfono va solo con dígitos (sin +).'
+          : 'Campos que recibe n8n: evento, telefono (solo dígitos, sin +), numero, estado, clienteNombre, cantidadPersonas, fecha, hora, motivoCancelacion y monto.'}</p>
+        <div className="space-y-2 pt-1">
+          <p className="text-xs text-rs-muted">Estados para los que el flujo del otro lado ya sabe armar el mensaje:</p>
+          {fila('confirmada', 'Confirmada')}
+          {fila('pendiente_pago', 'Pendiente de pago (manda el monto a pagar)')}
+          {fila('no_show', 'No-show')}
+          {fila('cancelada', 'Cancelada (manda el motivo)')}
+        </div>
+        <Guardar pending={pending} />
+      </form>
+      {config.disponible && <PruebaWebhook />}
+    </div>
+  )
+}
+
+function PruebaWebhook() {
+  const { state, pending, formProps } = useAccionFormulario(probarWebhookCliente)
+  useResultado(state, 'Prueba enviada: el webhook respondió bien')
+  const confirmar = useConfirm()
+  const yaConfirmado = useRef(false)
+  return (
+    <form {...formProps} onSubmit={async (e) => {
+      if (yaConfirmado.current) { yaConfirmado.current = false; formProps.onSubmit(e); return }
+      e.preventDefault()
+      const form = e.currentTarget
+      const ok = await confirmar({ titulo: 'Enviar aviso de prueba', texto: 'Se manda un aviso de ejemplo (con prueba: true) al webhook. Si el flujo del otro lado ya está armado, le va a escribir un WhatsApp al número que indicaste. ¿Enviarlo?', confirmar: 'Enviar prueba' })
+      if (ok) { yaConfirmado.current = true; form.requestSubmit() }
+    }} className="mt-4 rounded-rs-lg border border-rs-border bg-rs-raised/40 p-3">
+      <p className="text-sm font-medium">Probar el webhook</p>
+      <p className="mt-0.5 text-xs text-rs-muted">Usá tu propio teléfono: el mensaje de ejemplo le llega a ese número si el flujo está armado.</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input name="telefono_prueba" required inputMode="tel" placeholder="Ej. 5493415550000" aria-label="Teléfono de prueba" className="input w-56" />
+        <button disabled={pending} className="btn">{pending && <Spinner />}{pending ? 'Enviando…' : 'Enviar prueba'}</button>
+      </div>
     </form>
   )
 }

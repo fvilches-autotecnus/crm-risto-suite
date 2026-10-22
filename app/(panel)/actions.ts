@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
-import { avisarCambioDeEstado } from '@/lib/notify'
+import { avisarCambioDeEstado, enviarPrueba } from '@/lib/notify'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
 import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
 
@@ -67,18 +67,46 @@ export async function guardarFuncionesNegocio(_prev: ActionResult | null, fd: Fo
   return { ok: true }
 }
 
-// Estados que el workflow de aviso del negocio sabe tratar (solo superadmin: depende de cómo esté armado el workflow en n8n).
-export async function guardarAvisosEstados(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+// Webhook para avisar al cliente (n8n o BotConversa): destino, URL, secreto opcional y estados que el flujo sabe tratar.
+// Solo superadmin: la URL de BotConversa lleva su token adentro y el formato depende de cómo esté armado el flujo del otro lado.
+const URL_PRIVADA = /^(localhost|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$)/i
+export async function guardarWebhookCliente(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
-  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar los avisos al cliente')
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar el webhook de aviso al cliente')
+  const destino = text(fd, 'destino')
+  if (destino !== 'n8n' && destino !== 'botconversa') return fail('Elegí el destino del webhook')
+  const url = text(fd, 'url')
+  if (url) {
+    let u: URL
+    try { u = new URL(url) } catch { return fail('La URL del webhook no es válida') }
+    if (u.protocol !== 'https:') return fail('La URL del webhook tiene que empezar con https://')
+    if (URL_PRIVADA.test(u.hostname)) return fail('La URL del webhook tiene que ser pública')
+  }
   const admin = createAdminClient()
   const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
   if (e1 || !actual) return fail('No se pudo leer el negocio')
   const avisos_estados = ESTADOS_AVISO.filter((e) => fd.get('aviso_' + e) === 'on')
-  const { error } = await admin.from('negocios').update({ modulos: { ...(actual.modulos as Record<string, unknown>), avisos_estados } }).eq('id', ctx.negocio.id)
+  const cambios: Record<string, unknown> = {
+    webhook_aviso_reserva_url: url || null,
+    modulos: { ...(actual.modulos as Record<string, unknown>), avisos_estados, webhook_destino: destino },
+  }
+  const secreto = text(fd, 'secreto')
+  if (fd.get('quitar_secreto') === 'on') cambios.webhook_secret = null   // sin secreto
+  else if (secreto) cambios.webhook_secret = secreto                      // en blanco = se conserva el actual
+  const { error } = await admin.from('negocios').update(cambios).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
   revalidatePath('/', 'layout')
   return { ok: true }
+}
+
+// Manda un aviso de ejemplo (prueba: true) al teléfono indicado, con el formato del destino elegido
+export async function probarWebhookCliente(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede probar el webhook')
+  const tel = text(fd, 'telefono_prueba').replace(/\D/g, '')
+  if (tel.length < 8) return fail('Ingresá un teléfono de prueba (con código de país)')
+  const r = await enviarPrueba(ctx.negocio.id, tel)
+  return r.ok ? { ok: true } : fail(r.error ?? 'No se pudo enviar la prueba')
 }
 
 export async function cambiarSede(formData: FormData) {
@@ -171,7 +199,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
     .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
-    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena')
+    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones')
     .maybeSingle()
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
@@ -189,6 +217,9 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       hora: r.hora,
       motivoCancelacion: r.motivo_cancelacion,
       monto: r.monto_sena,
+      tipoReserva: r.tipo_reserva,
+      ubicacion: r.ubicacion,
+      observaciones: r.observaciones,
     })
   }
   revalidatePath('/', 'layout')
