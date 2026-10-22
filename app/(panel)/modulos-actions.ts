@@ -17,7 +17,7 @@ function refrescar() {
 // ---------------------------------------------------------------------------
 // Vouchers
 // ---------------------------------------------------------------------------
-const PREFIJOS: Record<string, string> = { cumpleanos: 'CUMPLE', inactividad: 'INACT' }
+const PREFIJOS: Record<string, string> = { cumpleanos: 'CUMPLE', inactividad: 'INACT', encuesta: 'ENC' }
 const ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // sin 0/O/1/I: se dictan por teléfono
 
 function generarCodigo(prefijo: string): string {
@@ -152,6 +152,7 @@ export async function guardarModulos(_prev: ActionResult | null, fd: FormData): 
     vouchers: fd.get('vouchers') === 'on',
     resenas: fd.get('resenas') === 'on',
     conversaciones: fd.get('conversaciones') === 'on',
+    derivadas: fd.get('derivadas') === 'on',
   }
   const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')

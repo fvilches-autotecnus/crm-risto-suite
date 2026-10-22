@@ -4,9 +4,11 @@ import { Search, Star } from 'lucide-react'
 import { GraficoColumnas, TarjetaGrafico } from '@/components/charts'
 import { Tile } from '@/components/dashboard-ui'
 import OrdenSelect from '@/components/orden-select'
+import Paginacion from '@/components/paginacion'
 import { Estrellas, ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resenas-ui'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
+import { numPagina, paginar } from '@/lib/paginacion'
 import { ORIGENES_LISTA } from '@/lib/resenas'
 
 const ORDENES = [
@@ -18,7 +20,7 @@ const ORDENES = [
 const PERIODOS = [{ v: 'todas', l: 'Todas' }, { v: '30', l: 'Últimos 30 días' }, { v: '90', l: 'Últimos 90 días' }, { v: '365', l: 'Último año' }]
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string; voucher?: string }> }) {
+export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string; voucher?: string; pagina?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.resenas) redirect('/')
   const { supabase, negocio, sede } = ctx
@@ -40,14 +42,14 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const ordenada = orden === 'alta_desc' ? base.order('creado_en', { ascending: false }) : orden === 'alta_asc' ? base.order('creado_en', { ascending: true })
     : orden === 'puntaje_desc' ? base.order('puntaje', { ascending: false }).order('creado_en', { ascending: false }) : base.order('puntaje', { ascending: true }).order('creado_en', { ascending: false })
   const { data } = await ordenada.limit(5000)
-  // Voucher: "emitido" si el teléfono ya tiene uno en Vouchers (o vino marcado como enviado al importar la encuesta)
+  // Voucher: solo corresponde a quienes puntuaron 4–5 ★. "Emitido" si el teléfono ya tiene uno en Vouchers (o vino marcado como enviado al importar)
   const conVoucher = ctx.modulosActivos.vouchers
   const telConVoucher = new Set<string>()
   if (conVoucher) {
     const { data: vs } = await supabase.from('vouchers').select('telefono').eq('negocio_id', negocio.id).neq('estado', 'anulado').not('telefono', 'is', null).limit(20000)
     for (const v of vs ?? []) if (v.telefono) telConVoucher.add(v.telefono)
   }
-  const todasBase = ((data ?? []) as ResenaUI[]).map((r) => ({ ...r, voucher: conVoucher ? ((r.telefono && telConVoucher.has(r.telefono)) || r.datos_origen?.voucher_enviado ? 'emitido' : 'pendiente') as 'emitido' | 'pendiente' : null }))
+  const todasBase = ((data ?? []) as ResenaUI[]).map((r) => ({ ...r, voucher: conVoucher && r.puntaje >= 4 ? ((r.telefono && telConVoucher.has(r.telefono)) || r.datos_origen?.voucher_enviado ? 'emitido' : 'pendiente') as 'emitido' | 'pendiente' : null }))
   const todas = todasBase
   const personasPendientes = new Set(todasBase.filter((r) => r.voucher === 'pendiente').map((r) => r.telefono ?? r.id)).size
 
@@ -55,7 +57,8 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const promedio = total ? todas.reduce((s, r) => s + r.puntaje, 0) / total : 0
   const positivas = todas.filter((r) => r.puntaje >= 4).length
   const porPuntaje = [5, 4, 3, 2, 1].map((n) => ({ n, c: todas.filter((r) => r.puntaje === n).length }))
-  const lista = todas.filter((r) => (!puntaje || r.puntaje === puntaje) && (!voucherFiltro || r.voucher === voucherFiltro)).slice(0, 500)
+  const pg = paginar(todas.filter((r) => (!puntaje || r.puntaje === puntaje) && (!voucherFiltro || r.voucher === voucherFiltro)), numPagina(sp.pagina))
+  const lista = pg.items
 
   // Reseñas por mes (últimos 6 meses)
   const [y, m] = [Number(hoy.slice(0, 4)), Number(hoy.slice(5, 7))]
@@ -143,6 +146,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
       </div>
 
       <ListaResenas resenas={lista} sedes={sedesOpc} nombresSede={nombresSede} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
+      <Paginacion ruta="/resenas" params={sp} {...pg} />
     </div>
   )
 }

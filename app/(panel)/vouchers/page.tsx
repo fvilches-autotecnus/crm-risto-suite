@@ -4,11 +4,13 @@ import { Search, Ticket } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
 import { NuevoVoucherBtn, ListaVouchers, type VoucherUI } from '@/components/vouchers-ui'
 import { getContexto } from '@/lib/context'
+import Paginacion from '@/components/paginacion'
 import { hoyEn } from '@/lib/fechas'
+import { numPagina, paginar } from '@/lib/paginacion'
 
 const FILTROS = [{ v: 'todos', l: 'Todos' }, { v: 'vigentes', l: 'Vigentes' }, { v: 'usados', l: 'Usados' }, { v: 'vencidos', l: 'Vencidos' }]
 
-export default async function VouchersPage({ searchParams }: { searchParams: Promise<{ estado?: string; q?: string; orden?: string }> }) {
+export default async function VouchersPage({ searchParams }: { searchParams: Promise<{ pagina?: string; estado?: string; q?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.vouchers) redirect('/')
   const { supabase, negocio } = ctx
@@ -20,12 +22,14 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   let consulta = supabase.from('vouchers').select('id, codigo, nombre, telefono, beneficio, campana, estado, vence_el, creado_en').eq('negocio_id', negocio.id)
   if (q) consulta = consulta.or(`codigo.ilike.%${q}%,nombre.ilike.%${q}%,telefono.ilike.%${q}%`)
   const orden = sp.orden === 'alta_asc' ? 'alta_asc' : 'alta_desc'
-  const { data } = await consulta.order('creado_en', { ascending: orden === 'alta_asc' }).limit(500)
+  const { data } = await consulta.order('creado_en', { ascending: orden === 'alta_asc' }).limit(20000)
   const todos = (data ?? []) as VoucherUI[]
 
   const vencido = (v: VoucherUI) => v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy
   const conteo = { vigentes: todos.filter((v) => v.estado === 'vigente' && !vencido(v)).length, usados: todos.filter((v) => v.estado === 'usado').length, vencidos: todos.filter(vencido).length }
-  const lista = todos.filter((v) => filtro === 'todos' ? true : filtro === 'vigentes' ? v.estado === 'vigente' && !vencido(v) : filtro === 'usados' ? v.estado === 'usado' : vencido(v))
+  const filtrados = todos.filter((v) => filtro === 'todos' ? true : filtro === 'vigentes' ? v.estado === 'vigente' && !vencido(v) : filtro === 'usados' ? v.estado === 'usado' : vencido(v))
+
+  const pg = paginar(filtrados, numPagina(sp.pagina))
 
   const link = (estado: string) => `/vouchers?estado=${estado}${q ? `&q=${encodeURIComponent(q)}` : ''}${orden === 'alta_asc' ? '&orden=alta_asc' : ''}`
 
@@ -56,7 +60,8 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
-      <ListaVouchers vouchers={lista} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
+      <ListaVouchers vouchers={pg.items} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
+      <Paginacion ruta="/vouchers" params={sp} {...pg} />
     </div>
   )
 }

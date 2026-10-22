@@ -156,7 +156,7 @@ export function BorrarBloqueo({ id }: { id: string }) {
 // ---------------------------------------------------------------------------
 // Funciones del negocio (superadmin)
 // ---------------------------------------------------------------------------
-export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean } }) {
+export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean } }) {
   const { state, pending, formProps } = useAccionFormulario(guardarModulos)
   useResultado(state, 'Módulos guardados')
   const fila = (name: string, titulo: string, texto: string, on: boolean) => (
@@ -172,6 +172,7 @@ export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumplea
       {fila('vouchers', 'Vouchers', 'Códigos de beneficio y su estado de uso.', modulos.vouchers)}
       {fila('metricas', 'Métricas', 'Gráficos de reservas, horarios y clientes recurrentes.', modulos.metricas)}
       {fila('resenas', 'Reseñas', 'Reseñas conseguidas, puntaje promedio y filtros.', modulos.resenas)}
+      {fila('derivadas', 'Derivadas', 'Reservas que toma el bot pero administra otra producción (oculto por defecto).', modulos.derivadas)}
       {fila('conversaciones', 'Conversaciones', 'Chats del bot de WhatsApp (oculto por defecto).', modulos.conversaciones)}
       <Guardar pending={pending} />
     </form>

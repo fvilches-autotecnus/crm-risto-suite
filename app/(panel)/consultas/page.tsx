@@ -1,15 +1,17 @@
 import Link from 'next/link'
 import { MessageCircleQuestion, Search } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
+import Paginacion from '@/components/paginacion'
 import { EstadoVacio } from '@/components/ui'
 import { getContexto } from '@/lib/context'
 import { fechaHoraLarga } from '@/lib/fechas'
+import { numPagina, paginar } from '@/lib/paginacion'
 import ConsultaAcciones from './acciones'
 
 const ESTADOS = [{ v: 'todas', l: 'Todas' }, { v: 'pendiente', l: 'Pendientes' }, { v: 'resuelta', l: 'Resueltas' }]
 const TIPOS = [{ v: 'todos', l: 'Todos' }, { v: 'consulta', l: 'Consultas' }, { v: 'reclamo', l: 'Reclamos' }]
 
-export default async function ConsultasYReclamosPage({ searchParams }: { searchParams: Promise<{ estado?: string; tipo?: string; q?: string; orden?: string }> }) {
+export default async function ConsultasYReclamosPage({ searchParams }: { searchParams: Promise<{ pagina?: string; estado?: string; tipo?: string; q?: string; orden?: string }> }) {
   const ctx = await getContexto()
   const { supabase, negocio, sede } = ctx
   const sp = await searchParams
@@ -29,7 +31,9 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
   const porEstado = (e: string) => (e === 'todas' ? base.length : base.filter((c) => c.estado === e).length)
   const baseE = todas.filter((c) => estado === 'todas' || c.estado === estado)
   const porTipo = (t: string) => (t === 'todos' ? baseE.length : baseE.filter((c) => c.tipo === t).length)
-  const lista = todas.filter((c) => (estado === 'todas' || c.estado === estado) && (tipo === 'todos' || c.tipo === tipo)).slice(0, 300)
+  const filtradas = todas.filter((c) => (estado === 'todas' || c.estado === estado) && (tipo === 'todos' || c.tipo === tipo))
+  const pg = paginar(filtradas, numPagina(sp.pagina))
+  const lista = pg.items
 
   const url = (cambios: Record<string, string>) => {
     const p = new URLSearchParams({ estado, tipo, ...(q ? { q } : {}), ...(orden !== 'alta_desc' ? { orden } : {}), ...cambios })
@@ -98,6 +102,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
           </ul>
         </>
       )}
+      <Paginacion ruta="/consultas" params={sp} {...pg} />
     </div>
   )
 }

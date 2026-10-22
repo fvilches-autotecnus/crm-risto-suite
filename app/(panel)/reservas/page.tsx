@@ -4,9 +4,11 @@ import FiltrosReservas from '@/components/filtros-reservas'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { RESERVA_COLS, type Reserva } from '@/lib/reservas'
+import Paginacion from '@/components/paginacion'
+import { numPagina, paginar } from '@/lib/paginacion'
 import { cargarOpciones } from '@/lib/sedes'
 
-type SP = { estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
+type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await getContexto()
@@ -43,7 +45,8 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const conteos: Record<string, number> = {}
   for (const r of todas) conteos[r.estado] = (conteos[r.estado] ?? 0) + 1
   const filtradas = sp.estado ? todas.filter((r) => r.estado === sp.estado) : todas
-  const mostradas = filtradas.slice(0, 500)
+  const pg = paginar(filtradas, numPagina(sp.pagina))
+  const mostradas = pg.items
 
   // Opciones de los filtros: lo que ya existe (tipos usados + ubicaciones configuradas o usadas)
   const ubicaciones = [...new Set([...op.ubicaciones.map((u) => u.nombre), ...todas.map((r) => r.ubicacion).filter(Boolean) as string[]])].sort()
@@ -56,7 +59,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
       </div>
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
       <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} />
-      {filtradas.length > 500 && <p className="text-xs text-rs-muted">Mostrando las primeras 500 de {filtradas.length} — afiná los filtros para ver el resto.</p>}
+      <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>
   )
 }

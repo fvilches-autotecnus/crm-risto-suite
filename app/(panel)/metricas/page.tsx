@@ -12,7 +12,7 @@ import { labelEstado } from '@/lib/reservas'
 const COLOR_ESTADO: Record<string, string> = { nueva: '#a5b4fc', confirmada: '#5ecc6e', pendiente_pago: '#f5b942', revisar_pago: '#ffb86b', cancelada: '#f0706b', no_show: '#7a9050' }
 const DIAS_VALIDOS = [7, 14, 30, 90, 180]
 
-export default async function MetricasPage({ searchParams }: { searchParams: Promise<{ dias?: string; agrupar?: string; acum?: string }> }) {
+export default async function MetricasPage({ searchParams }: { searchParams: Promise<{ dias?: string; agrupar?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.metricas) redirect('/')
   const { supabase, negocio, sede } = ctx
@@ -22,7 +22,6 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
   const desde = sumarDias(hoy, -(dias - 1))
   const agrupar = ['dia', 'semana', 'mes'].includes(sp.agrupar ?? '') ? sp.agrupar! : 'auto'
   const modo: Agrupacion = agrupar === 'auto' ? agrupacionAuto(dias) : (agrupar as Agrupacion)
-  const acumulado = sp.acum === '1'
 
   // Reservas del período (RLS + sede elegida)
   let q = supabase.from('reservas').select('cliente_id, fecha, hora, cantidad_personas, estado, sucursal_id').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', desde).lte('fecha', hoy)
@@ -41,7 +40,7 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
   }
 
   const m = calcularMetricas(periodo, previos, dias, hoy)
-  const serie = serieEvolucion(m.porDia, modo, acumulado)
+  const serie = serieEvolucion(m.porDia, modo)
   const nombreModo = modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'
 
   const { data: top } = m.topRecurrentes.length
@@ -60,7 +59,7 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><BarChart3 className="text-rs-lime" size={22} />Métricas</h1>
           <p className="text-sm text-rs-muted">{negocio.nombre}{sede ? ` · ${sede.nombre}` : ''} · {fechaCorta(desde)} al {fechaCorta(hoy)}</p>
         </div>
-        <SelectorPeriodo dias={dias} agrupar={agrupar} acumulado={acumulado} />
+        <SelectorPeriodo dias={dias} agrupar={agrupar} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -76,8 +75,8 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <TarjetaGrafico i={3} titulo={`Evolución ${nombreModo}${acumulado ? ' (acumulada)' : ''} — últimos ${dias} días`} vacio={vacio} columnas={[modo === 'dia' ? 'Día' : modo === 'semana' ? 'Semana' : 'Mes', acumulado ? 'Reservas acumuladas' : 'Reservas']} filas={serie.map((d) => [d.titulo, d.valor])} ancho>
-          <GraficoLinea puntos={serie} tendencia={!acumulado} />
+        <TarjetaGrafico i={3} titulo={`Evolución ${nombreModo} — últimos ${dias} días`} vacio={vacio} columnas={[modo === 'dia' ? 'Día' : modo === 'semana' ? 'Semana' : 'Mes', 'Reservas']} filas={serie.map((d) => [d.titulo, d.valor])} ancho>
+          <GraficoLinea puntos={serie} tendencia />
         </TarjetaGrafico>
         <TarjetaGrafico i={4} titulo={`Días más fuertes — últimos ${dias} días`} vacio={vacio} columnas={['Día', 'Reservas']} filas={m.porDiaSemana.map((d) => [d.etiqueta, d.valor])}>
           <GraficoColumnas datos={m.porDiaSemana} />

@@ -23,6 +23,7 @@ export default function OrdenSelect({ opciones = ORDEN_ALTA as unknown as { valu
         onChange={(e) => {
           const p = new URLSearchParams(window.location.search)
           e.target.value === porDefecto ? p.delete('orden') : p.set('orden', e.target.value)
+          p.delete('pagina')
           router.push(`${pathname}?${p.toString()}`)
         }}
         className="input pl-9"

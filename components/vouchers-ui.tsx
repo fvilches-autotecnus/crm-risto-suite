@@ -38,7 +38,7 @@ function VoucherForm({ prefill, onDone }: { prefill?: { cliente_id?: string; nom
       <div>
         <label className="label" htmlFor="v_camp">Campaña</label>
         <select id="v_camp" name="campana" value={campana} onChange={(e) => setCampana(e.target.value)} className="input w-full">
-          <option value="cumpleanos">Cumpleaños</option><option value="inactividad">Inactividad</option><option value="otra">Otra…</option>
+          <option value="cumpleanos">Cumpleaños</option><option value="inactividad">Inactividad</option><option value="encuesta">Encuesta</option><option value="otra">Otra…</option>
         </select>
       </div>
       {campana === 'otra' ? <div><label className="label" htmlFor="v_otra">Nombre de la campaña</label><input id="v_otra" name="campana_otra" placeholder="Ej. Black Friday" className="input w-full" /></div> : <div />}

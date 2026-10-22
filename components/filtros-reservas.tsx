@@ -38,6 +38,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
   const set = (cambios: Record<string, string>) => {
     const p = new URLSearchParams(window.location.search) // no `sp`: puede estar atrasado si hay una navegación en curso
     for (const [k, v] of Object.entries(cambios)) v ? p.set(k, v) : p.delete(k)
+    p.delete('pagina')
     router.push('/reservas?' + p.toString())
   }
 

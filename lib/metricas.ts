@@ -84,7 +84,7 @@ export function calcularMetricas(periodo: FilaReserva[], previos: Set<string>, d
 }
 
 // ---------------------------------------------------------------------------
-// Serie de evolución agrupada (día / semana / mes), opcionalmente acumulada
+// Serie de evolución agrupada (día / semana / mes)
 // ---------------------------------------------------------------------------
 export type Agrupacion = 'dia' | 'semana' | 'mes'
 export interface PuntoSerie { x: string; valor: number; etiqueta: string; titulo: string }
@@ -95,7 +95,7 @@ export const agrupacionAuto = (dias: number): Agrupacion => (dias <= 31 ? 'dia' 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const dm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`
 
-export function serieEvolucion(porDia: { fecha: string; valor: number }[], modo: Agrupacion, acumulado: boolean): PuntoSerie[] {
+export function serieEvolucion(porDia: { fecha: string; valor: number }[], modo: Agrupacion): PuntoSerie[] {
   if (!porDia.length) return []
   const desde = porDia[0].fecha, hasta = porDia[porDia.length - 1].fecha
   const cubetas = new Map<string, { inicio: string; fin: string; valor: number }>()
@@ -107,10 +107,8 @@ export function serieEvolucion(porDia: { fecha: string; valor: number }[], modo:
     if (d.fecha > c.fin) c.fin = d.fecha
     cubetas.set(clave, c)
   }
-  let acc = 0
   return [...cubetas.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([clave, c]) => {
-    acc += c.valor
-    const valor = acumulado ? acc : c.valor
+    const valor = c.valor
     if (modo === 'dia') return { x: clave, valor, etiqueta: dm(clave), titulo: fechaLarga(clave) }
     if (modo === 'semana') return { x: clave, valor, etiqueta: dm(c.inicio), titulo: `Semana del ${dm(c.inicio)} al ${dm(c.fin)}` }
     const m = Number(clave.slice(5, 7)) - 1

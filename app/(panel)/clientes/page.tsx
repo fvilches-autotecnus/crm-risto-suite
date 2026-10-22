@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { Search, Users } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
+import Paginacion from '@/components/paginacion'
 import { EstadoVacio } from '@/components/ui'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, fechaHoraLarga } from '@/lib/fechas'
+import { numPagina, POR_PAGINA } from '@/lib/paginacion'
 
 const ORDENES = [
   { value: 'alta_desc', label: 'Alta: más recientes primero' },
@@ -12,18 +14,20 @@ const ORDENES = [
   { value: 'nombre', label: 'Nombre (A–Z)' },
 ]
 
-export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string }> }) {
+export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string }> }) {
   const { supabase, negocio } = await getContexto()
-  const { q, orden: ordenParam } = await searchParams
+  const sp = await searchParams
+  const { q, orden: ordenParam } = sp
   const orden = ['alta_asc', 'actividad', 'nombre'].includes(ordenParam ?? '') ? ordenParam! : 'alta_desc'
   
-  // la búsqueda se hace en la base (hay negocios con miles de clientes) y se muestran los primeros LIMITE
-  const LIMITE = 500
+  // la búsqueda se hace en la base (hay negocios con miles de clientes) y se pagina con range()
+  const pagina = numPagina(sp.pagina)
+  const desdeFila = (pagina - 1) * POR_PAGINA
   const texto = (q ?? '').trim().replace(/[,()%*\\]/g, ' ').trim()
   const digitos = texto.replace(/\D/g, '')
   let cq = supabase.from('clientes').select('id, nombre, telefono, canal_origen, ultima_interaccion, creado_en', { count: 'exact' }).eq('negocio_id', negocio.id)
   if (texto) cq = cq.or([`nombre.ilike.%${texto}%`, ...(digitos ? [`telefono.like.%${digitos}%`] : [])].join(','))
-  const { data: clientes, count: totalClientes } = await cq.order(orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre', nullsFirst: false }).limit(LIMITE)
+  const { data: clientes, count: totalClientes } = await cq.order(orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre', nullsFirst: false }).range(desdeFila, desdeFila + POR_PAGINA - 1)
   const { data: filas } = await supabase.rpc('resumen_reservas_clientes', { p_negocio: negocio.id })
 
   const resumen = new Map<string, { total: number; ultima: string | null }>(((filas ?? []) as { cliente_id: string; total: number; ultima: string | null }[]).map((f) => [f.cliente_id, { total: Number(f.total), ultima: f.ultima }] as const))
@@ -66,7 +70,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
           </tbody>
         </table>
       </div>
-      {(totalClientes ?? 0) > lista.length && <p className="text-center text-xs text-rs-muted">Mostrando {lista.length} de {totalClientes} clientes. Usá la búsqueda para encontrar al resto.</p>}
+      <Paginacion ruta="/clientes" params={sp} pagina={pagina} paginas={Math.max(1, Math.ceil((totalClientes ?? 0) / POR_PAGINA))} total={totalClientes ?? 0} desde={totalClientes ? desdeFila + 1 : 0} hasta={desdeFila + lista.length} />
     </div>
   )
 }

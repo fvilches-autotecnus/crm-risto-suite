@@ -74,8 +74,9 @@ export function TarjetaGrafico({ titulo, children, columnas, filas, vacio, i = 0
 
 function Tooltip({ x, y, ancho, titulo, valor }: { x: number; y: number; ancho: number; titulo: string; valor: string }) {
   const izquierda = x > ancho * 0.65
+  const abajo = y < 72   // cerca del borde de arriba no entra: se muestra debajo del punto, así nunca se corta
   return (
-    <div role="tooltip" className="pointer-events-none absolute z-10 -translate-y-full whitespace-nowrap rounded-rs border border-rs-control bg-rs-header/95 px-2.5 py-1.5 text-xs shadow-lg shadow-black/50 backdrop-blur" style={{ left: izquierda ? undefined : x + 10, right: izquierda ? ancho - x + 10 : undefined, top: Math.max(y - 6, 36) }}>
+    <div role="tooltip" className={'pointer-events-none absolute z-10 whitespace-nowrap rounded-rs border border-rs-control bg-rs-header/95 px-2.5 py-1.5 text-xs shadow-lg shadow-black/50 backdrop-blur ' + (abajo ? '' : '-translate-y-full')} style={{ left: izquierda ? undefined : x + 10, right: izquierda ? ancho - x + 10 : undefined, top: abajo ? y + 14 : y - 6 }}>
       <div className="flex items-center gap-2"><span className="h-0.5 w-3 rounded" style={{ background: LIMA }} /><span className="text-sm font-semibold" style={{ color: TEXTO }}>{valor}</span></div>
       <div style={{ color: TEXTO_SUAVE }}>{titulo}</div>
     </div>
@@ -115,7 +116,7 @@ export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }:
   const [ref, W] = useAncho<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const idGrad = useId().replace(/:/g, '')
-  const H = 240, m = { l: 36, r: 16, t: 16, b: 28 }
+  const H = 240, m = { l: 36, r: 16, t: 28, b: 28 }
   const n = puntos.length
   const max = Math.max(...puntos.map((p) => p.valor), 0)
   const { tope, marcas } = ejeY(max)

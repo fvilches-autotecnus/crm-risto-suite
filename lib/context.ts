@@ -15,7 +15,7 @@ export interface Negocio {
   zona_horaria: string
   aforo_maximo_reservas: number | null
   bot_activo: boolean
-  modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean }
+  modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean }
 }
 
 export interface Sede {
@@ -39,7 +39,7 @@ export interface Contexto {
   puedeEscribir: boolean
   puedeAdministrar: boolean
   /** Módulos de pestañas habilitados (todos por defecto; el superadmin puede apagar alguno por negocio). */
-  modulosActivos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean }
+  modulosActivos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean }
   tieneApagadoBot: boolean // el negocio tiene habilitado el botón de apagado (lo configura Autotecnus)
   puedeApagarBot: boolean
   /** Sedes del negocio a las que el usuario tiene alcance (todas si no tiene restricción). Vacío = negocio de una sola sede. */
@@ -106,7 +106,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     rol,
     puedeEscribir: rol !== 'solo_lectura',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
-    modulosActivos: { metricas: negocio.modulos?.metricas !== false, cumpleanos: negocio.modulos?.cumpleanos !== false, vouchers: negocio.modulos?.vouchers !== false, resenas: negocio.modulos?.resenas !== false, conversaciones: negocio.modulos?.conversaciones === true },
+    modulosActivos: { metricas: negocio.modulos?.metricas !== false, cumpleanos: negocio.modulos?.cumpleanos !== false, vouchers: negocio.modulos?.vouchers !== false, resenas: negocio.modulos?.resenas !== false, conversaciones: negocio.modulos?.conversaciones === true, derivadas: negocio.modulos?.derivadas === true },
     tieneApagadoBot,
     puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
     sedes,

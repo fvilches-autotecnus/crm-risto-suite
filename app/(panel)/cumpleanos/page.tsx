@@ -3,10 +3,12 @@ import { redirect } from 'next/navigation'
 import { Cake } from 'lucide-react'
 import { AgregarCumpleBtn, EditarCumple } from '@/components/cumples-ui'
 import OrdenSelect from '@/components/orden-select'
+import Paginacion from '@/components/paginacion'
 import { EstadoVacio } from '@/components/ui'
 import { PERIODOS_CUMPLE, edadQueCumple, proximoCumple, rangoPeriodo, textoCumple, textoFaltan, type PeriodoCumple } from '@/lib/cumples'
 import { getContexto } from '@/lib/context'
 import { fechaHoraLarga, hoyEn } from '@/lib/fechas'
+import { numPagina, paginar } from '@/lib/paginacion'
 
 const ORDENES = [
   { value: 'proximo', label: 'Cumpleaños: próximos primero' },
@@ -14,7 +16,7 @@ const ORDENES = [
   { value: 'alta_asc', label: 'Alta: más antiguas primero' },
 ]
 
-export default async function CumpleanosPage({ searchParams }: { searchParams: Promise<{ periodo?: string; orden?: string }> }) {
+export default async function CumpleanosPage({ searchParams }: { searchParams: Promise<{ periodo?: string; orden?: string; pagina?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.cumpleanos) redirect('/')
   const { supabase, negocio } = ctx
@@ -34,6 +36,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
       : orden === 'alta_asc' ? a.creado_en.localeCompare(b.creado_en)
       : a.prox.dias - b.prox.dias || a.nombre.localeCompare(b.nombre))
 
+  const pg = paginar(filas, numPagina(sp.pagina))
   const link = (p: string) => `/cumpleanos?periodo=${p}${orden !== 'proximo' ? `&orden=${orden}` : ''}`
 
   return (
@@ -60,7 +63,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
           <table className="w-full min-w-[720px]">
             <thead className="border-b border-rs-border"><tr><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Cumpleaños</th><th className="th">Edad</th><th className="th">Alta</th>{ctx.puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
             <tbody>
-              {filas.map((c, i) => (
+              {pg.items.map((c, i) => (
                 <tr key={c.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
                   <td className="td font-medium"><Link href={`/clientes/${c.id}`} className="transition-colors hover:text-rs-lime">{c.nombre}</Link></td>
                   <td className="td text-rs-muted">{c.telefono ?? '—'}</td>
@@ -74,6 +77,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
           </table>
         </div>
       )}
+      <Paginacion ruta="/cumpleanos" params={sp} {...pg} />
     </div>
   )
 }
