@@ -116,7 +116,15 @@ export default async function ConfiguracionPage() {
       {ctx.esSuperadmin && (
         <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo={<>Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></>}>
           <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
-          {webhook && <AvisosForm config={webhook} />}
+          {webhook && (
+            <AvisosForm
+              config={webhook}
+              sedes={ctx.sedesTodas.filter((x) => x.activa).map((x) => {
+                const w = webhook.sedes[x.id]
+                return { id: x.id, nombre: x.nombre, propio: !!w, destino: w?.destino ?? webhook.destino, url: w?.url ?? '', tieneSecreto: !!w?.tieneSecreto, estados: w?.estados ?? webhook.estados }
+              })}
+            />
+          )}
           <ModulosForm modulos={ctx.modulosActivos} />
         </Seccion>
       )}

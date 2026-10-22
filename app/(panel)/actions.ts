@@ -70,18 +70,23 @@ export async function guardarFuncionesNegocio(_prev: ActionResult | null, fd: Fo
 // Webhook para avisar al cliente (n8n o BotConversa): destino, URL, secreto opcional y estados que el flujo sabe tratar.
 // Solo superadmin: la URL de BotConversa lleva su token adentro y el formato depende de cómo esté armado el flujo del otro lado.
 const URL_PRIVADA = /^(localhost|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$)/i
+function validarUrlWebhook(url: string): string | null {
+  if (!url) return null
+  let u: URL
+  try { u = new URL(url) } catch { return 'La URL del webhook no es válida' }
+  if (u.protocol !== 'https:') return 'La URL del webhook tiene que empezar con https://'
+  if (URL_PRIVADA.test(u.hostname)) return 'La URL del webhook tiene que ser pública'
+  return null
+}
+
 export async function guardarWebhookCliente(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar el webhook de aviso al cliente')
   const destino = text(fd, 'destino')
   if (destino !== 'n8n' && destino !== 'botconversa') return fail('Elegí el destino del webhook')
   const url = text(fd, 'url')
-  if (url) {
-    let u: URL
-    try { u = new URL(url) } catch { return fail('La URL del webhook no es válida') }
-    if (u.protocol !== 'https:') return fail('La URL del webhook tiene que empezar con https://')
-    if (URL_PRIVADA.test(u.hostname)) return fail('La URL del webhook tiene que ser pública')
-  }
+  const errUrl = validarUrlWebhook(url)
+  if (errUrl) return fail(errUrl)
   const admin = createAdminClient()
   const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
   if (e1 || !actual) return fail('No se pudo leer el negocio')
@@ -99,13 +104,55 @@ export async function guardarWebhookCliente(_prev: ActionResult | null, fd: Form
   return { ok: true }
 }
 
+// Webhook de una sede: estados propios y, opcionalmente, destino/URL/secreto propios. Sin URL usa los del negocio (con sus estados).
+export async function guardarWebhookSede(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar el webhook de una sede')
+  const sedeId = text(fd, 'sede_id')
+  if (!ctx.sedesTodas.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  const url = text(fd, 'url')
+  const errUrl = validarUrlWebhook(url)
+  if (errUrl) return fail(errUrl)
+  const destino = text(fd, 'destino')
+  if (url && destino !== 'n8n' && destino !== 'botconversa') return fail('Elegí el destino del webhook')
+  const fila: Record<string, unknown> = {
+    sucursal_id: sedeId,
+    negocio_id: ctx.negocio.id,
+    estados: ESTADOS_AVISO.filter((e) => fd.get('aviso_' + e) === 'on'),
+    url: url || null,
+    destino: url ? destino : null,
+    actualizado_en: new Date().toISOString(),
+  }
+  const secreto = text(fd, 'secreto')
+  if (!url || fd.get('quitar_secreto') === 'on') fila.secreto = null     // sin URL propia no hay secreto propio
+  else if (secreto) fila.secreto = secreto                                // en blanco = se conserva el actual
+  const { error } = await createAdminClient().from('sucursales_webhook').upsert(fila, { onConflict: 'sucursal_id' })
+  if (error) return fail('No se pudo guardar')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+/** La sede vuelve a usar todo lo del negocio (estados incluidos). */
+export async function quitarWebhookSede(sedeId: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar el webhook de una sede')
+  if (!ctx.sedesTodas.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  const { error } = await createAdminClient().from('sucursales_webhook').delete().eq('sucursal_id', sedeId).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo quitar la configuración de la sede')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
 // Manda un aviso de ejemplo (prueba: true) al teléfono indicado, con el formato del destino elegido
 export async function probarWebhookCliente(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.esSuperadmin) return fail('Solo un superadmin puede probar el webhook')
   const tel = text(fd, 'telefono_prueba').replace(/\D/g, '')
   if (tel.length < 8) return fail('Ingresá un teléfono de prueba (con código de país)')
-  const r = await enviarPrueba(ctx.negocio.id, tel, ctx.sedes[0]?.nombre ?? null)
+  const sedeId = text(fd, 'sede_id') || null
+  const sede = sedeId ? ctx.sedesTodas.find((x) => x.id === sedeId) : ctx.sedes[0]
+  if (sedeId && !sede) return fail('La sede no es válida')
+  const r = await enviarPrueba(ctx.negocio.id, tel, sedeId, sede?.nombre ?? null)
   return r.ok ? { ok: true } : fail(r.error ?? 'No se pudo enviar la prueba')
 }
 
@@ -208,6 +255,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
   if (notificar === true && esEstadoAviso(estado)) {
     aviso = await avisarCambioDeEstado({
       negocioId: negocio.id,
+      sedeId: r.sucursal_id,
       telefono: r.cliente_telefono,
       numero: r.numero,
       estado,

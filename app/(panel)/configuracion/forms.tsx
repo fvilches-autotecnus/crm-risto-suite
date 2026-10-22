@@ -7,7 +7,7 @@ import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
-import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, probarWebhookCliente, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookSede, probarWebhookCliente, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
@@ -179,7 +179,16 @@ export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumplea
   )
 }
 
-export function AvisosForm({ config }: { config: { destino: string; url: string; tieneSecreto: boolean; estados: string[]; disponible: boolean } }) {
+export interface SedeWebhookUI { id: string; nombre: string; propio: boolean; destino: string; url: string; tieneSecreto: boolean; estados: string[] }
+
+const ESTADOS_UI: { e: string; titulo: string }[] = [
+  { e: 'confirmada', titulo: 'Confirmada' },
+  { e: 'pendiente_pago', titulo: 'Pendiente de pago (manda el monto a pagar)' },
+  { e: 'no_show', titulo: 'No-show' },
+  { e: 'cancelada', titulo: 'Cancelada (manda el motivo)' },
+]
+
+export function AvisosForm({ config, sedes }: { config: { destino: string; url: string; tieneSecreto: boolean; estados: string[]; disponible: boolean }; sedes: SedeWebhookUI[] }) {
   const { state, pending, formProps } = useAccionFormulario(guardarWebhookCliente)
   useResultado(state, 'Webhook guardado')
   const [destino, setDestino] = useState(config.destino)
@@ -228,11 +237,84 @@ export function AvisosForm({ config }: { config: { destino: string; url: string;
         <Guardar pending={pending} />
       </form>
       {config.disponible && <PruebaWebhook />}
+      {sedes.length > 0 && (
+        <div className="mt-6 border-t border-rs-border pt-4">
+          <h3 className="text-sm font-semibold">Por sede</h3>
+          <p className="mt-1 text-xs text-rs-muted">Cada sede tiene sus propios estados habilitados. Si no cargás una URL propia, usa la del negocio (varias sedes pueden compartirla). Las sedes sin configuración propia usan los estados del negocio.</p>
+          <div className="mt-3 space-y-2">
+            {sedes.map((x) => <WebhookSedeForm key={x.id} sede={x} estadosNegocio={config.estados} negocioListo={config.disponible} />)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function PruebaWebhook() {
+function WebhookSedeForm({ sede, estadosNegocio, negocioListo }: { sede: SedeWebhookUI; estadosNegocio: string[]; negocioListo: boolean }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarWebhookSede)
+  useResultado(state, `Webhook de ${sede.nombre} guardado`)
+  const confirmar = useConfirm()
+  const toast = useToast()
+  const [destino, setDestino] = useState(sede.destino || 'n8n')
+  const [quitando, setQuitando] = useState(false)
+  const estados = sede.propio ? sede.estados : estadosNegocio
+  const resumen = !sede.propio ? 'Usa la configuración del negocio' : sede.url ? `Webhook propio (${sede.destino === 'botconversa' ? 'BotConversa' : 'n8n'}) · ${sede.estados.length} estado${sede.estados.length === 1 ? '' : 's'}` : `Webhook del negocio · ${sede.estados.length} estado${sede.estados.length === 1 ? '' : 's'} propios`
+  const quitar = async () => {
+    if (!(await confirmar({ titulo: `Quitar la configuración de ${sede.nombre}`, texto: 'La sede vuelve a usar la URL y los estados del negocio.', confirmar: 'Quitar', peligro: true }))) return
+    setQuitando(true)
+    const r = await quitarWebhookSede(sede.id)
+    setQuitando(false)
+    toast(r.ok ? { texto: `${sede.nombre} vuelve a usar la configuración del negocio` } : { tipo: 'error', texto: r.error ?? 'No se pudo quitar' })
+  }
+  return (
+    <details className="rounded-rs-lg border border-rs-border bg-rs-raised/30">
+      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+        <span className="font-medium">{sede.nombre}</span>
+        <span className="text-xs text-rs-muted">{resumen}</span>
+      </summary>
+      <div className="border-t border-rs-border p-3">
+        <form {...formProps} className="space-y-3">
+          <input type="hidden" name="sede_id" value={sede.id} />
+          <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+            <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Destino</span>
+              <select name="destino" value={destino} onChange={(e) => setDestino(e.target.value)} className="input w-full">
+                <option value="n8n">n8n</option>
+                <option value="botconversa">BotConversa</option>
+              </select>
+            </label>
+            <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">URL propia de la sede</span>
+              <input name="url" type="text" inputMode="url" defaultValue={sede.url} placeholder="Vacío = usa la URL del negocio" autoComplete="off" spellCheck={false} className="input w-full" />
+            </label>
+          </div>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Secreto propio {destino === 'n8n' ? '(n8n lo valida)' : '(opcional)'}; solo se usa si cargaste una URL propia</span>
+            <input name="secreto" type="password" autoComplete="new-password" placeholder={sede.tieneSecreto ? '•••••••• (cargado; dejalo vacío para conservarlo)' : 'Sin secreto'} className="input w-full sm:max-w-md" />
+          </label>
+          {sede.tieneSecreto && (
+            <label className="flex cursor-pointer items-center gap-3 text-sm text-rs-muted">
+              <input type="checkbox" name="quitar_secreto" className="h-4 w-4 accent-[#c8e62b]" /> Quitar el secreto guardado
+            </label>
+          )}
+          <div className="space-y-2">
+            <p className="text-xs text-rs-muted">Estados habilitados en {sede.nombre}:</p>
+            {ESTADOS_UI.map(({ e, titulo }) => (
+              <label key={e} className="flex cursor-pointer items-center gap-3 text-sm">
+                <input type="checkbox" name={'aviso_' + e} defaultChecked={estados.includes(e)} className="h-4 w-4 accent-[#c8e62b]" />
+                <span className="font-medium">{titulo}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Guardar pending={pending} />
+            {sede.propio && <button type="button" onClick={quitar} disabled={quitando} className="btn">{quitando ? 'Quitando…' : 'Volver a usar la del negocio'}</button>}
+          </div>
+        </form>
+        {(sede.propio && sede.url) || negocioListo ? <PruebaWebhook sedeId={sede.id} /> : null}
+      </div>
+    </details>
+  )
+}
+
+function PruebaWebhook({ sedeId }: { sedeId?: string }) {
   const { state, pending, formProps } = useAccionFormulario(probarWebhookCliente)
   useResultado(state, 'Prueba enviada: el webhook respondió bien')
   const confirmar = useConfirm()
@@ -245,6 +327,7 @@ function PruebaWebhook() {
       const ok = await confirmar({ titulo: 'Enviar aviso de prueba', texto: 'Se manda un aviso de ejemplo (con prueba: true) al webhook. Si el flujo del otro lado ya está armado, le va a escribir un WhatsApp al número que indicaste. ¿Enviarlo?', confirmar: 'Enviar prueba' })
       if (ok) { yaConfirmado.current = true; form.requestSubmit() }
     }} className="mt-4 rounded-rs-lg border border-rs-border bg-rs-raised/40 p-3">
+      {sedeId && <input type="hidden" name="sede_id" value={sedeId} />}
       <p className="text-sm font-medium">Probar el webhook</p>
       <p className="mt-0.5 text-xs text-rs-muted">Usá tu propio teléfono: el mensaje de ejemplo le llega a ese número si el flujo está armado.</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">

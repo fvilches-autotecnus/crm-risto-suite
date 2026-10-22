@@ -33,7 +33,7 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
   const [error, setError] = useState('')
   const t = TEXTOS[estado]!
   const avisable = aviso.disponible && !!r.cliente_telefono && aviso.estados.includes(estado)
-  const nota = !aviso.disponible ? null : !r.cliente_telefono ? 'No hay teléfono del cliente: no se le puede avisar por WhatsApp.' : !aviso.estados.includes(estado) ? `El aviso por WhatsApp de “${labelEstado(estado)}” no está habilitado para este negocio.` : null
+  const nota = !aviso.disponible ? null : !r.cliente_telefono ? 'No hay teléfono del cliente: no se le puede avisar por WhatsApp.' : !aviso.estados.includes(estado) ? `El aviso por WhatsApp de “${labelEstado(estado)}” no está habilitado para este local.` : null
   const montoNum = Number(monto.replace(',', '.'))
 
   const enviar = (notificar: boolean) => {

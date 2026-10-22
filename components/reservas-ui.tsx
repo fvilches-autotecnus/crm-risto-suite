@@ -38,7 +38,7 @@ export interface OpcionesSede {
   sedeDefault: string | null                        // sede elegida en el selector del encabezado
   tipos: string[]                                   // tipos de reserva que ya existen en los datos
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
-  aviso: { disponible: boolean; estados: string[] }                // aviso al cliente por WhatsApp: si el negocio lo tiene y para qué estados
+  aviso: { disponible: boolean; estados: string[]; porSede: Record<string, { disponible: boolean; estados: string[] }> }   // aviso al cliente por WhatsApp: del negocio y, si la sede tiene los suyos, por sede
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +229,9 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
 
   // Confirmada, pendiente de pago, no-show y cancelada abren un diálogo cuando hay algo que pedir (monto, motivo)
   // o algo que elegir (avisar o no al cliente). Nueva y revisar pago cambian directo.
-  const puedeAvisar = (r: Reserva, estado: EstadoReserva) => op.aviso.disponible && !!r.cliente_telefono && esEstadoAviso(estado) && op.aviso.estados.includes(estado)
+  // el aviso se rige por la configuración de la sede de la reserva (si tiene la suya) y si no por la del negocio
+  const avisoDe = (r: Reserva) => (r.sucursal_id && op.aviso.porSede[r.sucursal_id]) || op.aviso
+  const puedeAvisar = (r: Reserva, estado: EstadoReserva) => avisoDe(r).disponible && !!r.cliente_telefono && esEstadoAviso(estado) && avisoDe(r).estados.includes(estado)
   const pedirCambio = (r: Reserva, estado: EstadoReserva) => {
     if (estado === 'pendiente_pago' || estado === 'cancelada' || puedeAvisar(r, estado)) setCambio({ r, estado })
     else cambiarEstado(r, estado)
@@ -327,7 +329,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       )}
       {cambio && (
         <DialogoCambioEstado
-          r={cambio.r} estado={cambio.estado} aviso={op.aviso} ocupado={pending}
+          r={cambio.r} estado={cambio.estado} aviso={avisoDe(cambio.r)} ocupado={pending}
           onClose={() => setCambio(null)}
           onConfirmar={(d) => { const c = cambio; setCambio(null); cambiarEstado(c.r, c.estado, d) }}
         />
