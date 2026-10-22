@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BarChart3, Building2, Cake, CalendarCheck, CornerUpRight, LayoutGrid, MessageCircleQuestion, MessagesSquare, Settings, Star, Ticket, Users } from 'lucide-react'
+import { BarChart3, Building2, Cake, CalendarCheck, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, Settings, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -11,6 +11,7 @@ const TABS = [
   { href: '/cumpleanos', label: 'Cumpleaños', icon: Cake, modulo: 'cumpleanos' },
   { href: '/derivadas', label: 'Derivadas', icon: CornerUpRight, modulo: 'derivadas' },
   { href: '/vouchers', label: 'Vouchers', icon: Ticket, modulo: 'vouchers' },
+  { href: '/campanas', label: 'Campañas', icon: Megaphone, modulo: 'campanas' },
   { href: '/metricas', label: 'Métricas', icon: BarChart3, modulo: 'metricas' },
   { href: '/resenas', label: 'Reseñas', icon: Star, modulo: 'resenas' },
   { href: '/clientes', label: 'Clientes', icon: Users },
@@ -19,7 +20,7 @@ const TABS = [
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false, derivadas: false } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean } }) {
+export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false, derivadas: false, campanas: false } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean } }) {
   const pathname = usePathname()
   const visibles = TABS.filter((t) => !('modulo' in t) || modulos[t.modulo as keyof typeof modulos])
   const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles

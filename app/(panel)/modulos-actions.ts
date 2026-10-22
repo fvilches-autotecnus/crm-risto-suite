@@ -153,6 +153,7 @@ export async function guardarModulos(_prev: ActionResult | null, fd: FormData): 
     resenas: fd.get('resenas') === 'on',
     conversaciones: fd.get('conversaciones') === 'on',
     derivadas: fd.get('derivadas') === 'on',
+    campanas: fd.get('campanas') === 'on',
   }
   const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
