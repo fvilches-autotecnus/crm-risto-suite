@@ -15,6 +15,7 @@ export interface ActionResult {
   aforo?: boolean            // true = la reserva supera un aforo (se puede guardar igual con forzar=1)
   detalle?: ChequeoAforo[]
   aviso?: 'enviado' | 'no_disponible' | 'fallo'   // resultado del aviso al cliente (solo si se pidió avisar)
+  cantidad?: number         // cuántos registros afectó una acción masiva (ej. chats reactivados)
 }
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/

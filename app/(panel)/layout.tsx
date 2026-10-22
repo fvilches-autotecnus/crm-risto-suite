@@ -7,10 +7,12 @@ import Nav from '@/components/nav'
 import NegocioSelect from '@/components/negocio-select'
 import SedeSelect from '@/components/sede-select'
 import { getContexto } from '@/lib/context'
+import { contarPausados } from '@/lib/pausados'
 import { cerrarSesion } from './actions'
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContexto()
+  const pausados = ctx.puedeApagarBot ? await contarPausados(ctx) : 0   // chats que el bot dejó esperando a una persona
 
   return (
     <FeedbackProvider>
@@ -38,7 +40,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
               </form>
             </div>
           </div>
-          <Nav esSuperadmin={ctx.esSuperadmin} modulos={ctx.modulosActivos} />
+          <Nav esSuperadmin={ctx.esSuperadmin} pausados={pausados} modulos={{ ...ctx.modulosActivos, pausados: ctx.puedeApagarBot }} />
         </header>
         {ctx.tieneApagadoBot && !ctx.negocio.bot_activo && (
           <div role="status" className="animate-fade-in border-b border-rs-danger/30 bg-rs-danger/10 px-4 py-2 text-center text-sm text-rs-danger">

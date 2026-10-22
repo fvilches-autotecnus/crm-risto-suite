@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BarChart3, Building2, Cake, CalendarCheck, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, Settings, Star, Ticket, Users } from 'lucide-react'
+import { BarChart3, Building2, Cake, CalendarCheck, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -16,11 +16,12 @@ const TABS = [
   { href: '/resenas', label: 'Reseñas', icon: Star, modulo: 'resenas' },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/consultas', label: 'Consultas y reclamos', icon: MessageCircleQuestion },
+  { href: '/pausados', label: 'Chats pausados', icon: PauseCircle, modulo: 'pausados' },
   { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare, modulo: 'conversaciones' },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav({ esSuperadmin = false, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false, derivadas: false, campanas: false } }: { esSuperadmin?: boolean; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean } }) {
+export default function Nav({ esSuperadmin = false, pausados = 0, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false, derivadas: false, campanas: false, pausados: false } }: { esSuperadmin?: boolean; pausados?: number; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean; pausados: boolean } }) {
   const pathname = usePathname()
   const visibles = TABS.filter((t) => !('modulo' in t) || modulos[t.modulo as keyof typeof modulos])
   const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
@@ -52,6 +53,7 @@ export default function Nav({ esSuperadmin = false, modulos = { metricas: true, 
             >
               <Icon size={15} className={'transition-transform duration-200 ' + (on ? 'scale-110' : 'group-hover:scale-110')} />
               {label}
+              {href === '/pausados' && pausados > 0 && <span aria-label={`${pausados} chats pausados`} className={'rounded-full px-1.5 text-[11px] font-bold tabular-nums ' + (on ? 'bg-rs-on-lime/15 text-rs-on-lime' : 'bg-rs-warn/20 text-rs-warn')}>{pausados > 99 ? '99+' : pausados}</span>}
             </Link>
           )
         })}
