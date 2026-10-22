@@ -18,7 +18,7 @@ const ORDENES = [
 const PERIODOS = [{ v: 'todas', l: 'Todas' }, { v: '30', l: 'Últimos 30 días' }, { v: '90', l: 'Últimos 90 días' }, { v: '365', l: 'Último año' }]
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string }> }) {
+export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string; voucher?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.resenas) redirect('/')
   const { supabase, negocio, sede } = ctx
@@ -28,10 +28,11 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const origen = ORIGENES_LISTA.some((o) => o.value === sp.origen) ? sp.origen! : ''
   const periodo = PERIODOS.some((p) => p.v === sp.periodo) ? sp.periodo! : 'todas'
   const orden = ['alta_asc', 'puntaje_desc', 'puntaje_asc'].includes(sp.orden ?? '') ? sp.orden! : 'alta_desc'
+  const voucherFiltro = ['pendiente', 'emitido'].includes(sp.voucher ?? '') ? sp.voucher! : ''
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
 
   // Base (período, origen, búsqueda, sede) para KPIs y distribución; el filtro de puntaje se aplica solo a la lista.
-  let base = supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id').eq('negocio_id', negocio.id)
+  let base = supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id, datos_origen').eq('negocio_id', negocio.id)
   if (sede) base = base.eq('sucursal_id', sede.id)
   if (periodo !== 'todas') base = base.gte('fecha', sumarDias(hoy, -Number(periodo)))
   if (origen) base = base.eq('origen', origen)
@@ -39,13 +40,22 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const ordenada = orden === 'alta_desc' ? base.order('creado_en', { ascending: false }) : orden === 'alta_asc' ? base.order('creado_en', { ascending: true })
     : orden === 'puntaje_desc' ? base.order('puntaje', { ascending: false }).order('creado_en', { ascending: false }) : base.order('puntaje', { ascending: true }).order('creado_en', { ascending: false })
   const { data } = await ordenada.limit(5000)
-  const todas = (data ?? []) as ResenaUI[]
+  // Voucher: "emitido" si el teléfono ya tiene uno en Vouchers (o vino marcado como enviado al importar la encuesta)
+  const conVoucher = ctx.modulosActivos.vouchers
+  const telConVoucher = new Set<string>()
+  if (conVoucher) {
+    const { data: vs } = await supabase.from('vouchers').select('telefono').eq('negocio_id', negocio.id).neq('estado', 'anulado').not('telefono', 'is', null).limit(20000)
+    for (const v of vs ?? []) if (v.telefono) telConVoucher.add(v.telefono)
+  }
+  const todasBase = ((data ?? []) as ResenaUI[]).map((r) => ({ ...r, voucher: conVoucher ? ((r.telefono && telConVoucher.has(r.telefono)) || r.datos_origen?.voucher_enviado ? 'emitido' : 'pendiente') as 'emitido' | 'pendiente' : null }))
+  const todas = todasBase
+  const personasPendientes = new Set(todasBase.filter((r) => r.voucher === 'pendiente').map((r) => r.telefono ?? r.id)).size
 
   const total = todas.length
   const promedio = total ? todas.reduce((s, r) => s + r.puntaje, 0) / total : 0
   const positivas = todas.filter((r) => r.puntaje >= 4).length
   const porPuntaje = [5, 4, 3, 2, 1].map((n) => ({ n, c: todas.filter((r) => r.puntaje === n).length }))
-  const lista = (puntaje ? todas.filter((r) => r.puntaje === puntaje) : todas).slice(0, 500)
+  const lista = todas.filter((r) => (!puntaje || r.puntaje === puntaje) && (!voucherFiltro || r.voucher === voucherFiltro)).slice(0, 500)
 
   // Reseñas por mes (últimos 6 meses)
   const [y, m] = [Number(hoy.slice(0, 4)), Number(hoy.slice(5, 7))]
@@ -53,7 +63,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const porMes = meses.map(({ y: yy, m: mm }) => ({ etiqueta: MESES[mm - 1], valor: todas.filter((r) => r.fecha.startsWith(`${yy}-${String(mm).padStart(2, '0')}`)).length }))
 
   const url = (cambios: Record<string, string>) => {
-    const p = new URLSearchParams({ ...(puntaje ? { puntaje: String(puntaje) } : {}), ...(origen ? { origen } : {}), ...(periodo !== 'todas' ? { periodo } : {}), ...(q ? { q } : {}), ...(orden !== 'alta_desc' ? { orden } : {}), ...cambios })
+    const p = new URLSearchParams({ ...(puntaje ? { puntaje: String(puntaje) } : {}), ...(origen ? { origen } : {}), ...(periodo !== 'todas' ? { periodo } : {}), ...(q ? { q } : {}), ...(voucherFiltro ? { voucher: voucherFiltro } : {}), ...(orden !== 'alta_desc' ? { orden } : {}), ...cambios })
     for (const [k, v] of [...p.entries()]) if (!v) p.delete(k)
     return `/resenas?${p.toString()}`
   }
@@ -70,7 +80,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
         {ctx.puedeEscribir && <NuevaResenaBtn sedes={sedesOpc} hoy={hoy} />}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className={'grid grid-cols-2 gap-3 sm:gap-4 ' + (conVoucher ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
         <Tile i={0} valor={total} etiqueta="Reseñas conseguidas" color="text-rs-text" sub={periodo === 'todas' ? 'En total' : `Últimos ${periodo} días`} />
         <div className="reveal card card-hover p-4 sm:p-5" style={{ ['--i' as string]: 1 }}>
           <div className="text-2xl font-bold tabular-nums text-rs-lime sm:text-3xl">{promedio ? promedio.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'}</div>
@@ -78,6 +88,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
         </div>
         <Tile i={2} valor={total ? Math.round((positivas / total) * 100) : 0} etiqueta="% positivas (4–5 ★)" color="text-rs-ok" sub={`${positivas} de ${total}`} />
         <Tile i={3} valor={todas.filter((r) => r.puntaje <= 2).length} etiqueta="A atender (1–2 ★)" color="text-rs-danger" sub="Puntajes bajos" />
+        {conVoucher && <Tile i={4} valor={personasPendientes} etiqueta="Vouchers por emitir" color="text-rs-warn" sub="Personas sin voucher" />}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -103,7 +114,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
       <div className="card space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <form className="relative min-w-[220px] flex-1">
-            {puntaje ? <input type="hidden" name="puntaje" value={puntaje} /> : null}{origen ? <input type="hidden" name="origen" value={origen} /> : null}{periodo !== 'todas' ? <input type="hidden" name="periodo" value={periodo} /> : null}
+            {voucherFiltro ? <input type="hidden" name="voucher" value={voucherFiltro} /> : null}{puntaje ? <input type="hidden" name="puntaje" value={puntaje} /> : null}{origen ? <input type="hidden" name="origen" value={origen} /> : null}{periodo !== 'todas' ? <input type="hidden" name="periodo" value={periodo} /> : null}
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
             <input name="q" defaultValue={q} placeholder="Buscar por nombre, teléfono o comentario" className="input w-full pl-9" />
           </form>
@@ -114,6 +125,14 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
           <Link href={url({ puntaje: '' })} className={'btn btn-sm ' + (!puntaje ? 'btn-primary' : '')}>Todos</Link>
           {[5, 4, 3, 2, 1].map((n) => <Link key={n} href={url({ puntaje: puntaje === n ? '' : String(n) })} className={'btn btn-sm ' + (puntaje === n ? 'btn-primary' : '')}>{n} ★</Link>)}
         </div>
+        {conVoucher && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="label mb-0 mr-1 w-14 shrink-0">Voucher</span>
+            <Link href={url({ voucher: '' })} className={'btn btn-sm ' + (!voucherFiltro ? 'btn-primary' : '')}>Todos</Link>
+            <Link href={url({ voucher: voucherFiltro === 'pendiente' ? '' : 'pendiente' })} className={'btn btn-sm ' + (voucherFiltro === 'pendiente' ? 'btn-primary' : '')}>Pendiente</Link>
+            <Link href={url({ voucher: voucherFiltro === 'emitido' ? '' : 'emitido' })} className={'btn btn-sm ' + (voucherFiltro === 'emitido' ? 'btn-primary' : '')}>Emitido</Link>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <span className="label mb-0 mr-1 w-14 shrink-0">Período</span>
           {PERIODOS.map((p) => <Link key={p.v} href={url({ periodo: p.v === 'todas' ? '' : p.v })} className={'btn btn-sm ' + (periodo === p.v ? 'btn-primary' : '')}>{p.l}</Link>)}

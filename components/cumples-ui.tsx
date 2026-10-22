@@ -11,7 +11,7 @@ import { Spinner } from '@/components/ui'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
-function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: string; dia: number | null; mes: number | null }; onDone: () => void }) {
+function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: string; dia: number | null; mes: number | null; anio?: number | null }; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarCumple, { okTexto: 'Cumpleaños guardado' })
   useEffect(() => { if (state?.ok) onDone() }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -30,6 +30,7 @@ function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: strin
           {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </select>
       </div>
+      <div className="col-span-2"><label className="label" htmlFor="c_anio">Año de nacimiento <span className="font-normal normal-case text-rs-muted">(opcional, para mostrar la edad)</span></label><input id="c_anio" name="anio" type="number" inputMode="numeric" min={1900} max={new Date().getFullYear()} placeholder="Ej. 1990" defaultValue={cliente?.anio ?? ''} className="input w-full" /></div>
       {!cliente && <p className="col-span-2 -mt-1 text-xs text-rs-muted">Si el teléfono ya es de un cliente, se le carga el cumpleaños; si no, se crea el cliente con este nombre.</p>}
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
@@ -50,7 +51,7 @@ export function AgregarCumpleBtn() {
   )
 }
 
-export function EditarCumple({ cliente, soloIcono = false }: { cliente: { id: string; nombre: string; dia: number | null; mes: number | null }; soloIcono?: boolean }) {
+export function EditarCumple({ cliente, soloIcono = false }: { cliente: { id: string; nombre: string; dia: number | null; mes: number | null; anio?: number | null }; soloIcono?: boolean }) {
   const [abierto, setAbierto] = useState(false)
   const [pending, start] = useTransition()
   const confirmar = useConfirm()

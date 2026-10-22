@@ -23,6 +23,16 @@ export interface ResenaUI {
   creado_en: string
   cliente_id: string | null
   sucursal_id: string | null
+  datos_origen?: { rango?: string; voucher_enviado?: boolean } | null
+  /** Si al cliente ya se le emitió un voucher (por teléfono en Vouchers, o marcado como enviado al importar). null = el módulo de vouchers no está activo. */
+  voucher?: 'emitido' | 'pendiente' | null
+}
+
+export function BadgeVoucher({ v }: { v: ResenaUI['voucher'] }) {
+  if (!v) return null
+  return v === 'emitido'
+    ? <span className="badge bg-rs-ok/15 text-rs-ok">Voucher emitido</span>
+    : <span className="badge bg-rs-warn/15 text-rs-warn">Voucher pendiente</span>
 }
 
 export function Estrellas({ n, tam = 14 }: { n: number; tam?: number }) {
@@ -97,6 +107,7 @@ export function NuevaResenaBtn({ sedes, hoy, prefill, chico = false }: { sedes: 
 
 export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, puedeEliminar, mostrarCliente = true }: { resenas: ResenaUI[]; sedes: { id: string; nombre: string }[]; nombresSede: Record<string, string>; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; mostrarCliente?: boolean }) {
   const [edit, setEdit] = useState<ResenaUI | null>(null)
+  const mostrarVoucher = resenas.some((r) => r.voucher)
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
@@ -118,7 +129,7 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
     <>
       <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Alta</th><th className="th">Fecha</th><th className="th">Cliente</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Puntaje</th><th className="th">Comentario</th><th className="th">Origen</th>{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+          <thead className="border-b border-rs-border"><tr><th className="th">Alta</th><th className="th">Fecha</th><th className="th">Cliente</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Puntaje</th><th className="th">Comentario</th><th className="th">Origen</th>{mostrarVoucher && <th className="th">Voucher</th>}{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {resenas.map((r, i) => (
               <tr key={r.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
@@ -126,9 +137,10 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
                 <td className="td whitespace-nowrap">{fechaCorta(r.fecha)}</td>
                 <td className="td">{nombre(r)}<div className="text-xs text-rs-muted">{r.telefono}</div></td>
                 {mostrarSede && <td className="td text-rs-muted">{r.sucursal_id ? nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
-                <td className="td"><Estrellas n={r.puntaje} /></td>
+                <td className="td"><Estrellas n={r.puntaje} />{r.datos_origen?.rango && <div className="mt-0.5 text-[11px] tabular-nums text-rs-muted">{r.datos_origen.rango} de 10</div>}</td>
                 <td className="td max-w-[320px] whitespace-pre-wrap text-rs-muted">{r.comentario ?? '—'}</td>
                 <td className="td"><span className="badge bg-rs-raised text-rs-text">{labelOrigen(r.origen)}</span></td>
+                {mostrarVoucher && <td className="td"><BadgeVoucher v={r.voucher} /></td>}
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
             ))}
@@ -140,6 +152,7 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
           <li key={r.id} className="reveal card p-4" style={{ ['--i' as string]: Math.min(i, 8) }}>
             <div className="flex items-start justify-between gap-3"><div>{nombre(r)}<div className="text-xs text-rs-muted">{fechaCorta(r.fecha)} · {labelOrigen(r.origen)}{mostrarSede && r.sucursal_id ? ` · ${nombresSede[r.sucursal_id] ?? ''}` : ''}</div></div><Estrellas n={r.puntaje} /></div>
             {r.comentario && <p className="mt-2 whitespace-pre-wrap text-sm text-rs-muted">{r.comentario}</p>}
+            {mostrarVoucher && r.voucher && <div className="mt-2"><BadgeVoucher v={r.voucher} /></div>}
             <p className="mt-2 text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
             {puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(r)}</div>}
           </li>

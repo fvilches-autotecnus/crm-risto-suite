@@ -95,9 +95,19 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) return fail('Elegí el mes')
   if (!Number.isInteger(dia) || dia < 1 || dia > DIAS_MES[mes - 1]) return fail(`El día no es válido para ese mes`)
 
+  // año de nacimiento opcional: si viene, se guarda la fecha completa (para mostrar la edad)
+  const anioTxt = text(fd, 'anio')
+  let nacimiento: string | null = null
+  if (anioTxt) {
+    const anio = Number(anioTxt)
+    const d = new Date(Date.UTC(anio, mes - 1, dia))
+    if (!Number.isInteger(anio) || anio < 1900 || anio > new Date().getFullYear() || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return fail('El año de nacimiento no es válido para esa fecha')
+    nacimiento = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+  }
+
   const clienteId = text(fd, 'cliente_id')
   if (clienteId) {
-    const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
+    const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
     if (error) return fail('No se pudo guardar el cumpleaños')
     refrescar()
     return { ok: true }
@@ -109,8 +119,8 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
   if (!tel) return fail('Ingresá un teléfono válido (con código de país)')
   const { data: existente } = await ctx.supabase.from('clientes').select('id').eq('negocio_id', ctx.negocio.id).eq('telefono', tel).maybeSingle()
   const { error } = existente
-    ? await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes }).eq('id', existente.id)
-    : await ctx.supabase.from('clientes').insert({ negocio_id: ctx.negocio.id, nombre, telefono: tel, cumple_dia: dia, cumple_mes: mes, canal_origen: 'manual' })
+    ? await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento }).eq('id', existente.id)
+    : await ctx.supabase.from('clientes').insert({ negocio_id: ctx.negocio.id, nombre, telefono: tel, cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento, canal_origen: 'manual' })
   if (error) return fail('No se pudo guardar el cumpleaños')
   refrescar()
   return { ok: true }
@@ -119,7 +129,7 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
 export async function quitarCumple(clienteId: string): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
-  const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: null, cumple_mes: null }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
+  const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: null, cumple_mes: null, fecha_nacimiento: null }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo quitar el cumpleaños')
   refrescar()
   return { ok: true }

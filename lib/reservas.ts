@@ -7,7 +7,7 @@ export const TIPOS_RESERVA = [
 
 const humanizar = (v: string) => { const t = v.replace(/_/g, ' ').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : v }
 // tipos que traen los negocios migrados (los que se escriben con tilde o con barra no salen bien de `humanizar`)
-const ETIQUETAS_EXTRA: Record<string, string> = { promo_del_dia: 'Promo del día', desayuno_merienda_libre: 'Desayuno / merienda libre', cena_de_pasos: 'Cena de pasos' }
+const ETIQUETAS_EXTRA: Record<string, string> = { salon: 'Salón', cena_show: 'Cena show', promo_del_dia: 'Promo del día', desayuno_merienda_libre: 'Desayuno / merienda libre', cena_de_pasos: 'Cena de pasos' }
 export const labelTipo = (v: string) => TIPOS_RESERVA.find((t) => t.value === v)?.label ?? ETIQUETAS_EXTRA[v] ?? humanizar(v)
 
 export const ESTADOS = [

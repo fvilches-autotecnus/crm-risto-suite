@@ -45,3 +45,12 @@ export function rangoPeriodo(p: PeriodoCumple, hoy: string): { desde: string; ha
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 export const textoCumple = (dia: number, mes: number) => `${dia} ${MESES[mes - 1]}`
 export const textoFaltan = (dias: number) => (dias === 0 ? 'hoy' : dias === 1 ? 'mañana' : `en ${dias} días`)
+
+/** Edad que va a cumplir en la próxima ocurrencia del cumpleaños (fechaNac = 'YYYY-MM-DD', proxima = 'YYYY-MM-DD'). */
+export const edadQueCumple = (fechaNac: string, proxima: string) => Number(proxima.slice(0, 4)) - Number(fechaNac.slice(0, 4))
+
+/** Edad en años cumplidos a la fecha `hoy`. */
+export function edadActual(fechaNac: string, hoy: string): number {
+  const e = Number(hoy.slice(0, 4)) - Number(fechaNac.slice(0, 4))
+  return hoy.slice(5) < fechaNac.slice(5) ? e - 1 : e
+}

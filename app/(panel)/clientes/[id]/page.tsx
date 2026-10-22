@@ -11,7 +11,7 @@ import { ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resena
 import { BadgeVoucher, NuevoVoucherBtn } from '@/components/vouchers-ui'
 import { labelCampana } from '@/lib/vouchers'
 import { hoyEn } from '@/lib/fechas'
-import { proximoCumple, textoCumple, textoFaltan } from '@/lib/cumples'
+import { edadActual, proximoCumple, textoCumple, textoFaltan } from '@/lib/cumples'
 
 export default async function ClienteDetalle({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getContexto()
@@ -19,7 +19,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound()
 
-  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
+  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes, fecha_nacimiento').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
   if (!cliente) notFound()
 
   const { data: reservas } = await supabase
@@ -60,9 +60,9 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
           <div>
             <h2 className="card-title">Cumpleaños</h2>
-            <p className="mt-1 text-sm">{prox ? <><span className="font-semibold">{textoCumple(cliente.cumple_dia!, cliente.cumple_mes!)}</span> <span className="text-rs-muted">· {textoFaltan(prox.dias)}</span></> : <span className="text-rs-muted">Sin cargar</span>}</p>
+            <p className="mt-1 text-sm">{prox ? <><span className="font-semibold">{textoCumple(cliente.cumple_dia!, cliente.cumple_mes!)}</span> <span className="text-rs-muted">· {textoFaltan(prox.dias)}{cliente.fecha_nacimiento ? ` · ${edadActual(cliente.fecha_nacimiento, hoy)} años` : ''}</span></> : <span className="text-rs-muted">Sin cargar</span>}</p>
           </div>
-          {ctx.puedeEscribir && <EditarCumple cliente={{ id: cliente.id, nombre: cliente.nombre, dia: cliente.cumple_dia, mes: cliente.cumple_mes }} />}
+          {ctx.puedeEscribir && <EditarCumple cliente={{ id: cliente.id, nombre: cliente.nombre, dia: cliente.cumple_dia, mes: cliente.cumple_mes, anio: cliente.fecha_nacimiento ? Number(cliente.fecha_nacimiento.slice(0, 4)) : null }} />}
         </section>
       )}
 
