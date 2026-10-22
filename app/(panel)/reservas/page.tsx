@@ -37,7 +37,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
     : orden === 'alta_asc' ? q.order('creado_en', { ascending: true })
     : orden === 'fecha_asc' ? q.order('fecha', { ascending: true, nullsFirst: true }).order('hora', { ascending: true })
     : q.order('fecha', { ascending: false, nullsFirst: false }).order('hora', { ascending: false })
-  const { data } = await ordenado.limit(3000)
+  const { data } = await ordenado.limit(20000)
   const todas = (data ?? []) as Reserva[]
 
   const conteos: Record<string, number> = {}

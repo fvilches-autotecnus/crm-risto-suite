@@ -21,7 +21,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
   let cq = supabase.from('consultas_reclamos').select('id, telefono, mensaje, estado, tipo, creado_en').eq('negocio_id', negocio.id)
   if (sede) cq = cq.eq('sucursal_id', sede.id)
   if (q) cq = cq.or(`telefono.ilike.%${q}%,mensaje.ilike.%${q}%`)
-  const { data } = await cq.order('creado_en', { ascending: orden === 'alta_asc' }).limit(1000)
+  const { data } = await cq.order('creado_en', { ascending: orden === 'alta_asc' }).limit(10000)
   const todas = data ?? []
 
   // conteos con el otro filtro aplicado, para ver cuánto hay en cada opción

@@ -16,23 +16,19 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const { supabase, negocio } = await getContexto()
   const { q, orden: ordenParam } = await searchParams
   const orden = ['alta_asc', 'actividad', 'nombre'].includes(ordenParam ?? '') ? ordenParam! : 'alta_desc'
-  const busqueda = (q ?? '').trim().toLowerCase()
+  
+  // la búsqueda se hace en la base (hay negocios con miles de clientes) y se muestran los primeros LIMITE
+  const LIMITE = 500
+  const texto = (q ?? '').trim().replace(/[,()%*\\]/g, ' ').trim()
+  const digitos = texto.replace(/\D/g, '')
+  let cq = supabase.from('clientes').select('id, nombre, telefono, canal_origen, ultima_interaccion, creado_en', { count: 'exact' }).eq('negocio_id', negocio.id)
+  if (texto) cq = cq.or([`nombre.ilike.%${texto}%`, ...(digitos ? [`telefono.like.%${digitos}%`] : [])].join(','))
+  const { data: clientes, count: totalClientes } = await cq.order(orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre', nullsFirst: false }).limit(LIMITE)
+  const { data: filas } = await supabase.rpc('resumen_reservas_clientes', { p_negocio: negocio.id })
 
-  const [{ data: clientes }, { data: reservas }] = await Promise.all([
-    supabase.from('clientes').select('id, nombre, telefono, canal_origen, ultima_interaccion, creado_en').eq('negocio_id', negocio.id).order(orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre', nullsFirst: false }).limit(1000),
-    supabase.from('reservas').select('cliente_id, fecha, estado').eq('negocio_id', negocio.id).is('eliminado_en', null).not('cliente_id', 'is', null).limit(5000),
-  ])
+  const resumen = new Map<string, { total: number; ultima: string | null }>(((filas ?? []) as { cliente_id: string; total: number; ultima: string | null }[]).map((f) => [f.cliente_id, { total: Number(f.total), ultima: f.ultima }] as const))
 
-  const resumen = new Map<string, { total: number; ultima: string | null }>()
-  for (const r of reservas ?? []) {
-    if (r.estado === 'cancelada') continue
-    const x = resumen.get(r.cliente_id!) ?? { total: 0, ultima: null }
-    x.total++
-    if (r.fecha && (!x.ultima || r.fecha > x.ultima)) x.ultima = r.fecha
-    resumen.set(r.cliente_id!, x)
-  }
-
-  const lista = (clientes ?? []).filter((c) => !busqueda || c.nombre.toLowerCase().includes(busqueda) || (c.telefono ?? '').includes(busqueda.replace(/\D/g, '') || '\u0000'))
+  const lista = clientes ?? []
 
   return (
     <div className="space-y-4">
@@ -53,7 +49,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
             <tr><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Reservas</th><th className="th">Última reserva</th><th className="th">Origen</th><th className="th">Alta</th></tr>
           </thead>
           <tbody>
-            {lista.length === 0 && <tr><td colSpan={6}><EstadoVacio icono={<Users size={26} />} titulo={busqueda ? 'Ningún cliente coincide con la búsqueda' : 'Todavía no hay clientes'} texto={busqueda ? 'Probá con otro nombre o con los últimos dígitos del teléfono.' : 'Aparecen solos cuando se carga una reserva con teléfono.'} /></td></tr>}
+            {lista.length === 0 && <tr><td colSpan={6}><EstadoVacio icono={<Users size={26} />} titulo={texto ? 'Ningún cliente coincide con la búsqueda' : 'Todavía no hay clientes'} texto={texto ? 'Probá con otro nombre o con los últimos dígitos del teléfono.' : 'Aparecen solos cuando se carga una reserva con teléfono.'} /></td></tr>}
             {lista.map((c, i) => {
               const r = resumen.get(c.id)
               return (
@@ -70,6 +66,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
           </tbody>
         </table>
       </div>
+      {(totalClientes ?? 0) > lista.length && <p className="text-center text-xs text-rs-muted">Mostrando {lista.length} de {totalClientes} clientes. Usá la búsqueda para encontrar al resto.</p>}
     </div>
   )
 }
