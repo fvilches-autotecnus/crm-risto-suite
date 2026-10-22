@@ -143,15 +143,17 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   return { ok: true }
 }
 
-export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string): Promise<ActionResult> {
+export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string, monto?: number): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
   if (!ESTADOS.some((e) => e.value === estado)) return fail('Estado no válido')
+  // Pendiente de pago: hay que indicar cuánto tiene que pagar (seña o total)
+  if (estado === 'pendiente_pago' && !(typeof monto === 'number' && Number.isFinite(monto) && monto > 0 && monto < 100000000)) return fail('Ingresá el valor de la seña o del pago que tiene que hacer')
 
   const { supabase, negocio } = ctx
   const { data: r, error } = await supabase
     .from('reservas')
-    .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null })
+    .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
     .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion')
@@ -171,6 +173,17 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       motivoCancelacion: r.motivo_cancelacion,
     })
   }
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+/** Vuelve una reserva a un estado y monto anteriores (Deshacer): no pide el monto de nuevo. */
+export async function restaurarEstadoReserva(id: string, estado: EstadoReserva, monto: number | null): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  if (!ESTADOS.some((e) => e.value === estado)) return fail('Estado no válido')
+  const { error } = await ctx.supabase.from('reservas').update({ estado, monto_sena: monto, motivo_cancelacion: null }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo restaurar el estado')
   revalidatePath('/', 'layout')
   return { ok: true }
 }

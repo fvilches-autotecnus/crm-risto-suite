@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X } from 'lucide-react'
-import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
+import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import MenuEstado, { PUNTO_ESTADO } from '@/components/menu-estado'
@@ -10,7 +10,7 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
-import { TIPOS_RESERVA, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
+import { TIPOS_RESERVA, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
 
 const ESTADO_CLS: Record<string, string> = {
@@ -202,6 +202,9 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
   const toast = useToast()
   const [editando, setEditando] = useState<Reserva | null>(null)
   const [cancelando, setCancelando] = useState<Reserva | null>(null)
+  const [pagando, setPagando] = useState<Reserva | null>(null)
+  const [monto, setMonto] = useState('')
+  const [errorMonto, setErrorMonto] = useState('')
   const [motivo, setMotivo] = useState('')
   const [pending, start] = useTransition()
   const [ocupada, setOcupada] = useState<string | null>(null)
@@ -216,12 +219,21 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       r.ok ? ok?.() : toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' })
     })
 
-  const cambiarEstado = (r: Reserva, estado: EstadoReserva, motivoCancel?: string) =>
-    correr(r.id, () => cambiarEstadoReserva(r.id, estado, motivoCancel), () =>
+  const cambiarEstado = (r: Reserva, estado: EstadoReserva, motivoCancel?: string, montoPago?: number) =>
+    correr(r.id, () => cambiarEstadoReserva(r.id, estado, motivoCancel, montoPago), () =>
       toast({
-        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}`,
-        accion: { label: 'Deshacer', onClick: () => { void cambiarEstadoReserva(r.id, r.estado) } },
+        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}${estado === 'pendiente_pago' && montoPago ? ` · ${formatoMonto(montoPago)}` : ''}`,
+        accion: { label: 'Deshacer', onClick: () => { void restaurarEstadoReserva(r.id, r.estado, r.monto_sena) } },
       }))
+
+  // Pendiente de pago: antes de cambiar el estado se pide el valor de la seña o del pago
+  const pedirMonto = (r: Reserva) => { setErrorMonto(''); setMonto(r.monto_sena ? String(r.monto_sena) : ''); setPagando(r) }
+  const confirmarMonto = () => {
+    const r = pagando; if (!r) return
+    const n = Number(monto.replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0) { setErrorMonto('Ingresá un monto mayor a 0'); return }
+    setPagando(null); cambiarEstado(r, 'pendiente_pago', undefined, n)
+  }
 
   const eliminar = (r: Reserva) =>
     correr(r.id, () => eliminarReserva(r.id), () =>
@@ -231,7 +243,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
     <div className="flex justify-end gap-1.5">
       {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
       {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => { setMotivo(''); setCancelando(r) }} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
-      <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => (e === 'cancelada' ? (setMotivo(''), setCancelando(r)) : cambiarEstado(r, e))} />
+      <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => (e === 'cancelada' ? (setMotivo(''), setCancelando(r)) : e === 'pendiente_pago' ? pedirMonto(r) : cambiarEstado(r, e))} />
       <button onClick={() => setEditando(r)} title="Editar" aria-label="Editar" className="btn btn-sm"><Pencil size={14} /></button>
       <button disabled={pending} onClick={() => eliminar(r)} title="Eliminar" aria-label="Eliminar" className="btn btn-sm btn-danger"><Trash2 size={14} /></button>
     </div>
@@ -274,7 +286,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
-                <td className="td"><EstadoBadge estado={r.estado} /></td>
+                <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</td>
                 <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
@@ -293,7 +305,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
                 <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>
-              <EstadoBadge estado={r.estado} />
+              <div className="text-right"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</div>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-rs-muted">
               <span className="inline-flex items-center gap-1.5"><Users size={13} />{r.cantidad_personas ?? '—'} personas</span>
@@ -311,6 +323,23 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       {editando && (
         <Modal titulo={`Editar reserva #${editando.numero}`} onClose={() => setEditando(null)}>
           <ReservaForm reserva={editando} onDone={() => setEditando(null)} op={op} />
+        </Modal>
+      )}
+      {pagando && (
+        <Modal titulo={`Pendiente de pago · reserva #${pagando.numero}`} onClose={() => setPagando(null)}>
+          <form onSubmit={(e) => { e.preventDefault(); confirmarMonto() }}>
+            <label className="label" htmlFor="monto_pago">Valor de la seña o del pago que tiene que hacer *</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted">$</span>
+              <input id="monto_pago" autoFocus type="number" inputMode="decimal" min="1" step="any" value={monto} onChange={(e) => { setMonto(e.target.value); setErrorMonto('') }} placeholder="Ej. 5000" className="input w-full pl-7 tabular-nums" required />
+            </div>
+            <p className="mt-1.5 text-xs text-rs-muted">{pagando.cliente_nombre ?? 'El cliente'}{pagando.cantidad_personas ? ` · ${pagando.cantidad_personas} personas` : ''}. Queda guardado en la reserva.</p>
+            {errorMonto && <p role="alert" className="mt-2 animate-fade-in text-sm text-rs-danger">{errorMonto}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setPagando(null)} className="btn">Volver</button>
+              <button disabled={pending} className="btn btn-primary">Pasar a pendiente de pago</button>
+            </div>
+          </form>
         </Modal>
       )}
       {cancelando && (
