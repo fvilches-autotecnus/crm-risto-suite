@@ -4,7 +4,7 @@ import { cambiarSede } from '@/app/(panel)/actions'
 
 // Selector de sede del encabezado. Con una sola sede de alcance no hace falta: se muestra como etiqueta.
 export default function SedeSelect({ sedes, actual }: { sedes: { id: string; nombre: string }[]; actual: string | null }) {
-  if (sedes.length === 1) return <span className="hidden rounded-full border border-rs-control px-2.5 py-0.5 text-xs text-rs-muted sm:inline">{sedes[0].nombre}</span>
+  if (sedes.length === 1) return <span className="rounded-full border border-rs-control px-2.5 py-0.5 text-xs text-rs-muted">{sedes[0].nombre}</span>
   return (
     <form action={cambiarSede}>
       <select

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { Spinner } from '@/components/ui'
 import { login, type LoginState } from './actions'
 
 export default function LoginForm() {
@@ -9,7 +10,7 @@ export default function LoginForm() {
   const [ver, setVer] = useState(false)
 
   return (
-    <form action={action} className="mt-8 w-full max-w-[336px] rounded-rs-lg border border-rs-raised bg-rs-card/80 p-6">
+    <form action={action} className="mt-8 w-full max-w-[336px] animate-fade-up rounded-rs-lg border border-rs-raised bg-rs-card/80 p-6 shadow-2xl shadow-black/40 backdrop-blur">
       <label className="label" htmlFor="usuario">Usuario</label>
       <input id="usuario" name="usuario" defaultValue={state.usuario} autoComplete="username" autoCapitalize="none" placeholder="Ingresa tu usuario" className="input h-11 w-full bg-rs-input" required />
 
@@ -21,10 +22,10 @@ export default function LoginForm() {
         </button>
       </div>
 
-      {state.error && <p role="alert" className="mt-4 text-sm text-rs-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-4 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
 
       <button type="submit" disabled={pending} className="btn btn-primary mt-6 h-11 w-full rounded-[10px]">
-        {pending ? 'Ingresando…' : 'Ingresar'}
+        {pending && <Spinner size={16} />}{pending ? 'Ingresando…' : 'Ingresar'}
       </button>
     </form>
   )

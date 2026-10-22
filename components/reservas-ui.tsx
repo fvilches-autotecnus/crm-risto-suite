@@ -1,11 +1,15 @@
 'use client'
 
-import { useActionState, useEffect, useState, useTransition } from 'react'
-import { Check, Pencil, Plus, Trash2, X, UserX } from 'lucide-react'
-import { cambiarEstadoReserva, eliminarReserva, guardarReserva, type ActionResult } from '@/app/(panel)/actions'
+import { useEffect, useState, useTransition } from 'react'
+import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X } from 'lucide-react'
+import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
+import { useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
+import { useAccionFormulario } from '@/components/use-accion-formulario'
+import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { TIPOS_RESERVA, labelEstado, labelTipo, type Reserva } from '@/lib/reservas'
+import type { ChequeoAforo } from '@/lib/aforo'
 
 const ESTADO_CLS: Record<string, string> = {
   nueva: 'bg-rs-lav/15 text-rs-lav',
@@ -13,9 +17,15 @@ const ESTADO_CLS: Record<string, string> = {
   cancelada: 'bg-rs-danger/15 text-rs-danger',
   no_show: 'bg-rs-muted/20 text-rs-muted',
 }
+const PUNTO_CLS: Record<string, string> = { nueva: 'bg-rs-lav', confirmada: 'bg-rs-ok', cancelada: 'bg-rs-danger', no_show: 'bg-rs-muted' }
 
 export function EstadoBadge({ estado }: { estado: string }) {
-  return <span className={'badge ' + (ESTADO_CLS[estado] ?? 'bg-rs-raised text-rs-muted')}>{labelEstado(estado)}</span>
+  return (
+    <span className={'badge transition-colors ' + (ESTADO_CLS[estado] ?? 'bg-rs-raised text-rs-muted')}>
+      <span className={'h-1.5 w-1.5 rounded-full ' + (PUNTO_CLS[estado] ?? 'bg-rs-muted')} />
+      {labelEstado(estado)}
+    </span>
+  )
 }
 
 export interface OpcionesSede {
@@ -25,18 +35,62 @@ export interface OpcionesSede {
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
 }
 
+// ---------------------------------------------------------------------------
+// Aviso en vivo de aforo dentro del formulario
+// ---------------------------------------------------------------------------
+function HintAforo({ detalle }: { detalle: ChequeoAforo[] }) {
+  if (!detalle.length) return null
+  return (
+    <ul className="col-span-2 flex animate-fade-in flex-wrap gap-2" aria-label="Aforo">
+      {detalle.map((c, i) => {
+        const pct = c.maximo ? c.despues / c.maximo : 0
+        const cls = c.excede ? 'border-rs-danger/50 bg-rs-danger/10 text-rs-danger' : pct >= 0.9 ? 'border-rs-warn/50 bg-rs-warn/10 text-rs-warn' : 'border-rs-ok/40 bg-rs-ok/10 text-rs-ok'
+        return (
+          <li key={i} className={'rounded-full border px-3 py-1 text-xs transition-colors ' + cls}>
+            <span className="font-semibold">{c.etiqueta}</span> · {c.usado}/{c.maximo} → con esta reserva {c.despues}{c.excede ? ' (supera el aforo)' : ''}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva; fechaDefault?: string; onDone: () => void; op: OpcionesSede }) {
+  const toast = useToast()
+  const { state, pending, formProps } = useAccionFormulario(guardarReserva)
+  const formRef = formProps.ref
+
   const [sedeElegida, setSedeElegida] = useState<string>(reserva?.sucursal_id ?? op.sedeDefault ?? (op.sedes.length === 1 ? op.sedes[0].id : ''))
+  const [fecha, setFecha] = useState(reserva ? reserva.fecha ?? '' : fechaDefault ?? '')
+  const [hora, setHora] = useState(reserva?.hora?.slice(0, 5) ?? '')
+  const [personas, setPersonas] = useState(String(reserva?.cantidad_personas ?? 2))
+  const [ubic, setUbic] = useState(reserva?.ubicacion ?? '')
+  const [detalle, setDetalle] = useState<ChequeoAforo[]>([])
+
   // las ubicaciones de la sede elegida + las que valen para todas las sedes
   const ubicacionesSede = [...new Set(op.ubicaciones.filter((u) => !u.sucursal_id || u.sucursal_id === sedeElegida).map((u) => u.nombre))]
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(guardarReserva, null)
+  useEffect(() => { if (ubic && !ubicacionesSede.includes(ubic)) setUbic('') }, [sedeElegida]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // cada cambio de datos relevantes: se consulta el aforo (con pausa para no consultar en cada tecla) y se anula "guardar igual"
   useEffect(() => {
-    if (state?.ok) onDone()
-  }, [state, onDone])
+    const n = Number(personas)
+    if (!fecha || !(n > 0)) { setDetalle([]); return }
+    let vigente = true
+    const t = setTimeout(async () => {
+      const r = await consultarAforo({ sucursal_id: sedeElegida || null, ubicacion: ubic || null, fecha, hora: hora || null, personas: n, excluirId: reserva?.id })
+      if (vigente) setDetalle(r.detalle ?? [])
+    }, 350)
+    return () => { vigente = false; clearTimeout(t) }
+  }, [sedeElegida, ubic, fecha, hora, personas, reserva?.id])
+
+  useEffect(() => {
+    if (state?.ok) { toast({ texto: reserva ? `Reserva #${reserva.numero} actualizada` : 'Reserva creada' }); onDone() }
+  }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <form action={action} className="grid grid-cols-2 gap-3">
+    <form {...formProps} className="grid grid-cols-2 gap-3">
       {reserva && <input type="hidden" name="id" value={reserva.id} />}
+      <input type="hidden" name="forzar" defaultValue="" />
       <div className="col-span-2">
         <label className="label" htmlFor="cliente_nombre">Nombre del titular *</label>
         <input id="cliente_nombre" name="cliente_nombre" defaultValue={reserva?.cliente_nombre ?? ''} className="input w-full" required />
@@ -47,11 +101,11 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       </div>
       <div>
         <label className="label" htmlFor="fecha">Fecha</label>
-        <input id="fecha" name="fecha" type="date" defaultValue={reserva ? reserva.fecha ?? '' : fechaDefault} className="input w-full" />
+        <input id="fecha" name="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="input w-full" />
       </div>
       <div>
         <label className="label" htmlFor="hora">Hora</label>
-        <input id="hora" name="hora" type="time" defaultValue={reserva?.hora?.slice(0, 5) ?? ''} className="input w-full" />
+        <input id="hora" name="hora" type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="input w-full" />
       </div>
       {op.sedes.length > 0 && (
         <div>
@@ -65,7 +119,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       {ubicacionesSede.length > 0 && (
         <div>
           <label className="label" htmlFor="ubicacion">Ubicación</label>
-          <select id="ubicacion" name="ubicacion" key={sedeElegida} defaultValue={reserva?.ubicacion && ubicacionesSede.includes(reserva.ubicacion) ? reserva.ubicacion : ''} className="input w-full">
+          <select id="ubicacion" name="ubicacion" value={ubic} onChange={(e) => setUbic(e.target.value)} className="input w-full">
             <option value="">Sin definir</option>
             {ubicacionesSede.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
@@ -73,7 +127,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       )}
       <div>
         <label className="label" htmlFor="cantidad_personas">Personas *</label>
-        <input id="cantidad_personas" name="cantidad_personas" type="number" min={1} defaultValue={reserva?.cantidad_personas ?? 2} className="input w-full" required />
+        <input id="cantidad_personas" name="cantidad_personas" type="number" min={1} value={personas} onChange={(e) => setPersonas(e.target.value)} className="input w-full" required />
       </div>
       <div>
         <label className="label" htmlFor="tipo_reserva">Tipo</label>
@@ -81,6 +135,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
           {TIPOS_RESERVA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
+      <HintAforo detalle={detalle} />
       <div>
         <label className="label" htmlFor="cumpleanos_dia">Cumpleaños: día</label>
         <input id="cumpleanos_dia" name="cumpleanos_dia" type="number" min={1} max={31} defaultValue={reserva?.cumpleanos_dia ?? ''} className="input w-full" />
@@ -93,10 +148,19 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
         <label className="label" htmlFor="observaciones">Observaciones</label>
         <textarea id="observaciones" name="observaciones" rows={3} defaultValue={reserva?.observaciones ?? ''} className="input w-full" />
       </div>
-      {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
+      {state && !state.ok && (
+        <div role="alert" className="col-span-2 animate-fade-in rounded-rs border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">
+          <p>{state.error}</p>
+          {state.aforo && (
+            <button type="button" disabled={pending} onClick={() => { const f = formRef.current; if (!f) return; (f.elements.namedItem('forzar') as HTMLInputElement).value = '1'; f.requestSubmit() }} className="btn btn-sm btn-danger mt-2">
+              Guardar igual de todos modos
+            </button>
+          )}
+        </div>
+      )}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
-        <button type="submit" disabled={pending} className="btn btn-primary">{pending ? 'Guardando…' : reserva ? 'Guardar cambios' : 'Crear reserva'}</button>
+        <button type="submit" disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : reserva ? 'Guardar cambios' : 'Crear reserva'}</button>
       </div>
     </form>
   )
@@ -104,9 +168,22 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
 
 export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; op: OpcionesSede }) {
   const [abierto, setAbierto] = useState(false)
+
+  // atajo de teclado: "N" abre una reserva nueva (si no se está escribiendo en un campo)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key.toLowerCase() !== 'n' || e.ctrlKey || e.metaKey || e.altKey) return
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      e.preventDefault(); setAbierto(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <>
-      <button onClick={() => setAbierto(true)} className="btn btn-primary"><Plus size={16} /> Nueva Reserva</button>
+      <button onClick={() => setAbierto(true)} className="btn btn-primary" title="Atajo: N"><Plus size={16} /> Nueva Reserva<kbd className="ml-1 hidden rounded bg-black/15 px-1.5 text-[10px] font-semibold sm:inline">N</kbd></button>
       {abierto && (
         <Modal titulo="Nueva reserva" onClose={() => setAbierto(false)}>
           <ReservaForm fechaDefault={fechaDefault} onDone={() => setAbierto(false)} op={op} />
@@ -117,28 +194,62 @@ export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; o
 }
 
 export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; op: OpcionesSede }) {
-  const mostrarSede = Object.keys(op.nombresSede).length > 0
-  const mostrarUbicacion = op.ubicaciones.length > 0 || reservas.some((r) => r.ubicacion)
+  const toast = useToast()
   const [editando, setEditando] = useState<Reserva | null>(null)
   const [cancelando, setCancelando] = useState<Reserva | null>(null)
   const [motivo, setMotivo] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [ocupada, setOcupada] = useState<string | null>(null)
+  const mostrarSede = Object.keys(op.nombresSede).length > 0
+  const mostrarUbicacion = op.ubicaciones.length > 0 || reservas.some((r) => r.ubicacion)
 
-  const correr = (fn: () => Promise<ActionResult>, despues?: () => void) =>
+  const correr = (id: string, fn: () => Promise<ActionResult>, ok?: () => void) =>
     start(async () => {
-      setError(null)
+      setOcupada(id)
       const r = await fn()
-      if (!r.ok) setError(r.error ?? 'Ocurrió un error')
-      else despues?.()
+      setOcupada(null)
+      r.ok ? ok?.() : toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' })
     })
+
+  const cambiarEstado = (r: Reserva, estado: Reserva['estado'], motivoCancel?: string) =>
+    correr(r.id, () => cambiarEstadoReserva(r.id, estado, motivoCancel), () =>
+      toast({
+        texto: `Reserva #${r.numero} ${estado === 'confirmada' ? 'confirmada' : estado === 'cancelada' ? 'cancelada' : estado === 'no_show' ? 'marcada como no-show' : 'actualizada'}`,
+        accion: { label: 'Deshacer', onClick: () => { void cambiarEstadoReserva(r.id, r.estado) } },
+      }))
+
+  const eliminar = (r: Reserva) =>
+    correr(r.id, () => eliminarReserva(r.id), () =>
+      toast({ texto: `Reserva #${r.numero} eliminada`, accion: { label: 'Deshacer', onClick: () => { void restaurarReserva(r.id) } } }))
+
+  const acciones = (r: Reserva) => (
+    <div className="flex justify-end gap-1.5">
+      {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
+      {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => { setMotivo(''); setCancelando(r) }} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
+      {r.estado === 'confirmada' && <button disabled={pending} onClick={() => cambiarEstado(r, 'no_show')} title="Marcar no-show" aria-label="Marcar no-show" className="btn btn-sm"><UserX size={14} /></button>}
+      <button onClick={() => setEditando(r)} title="Editar" aria-label="Editar" className="btn btn-sm"><Pencil size={14} /></button>
+      <button disabled={pending} onClick={() => eliminar(r)} title="Eliminar" aria-label="Eliminar" className="btn btn-sm btn-danger"><Trash2 size={14} /></button>
+    </div>
+  )
+
+  const nota = (r: Reserva) => (r.estado === 'cancelada' && r.motivo_cancelacion ? `Motivo: ${r.motivo_cancelacion}` : r.observaciones)
+
+  if (reservas.length === 0) {
+    return (
+      <div className="card">
+        <EstadoVacio icono={<CalendarPlus size={26} />} titulo={vacio} texto="Cuando se cargue una reserva (a mano o por el bot) aparece acá.">
+          {puedeEscribir && <p className="text-xs text-rs-muted">Tip: apretá <kbd className="rounded bg-rs-raised px-1.5 py-0.5 font-semibold text-rs-text">N</kbd> para crear una.</p>}
+        </EstadoVacio>
+      </div>
+    )
+  }
 
   return (
     <>
-      {error && <p role="alert" className="mb-3 rounded-rs border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
-      <div className="card overflow-x-auto">
+      {/* Escritorio: tabla */}
+      <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[980px]">
-          <thead className="border-b border-rs-border">
+          <thead className="sticky top-0 border-b border-rs-border bg-rs-card">
             <tr>
               <th className="th">#</th><th className="th">Nombre</th><th className="th">Tel</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Fecha</th><th className="th">Hora</th>
               <th className="th">Personas</th><th className="th">Tipo</th>{mostrarUbicacion && <th className="th">Ubicación</th>}<th className="th">Observaciones</th><th className="th">Estado</th>
@@ -146,11 +257,8 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
             </tr>
           </thead>
           <tbody>
-            {reservas.length === 0 && (
-              <tr><td colSpan={12} className="td py-10 text-center text-rs-muted">{vacio}</td></tr>
-            )}
-            {reservas.map((r) => (
-              <tr key={r.id} className="border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/40">
+            {reservas.map((r, i) => (
+              <tr key={r.id} className={'reveal group border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <td className="td font-semibold text-rs-lime">#{r.numero}</td>
                 <td className="td font-medium">{r.cliente_nombre ?? '—'}</td>
                 <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>
@@ -160,36 +268,38 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <td className="td">{r.cantidad_personas ?? '—'}</td>
                 <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
-                <td className="td max-w-[150px] truncate text-rs-muted" title={r.observaciones ?? r.motivo_cancelacion ?? ''}>
-                  {r.estado === 'cancelada' && r.motivo_cancelacion ? `Motivo: ${r.motivo_cancelacion}` : r.observaciones ?? '—'}
-                </td>
+                <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
                 <td className="td"><EstadoBadge estado={r.estado} /></td>
-                {puedeEscribir && (
-                  <td className="td">
-                    <div className="flex justify-end gap-1.5">
-                      {r.estado !== 'confirmada' && (
-                        <button disabled={pending} onClick={() => correr(() => cambiarEstadoReserva(r.id, 'confirmada'))} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok"><Check size={14} /></button>
-                      )}
-                      {r.estado !== 'cancelada' && (
-                        <button disabled={pending} onClick={() => { setMotivo(''); setCancelando(r) }} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>
-                      )}
-                      {r.estado === 'confirmada' && (
-                        <button disabled={pending} onClick={() => correr(() => cambiarEstadoReserva(r.id, 'no_show'))} title="Marcar no-show" aria-label="Marcar no-show" className="btn btn-sm"><UserX size={14} /></button>
-                      )}
-                      <button onClick={() => setEditando(r)} title="Editar" aria-label="Editar" className="btn btn-sm"><Pencil size={14} /></button>
-                      <button
-                        disabled={pending}
-                        onClick={() => confirm(`¿Eliminar la reserva #${r.numero}?`) && correr(() => eliminarReserva(r.id))}
-                        title="Eliminar" aria-label="Eliminar" className="btn btn-sm btn-danger"
-                      ><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                )}
+                {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Celular: tarjetas */}
+      <ul className="space-y-3 md:hidden">
+        {reservas.map((r, i) => (
+          <li key={r.id} className={'reveal card p-4 transition-opacity ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 8) }}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold"><span className="text-rs-lime">#{r.numero}</span> {r.cliente_nombre ?? '—'}</p>
+                <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
+              </div>
+              <EstadoBadge estado={r.estado} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-rs-muted">
+              <span className="inline-flex items-center gap-1.5"><Users size={13} />{r.cantidad_personas ?? '—'} personas</span>
+              {r.cliente_telefono && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{r.cliente_telefono}</span>}
+              {mostrarSede && r.sucursal_id && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{op.nombresSede[r.sucursal_id] ?? '—'}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</span>}
+              {(!mostrarSede || !r.sucursal_id) && r.ubicacion && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{r.ubicacion}</span>}
+              <span>{labelTipo(r.tipo_reserva)}</span>
+            </div>
+            {nota(r) && <p className="mt-2 text-sm text-rs-muted/90">{nota(r)}</p>}
+            {puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(r)}</div>}
+          </li>
+        ))}
+      </ul>
 
       {editando && (
         <Modal titulo={`Editar reserva #${editando.numero}`} onClose={() => setEditando(null)}>
@@ -202,11 +312,10 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <textarea id="motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} className="input w-full" />
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setCancelando(null)} className="btn">Volver</button>
-            <button disabled={pending} onClick={() => correr(() => cambiarEstadoReserva(cancelando.id, 'cancelada', motivo), () => setCancelando(null))} className="btn btn-danger">Cancelar reserva</button>
+            <button disabled={pending} onClick={() => { const r = cancelando; setCancelando(null); cambiarEstado(r, 'cancelada', motivo) }} className="btn btn-danger">Cancelar reserva</button>
           </div>
         </Modal>
       )}
     </>
   )
 }
-

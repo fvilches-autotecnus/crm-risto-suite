@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { MessagesSquare } from 'lucide-react'
+import { EstadoVacio } from '@/components/ui'
 import { getContexto } from '@/lib/context'
 import { fechaHoraCorta } from '@/lib/fechas'
 
@@ -28,9 +30,9 @@ export default async function ConversacionesPage({ searchParams }: { searchParam
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       <aside className="card max-h-[70vh] overflow-y-auto">
-        {lista.length === 0 && <p className="p-6 text-center text-sm text-rs-muted">Todavía no hay conversaciones del bot.</p>}
-        {lista.map((s) => (
-          <Link key={s.telefono} href={`/conversaciones?tel=${s.telefono}`} className={'block border-b border-rs-border/60 px-4 py-3 last:border-0 hover:bg-rs-raised/40 ' + (s.telefono === activo ? 'bg-rs-raised/60' : '')}>
+        {lista.length === 0 && <EstadoVacio icono={<MessagesSquare size={24} />} titulo="Todavía no hay conversaciones" texto="Los chats del bot de WhatsApp aparecen acá." />}
+        {lista.map((s, i) => (
+          <Link key={s.telefono} style={{ ['--i' as string]: Math.min(i, 10) }} href={`/conversaciones?tel=${s.telefono}`} className={'reveal block border-b border-rs-border/60 px-4 py-3 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (s.telefono === activo ? 'border-l-2 border-l-rs-lime bg-rs-raised/60' : '')}>
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-sm font-medium">{s.nombre_whatsapp || s.telefono}</span>
               {s.estado_bot !== 'activo' && <span className="badge bg-rs-warn/15 text-rs-warn">Pausado</span>}
@@ -53,8 +55,8 @@ export default async function ConversacionesPage({ searchParams }: { searchParam
             </header>
             <div className="flex-1 space-y-2 overflow-y-auto p-5">
               {(mensajes ?? []).length === 0 && <p className="text-center text-sm text-rs-muted">Sin mensajes.</p>}
-              {(mensajes ?? []).map((m) => (
-                <div key={m.id} className={'flex ' + (m.autor === 'cliente' ? 'justify-start' : 'justify-end')}>
+              {(mensajes ?? []).map((m, i) => (
+                <div key={m.id} style={{ ['--i' as string]: Math.min(i, 14) }} className={'reveal flex ' + (m.autor === 'cliente' ? 'justify-start' : 'justify-end')}>
                   <div className={'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ' + (m.autor === 'cliente' ? 'bg-rs-raised' : m.autor === 'humano' ? 'bg-rs-lime text-rs-on-lime' : 'bg-rs-lime/15 text-rs-text')}>
                     <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide opacity-70">{AUTOR[m.autor] ?? m.autor} · {fechaHoraCorta(m.creado_en, negocio.zona_horaria)}</div>
                     <p className="whitespace-pre-wrap">{m.contenido}</p>

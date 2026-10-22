@@ -1,20 +1,32 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 
 export default function Modal({ titulo, onClose, children, ancho = 'max-w-lg' }: { titulo: string; onClose: () => void; children: React.ReactNode; ancho?: string }) {
+  const caja = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // evita que la página de fondo se desplace mientras el diálogo está abierto
+    const previo = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // foco en el primer campo (o en el diálogo) para poder escribir/usar teclado enseguida
+    const t = setTimeout(() => {
+      // solo si el foco todavía no está dentro del diálogo (no le pisamos un campo que la persona ya eligió)
+      if (caja.current && document.activeElement !== caja.current && caja.current.contains(document.activeElement)) return
+      ;(caja.current?.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]), select, textarea') ?? caja.current)?.focus()
+    }, 30)
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = previo; clearTimeout(t) }
   }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={titulo} className={'card my-4 w-full border-rs-control p-5 ' + ancho}>
+    <div className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={caja} tabIndex={-1} role="dialog" aria-modal="true" aria-label={titulo} className={'card my-4 w-full animate-scale-in border-rs-control p-5 shadow-2xl shadow-black/60 outline-none ' + ancho}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold">{titulo}</h2>
-          <button onClick={onClose} aria-label="Cerrar" className="text-rs-muted hover:text-rs-text"><X size={18} /></button>
+          <button onClick={onClose} aria-label="Cerrar" className="rounded-md p-1 text-rs-muted transition hover:rotate-90 hover:bg-rs-raised hover:text-rs-text"><X size={18} /></button>
         </div>
         {children}
       </div>

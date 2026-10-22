@@ -2,20 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-html { color-scheme: dark; }
+html { color-scheme: dark; scroll-behavior: smooth; }
 body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, system-ui, sans-serif; }
+::selection { background: rgba(200, 230, 43, .35); }
+* { scrollbar-width: thin; scrollbar-color: #253300 transparent; }
 
 @layer components {
   .card { @apply rounded-rs-lg border border-rs-border bg-rs-card; }
+  .card-hover { @apply transition duration-200 hover:-translate-y-0.5 hover:border-rs-lime/30 hover:shadow-[0_8px_30px_-12px_rgba(200,230,43,.25)]; }
   .card-title { @apply text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
-  .input { @apply h-9 rounded-rs border border-rs-control bg-[#131d03] px-3 text-sm text-rs-text placeholder:text-rs-muted/70 outline-none focus:border-rs-lime/70 disabled:opacity-50; }
+  .input { @apply h-9 rounded-rs border border-rs-control bg-[#131d03] px-3 text-sm text-rs-text outline-none transition placeholder:text-rs-muted/70 hover:border-rs-muted/50 focus:border-rs-lime/70 focus:ring-2 focus:ring-rs-lime/20 disabled:opacity-50; }
   textarea.input { @apply h-auto py-2; }
   .label { @apply mb-1 block text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
-  .btn { @apply inline-flex h-9 items-center justify-center gap-2 rounded-rs border border-rs-control px-3 text-sm font-medium text-rs-muted transition hover:bg-rs-raised hover:text-rs-text disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply border-transparent bg-rs-lime font-semibold text-rs-on-lime hover:bg-rs-lime/90 hover:text-rs-on-lime; }
+  .btn { @apply inline-flex h-9 select-none items-center justify-center gap-2 rounded-rs border border-rs-control px-3 text-sm font-medium text-rs-muted transition duration-150 hover:bg-rs-raised hover:text-rs-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rs-lime/50 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100; }
+  .btn-primary { @apply border-transparent bg-rs-lime font-semibold text-rs-on-lime hover:bg-rs-lime/90 hover:text-rs-on-lime hover:shadow-[0_0_24px_-4px_rgba(200,230,43,.55)]; }
   .btn-danger { @apply border-rs-danger/40 text-rs-danger hover:bg-rs-danger/10 hover:text-rs-danger; }
   .btn-sm { @apply h-7 px-2 text-xs; }
-  .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
   .th { @apply px-2.5 py-3 text-left text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
   .td { @apply px-2.5 py-3 text-sm; }
+  /* entrada escalonada: style={{ '--i': n }} */
+  .reveal { animation: fade-up .45s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  .skeleton { @apply relative overflow-hidden rounded-rs bg-rs-raised/70; }
+  .skeleton::after { content: ''; @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-rs-lime/10 to-transparent; }
+}
+
+/* quien prefiere menos movimiento no ve animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

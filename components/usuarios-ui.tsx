@@ -1,8 +1,11 @@
 'use client'
 
-import { useActionState, useEffect, useState, useTransition } from 'react'
+import {useEffect, useState, useTransition} from 'react'
 import { KeyRound, Plus, ShieldCheck, Trash2, UserCog } from 'lucide-react'
+import { useConfirm, useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
+import { useAccionFormulario } from '@/components/use-accion-formulario'
+import { Spinner } from '@/components/ui'
 import type { ActionResult } from '@/app/(panel)/actions'
 import { activarMembresia, activarUsuario, agregarMembresia, cambiarRol, crearUsuario, guardarSedesMembresia, quitarMembresia, resetearPassword } from '@/app/(panel)/admin-actions'
 import { ROLES, ROLES_BAJOS, labelRol, type MembresiaUI, type UsuarioUI } from '@/lib/roles'
@@ -30,14 +33,15 @@ function Error({ msg }: { msg: string | null }) {
 }
 
 function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(crearUsuario, null)
+  const { state, pending, formProps } = useAccionFormulario(crearUsuario)
   const [esSuper, setEsSuper] = useState(false)
   const [negocioElegido, setNegocioElegido] = useState(p.modo === 'global' ? '' : p.negocioActual)
-  useEffect(() => { if (state?.ok) onDone() }, [state, onDone])
+  const toast = useToast()
+  useEffect(() => { if (state?.ok) { toast({ texto: 'Usuario creado' }); onDone() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const roles = rolesAsignables(p.miRol)
   const sedesNegocio = p.sedesPorNegocio[negocioElegido] ?? []
   return (
-    <form action={action} className="grid grid-cols-2 gap-3">
+    <form {...formProps} className="grid grid-cols-2 gap-3">
       <div>
         <label className="label" htmlFor="u_usuario">Usuario *</label>
         <input id="u_usuario" name="usuario" autoCapitalize="none" autoComplete="off" placeholder="ej. juan.perez" className="input w-full" required />
@@ -88,7 +92,7 @@ function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
-        <button disabled={pending} className="btn btn-primary">{pending ? 'Creando…' : 'Crear usuario'}</button>
+        <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Creando…' : 'Crear usuario'}</button>
       </div>
     </form>
   )
@@ -99,7 +103,9 @@ function Accesos({ u, p, onClose }: { u: UsuarioUI; p: Props; onClose: () => voi
   const [error, setError] = useState<string | null>(null)
   const [nuevoNegocio, setNuevoNegocio] = useState('')
   const [nuevoRol, setNuevoRol] = useState<Rol>('staff')
-  const correr = (fn: () => Promise<ActionResult>) => start(async () => { setError(null); const r = await fn(); if (!r.ok) setError(r.error ?? 'Error') })
+  const toast = useToast()
+  const confirmar = useConfirm()
+  const correr = (fn: () => Promise<ActionResult>, ok = 'Cambios guardados') => start(async () => { setError(null); const r = await fn(); if (r.ok) toast({ texto: ok }); else setError(r.error ?? 'Error') })
   const permitidos = rolesAsignables(p.miRol)
   const yo = u.id === p.yoId
 
@@ -126,7 +132,7 @@ function Accesos({ u, p, onClose }: { u: UsuarioUI; p: Props; onClose: () => voi
               <button disabled={!editable || pending} onClick={() => correr(() => activarMembresia(u.id, m.negocio_id, !m.activo))} className="btn btn-sm">{m.activo ? 'Desactivar' : 'Activar'}</button>
               <button
                 disabled={!editable || pending}
-                onClick={() => confirm(`¿Quitar a ${u.nombre} de ${m.negocio_nombre}?`) && correr(() => quitarMembresia(u.id, m.negocio_id))}
+                onClick={async () => { if (await confirmar({ titulo: `¿Quitar a ${u.nombre} de ${m.negocio_nombre}?`, texto: 'Pierde el acceso a este negocio.', confirmar: 'Quitar', peligro: true })) correr(() => quitarMembresia(u.id, m.negocio_id), 'Usuario quitado del negocio') }}
                 aria-label="Quitar del negocio" className="btn btn-sm btn-danger"
               ><Trash2 size={13} /></button>
               {(p.sedesPorNegocio[m.negocio_id]?.length ?? 0) > 0 && (
@@ -176,6 +182,7 @@ function SedesDeAcceso({ userId, m, sedes, nombresSede, editable, correr, pendin
 }
 
 function Password({ u, onClose }: { u: UsuarioUI; onClose: () => void }) {
+  const toast = useToast()
   const [pass, setPass] = useState('')
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -189,7 +196,7 @@ function Password({ u, onClose }: { u: UsuarioUI; onClose: () => void }) {
       {ok && <p className="mt-2 text-sm text-rs-ok">Contraseña cambiada.</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button onClick={onClose} className="btn">Cerrar</button>
-        <button disabled={pending || pass.length < 8} onClick={() => start(async () => { setError(null); setOk(false); const r = await resetearPassword(u.id, pass); r.ok ? (setOk(true), setPass('')) : setError(r.error ?? 'Error') })} className="btn btn-primary">Cambiar contraseña</button>
+        <button disabled={pending || pass.length < 8} onClick={() => start(async () => { setError(null); setOk(false); const r = await resetearPassword(u.id, pass); r.ok ? (setOk(true), setPass(''), toast({ texto: `Contraseña de ${u.nombre} cambiada` })) : setError(r.error ?? 'Error') })} className="btn btn-primary">{pending && <Spinner />}Cambiar contraseña</button>
       </div>
     </Modal>
   )

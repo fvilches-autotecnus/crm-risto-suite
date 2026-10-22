@@ -6,11 +6,14 @@ import { revalidatePath } from 'next/cache'
 import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado } from '@/lib/notify'
+import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
 import { TIPOS_RESERVA } from '@/lib/reservas'
 
 export interface ActionResult {
   ok: boolean
   error?: string
+  aforo?: boolean            // true = la reserva supera un aforo (se puede guardar igual con forzar=1)
+  detalle?: ChequeoAforo[]
 }
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -114,6 +117,20 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
     ubicacion,
   }
 
+  // Aforo: si la reserva ocupa lugar y hay fecha, se verifica contra las reglas (sede / ubicación / franja). Se puede guardar igual.
+  if (fecha && fd.get('forzar') !== '1') {
+    let ocupa = true
+    if (id) {
+      const { data: actual } = await ctx.supabase.from('reservas').select('estado').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
+      ocupa = !actual || actual.estado === 'nueva' || actual.estado === 'confirmada'
+    }
+    if (ocupa) {
+      const chk = await chequearReserva(ctx, { sucursal_id: sucursalId, ubicacion, hora: hora || null, fecha, personas: cantidad, excluirId: id || undefined })
+      const excede = chk.filter((c) => c.excede)
+      if (excede.length) return { ok: false, aforo: true, detalle: chk, error: 'Se supera el aforo: ' + excede.map((c) => `${c.etiqueta} (${c.despues} de ${c.maximo})`).join(' · ') }
+    }
+  }
+
   const { supabase, negocio } = ctx
   const { error } = id
     ? await supabase.from('reservas').update(fila).eq('id', id).eq('negocio_id', negocio.id)
@@ -161,6 +178,15 @@ export async function eliminarReserva(id: string): Promise<ActionResult> {
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
   const { error } = await ctx.supabase.from('reservas').update({ eliminado_en: new Date().toISOString() }).eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo eliminar la reserva')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+export async function restaurarReserva(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  const { error } = await ctx.supabase.from('reservas').update({ eliminado_en: null }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo restaurar la reserva')
   revalidatePath('/', 'layout')
   return { ok: true }
 }
@@ -250,12 +276,14 @@ export async function guardarSede(_prev: ActionResult | null, fd: FormData): Pro
   const id = text(fd, 'id')
   const nombre = text(fd, 'nombre')
   const wa = text(fd, 'whatsapp_nro').replace(/\D/g, '')
+  const maps = text(fd, 'maps_url')
+  if (maps && !/^https?:\/\//i.test(maps)) return fail('El link de Google Maps debe empezar con http:// o https://')
   const aforoRaw = text(fd, 'aforo')
   const aforo = aforoRaw ? Number(aforoRaw) : null
   if (!nombre) return fail('Falta el nombre de la sede')
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un entero mayor a 0')
   if (!id && !ctx.sinRestriccionSede) return fail('Solo quien ve todas las sedes puede crear una nueva')
-  const fila = { nombre, whatsapp_nro: wa || null, aforo_maximo_reservas: aforo }
+  const fila = { nombre, whatsapp_nro: wa || null, aforo_maximo_reservas: aforo, direccion: text(fd, 'direccion') || null, telefono: text(fd, 'telefono') || null, maps_url: maps || null }
   const { error } = id
     ? await ctx.supabase.from('sucursales').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('sucursales').insert({ ...fila, negocio_id: ctx.negocio.id, orden: ctx.sedesTodas.length + 1 })
@@ -316,6 +344,51 @@ export async function eliminarSede(id: string): Promise<ActionResult> {
   for (const m of ms ?? []) await admin.from('membresias').update({ sucursal_ids: (m.sucursal_ids as string[]).filter((x) => x !== id) }).eq('user_id', m.user_id).eq('negocio_id', m.negocio_id)
   const { error } = await admin.from('sucursales').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo eliminar la sede')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Aforo por franja horaria y ubicación
+// ---------------------------------------------------------------------------
+
+/** Cómo quedarían los aforos que le corresponden a una reserva (para el aviso en vivo del formulario). */
+export async function consultarAforo(input: { sucursal_id: string | null; ubicacion: string | null; fecha: string; hora: string | null; personas: number; excluirId?: string }): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!FECHA_RE.test(input.fecha) || !(input.personas > 0)) return { ok: true, detalle: [] }
+  const detalle = await chequearReserva(ctx, { sucursal_id: input.sucursal_id || null, ubicacion: input.ubicacion || null, hora: input.hora && HORA_RE.test(input.hora) ? input.hora : null, fecha: input.fecha, personas: input.personas, excluirId: input.excluirId })
+  return { ok: true, detalle }
+}
+
+export async function guardarRegla(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar el aforo')
+  const id = text(fd, 'id')
+  const sedeId = text(fd, 'sucursal_id') || null
+  const ubicacion = text(fd, 'ubicacion') || null
+  const desde = text(fd, 'hora_desde')
+  const hasta = text(fd, 'hora_hasta')
+  const maximo = Number(text(fd, 'maximo'))
+  if (!Number.isInteger(maximo) || maximo <= 0) return fail('El máximo de personas debe ser un entero mayor a 0')
+  if (!!desde !== !!hasta) return fail('Completá la franja desde y hasta, o dejá ambas vacías para todo el día')
+  if (desde && (!HORA_RE.test(desde) || !HORA_RE.test(hasta))) return fail('La franja horaria no es válida')
+  if (desde && desde >= hasta) return fail('La franja debe terminar después de empezar (no puede cruzar la medianoche)')
+  if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  if (!sedeId && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
+  const fila = { sucursal_id: sedeId, ubicacion, hora_desde: desde || null, hora_hasta: hasta || null, maximo }
+  const { error } = id
+    ? await ctx.supabase.from('aforos').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    : await ctx.supabase.from('aforos').insert({ ...fila, negocio_id: ctx.negocio.id })
+  if (error) return fail('No se pudo guardar la regla de aforo')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+export async function borrarRegla(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('No tenés permiso para editar el aforo')
+  const { error } = await ctx.supabase.from('aforos').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo borrar la regla')
   revalidatePath('/', 'layout')
   return { ok: true }
 }

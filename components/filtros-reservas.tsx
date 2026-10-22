@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RefreshCw, Search } from 'lucide-react'
 import { ESTADOS, TIPOS_RESERVA } from '@/lib/reservas'
 
@@ -11,6 +11,18 @@ export default function FiltrosReservas() {
   const sp = useSearchParams()
   const [q, setQ] = useState(sp.get('q') ?? '')
   const [rangoManual, setRangoManual] = useState(sp.get('rango') === 'rango')
+  const buscador = useRef<HTMLInputElement>(null)
+
+  // atajo: "/" lleva el cursor a la búsqueda
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key !== '/' || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT'))) return
+      e.preventDefault(); buscador.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const set = (cambios: Record<string, string>) => {
     const p = new URLSearchParams(window.location.search) // no `sp`: puede estar atrasado si hay una navegación en curso
@@ -26,11 +38,11 @@ export default function FiltrosReservas() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[220px] flex-1">
+      <div className="relative w-full min-w-[220px] sm:w-auto sm:flex-1">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nombre o teléfono" className="input w-full pl-9" />
+        <input ref={buscador} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nombre o teléfono  ( / )" className="input w-full pl-9" />
       </div>
-      <select aria-label="Estado" value={sp.get('estado') ?? ''} onChange={(e) => set({ estado: e.target.value })} className="input">
+      <select aria-label="Estado" value={sp.get('estado') ?? ''} onChange={(e) => set({ estado: e.target.value })} className="input min-w-[8.5rem] flex-1 sm:flex-none">
         <option value="">Todos los estados</option>
         <option value="sin_confirmar">No confirmadas</option>
         {ESTADOS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
@@ -54,7 +66,7 @@ export default function FiltrosReservas() {
           <input type="date" aria-label="Hasta" value={sp.get('hasta') ?? ''} onChange={(e) => set({ hasta: e.target.value })} className="input" />
         </>
       )}
-      <select aria-label="Tipo" value={sp.get('tipo') ?? ''} onChange={(e) => set({ tipo: e.target.value })} className="input">
+      <select aria-label="Tipo" value={sp.get('tipo') ?? ''} onChange={(e) => set({ tipo: e.target.value })} className="input min-w-[8.5rem] flex-1 sm:flex-none">
         <option value="">Todos los tipos</option>
         {TIPOS_RESERVA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>

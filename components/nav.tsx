@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Building2, CalendarCheck, LayoutGrid, MessageCircle, MessagesSquare, Settings, Users } from 'lucide-react'
 
 const TABS = [
@@ -16,24 +17,38 @@ const TABS = [
 export default function Nav({ esSuperadmin = false }: { esSuperadmin?: boolean }) {
   const pathname = usePathname()
   const tabs = esSuperadmin ? [...TABS, { href: '/administracion', label: 'Administración', icon: Building2 }] : TABS
+  const activo = tabs.find((t) => (t.href === '/' ? pathname === '/' : pathname.startsWith(t.href)))?.href ?? null
+  const refs = useRef<Record<string, HTMLAnchorElement | null>>({})
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null)
+
+  // La "pastilla" lima se desliza hasta la pestaña activa y la trae a la vista en pantallas chicas.
+  useLayoutEffect(() => {
+    const el = activo ? refs.current[activo] : null
+    if (!el) { setPill(null); return }
+    setPill({ left: el.offsetLeft, width: el.offsetWidth })
+    el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [activo, tabs.length])
+
   return (
-    <nav className="mx-auto flex max-w-[1280px] gap-2 overflow-x-auto px-4 pb-3">
-      {tabs.map(({ href, label, icon: Icon }) => {
-        const activo = href === '/' ? pathname === '/' : pathname.startsWith(href)
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={
-              'inline-flex h-8 shrink-0 items-center gap-2 rounded-[10px] border px-3.5 text-sm font-medium transition ' +
-              (activo ? 'border-transparent bg-rs-lime font-semibold text-rs-on-lime' : 'border-rs-control text-rs-muted hover:bg-rs-raised hover:text-rs-text')
-            }
-          >
-            <Icon size={15} />
-            {label}
-          </Link>
-        )
-      })}
+    <nav aria-label="Secciones" className="mx-auto max-w-[1280px] overflow-x-auto px-4 pb-3">
+      <div className="relative flex w-max gap-2">
+        {pill && <span aria-hidden className="absolute inset-y-0 rounded-[10px] bg-rs-lime shadow-[0_0_22px_-6px_rgba(200,230,43,.7)] transition-[left,width] duration-300 ease-[cubic-bezier(.22,1,.36,1)]" style={{ left: pill.left, width: pill.width }} />}
+        {tabs.map(({ href, label, icon: Icon }) => {
+          const on = href === activo
+          return (
+            <Link
+              key={href}
+              href={href}
+              ref={(el) => { refs.current[href] = el }}
+              aria-current={on ? 'page' : undefined}
+              className={'relative z-10 inline-flex h-8 shrink-0 items-center gap-2 rounded-[10px] border px-3.5 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rs-lime/50 ' + (on ? 'border-transparent font-semibold text-rs-on-lime' : 'border-rs-control text-rs-muted hover:bg-rs-raised hover:text-rs-text')}
+            >
+              <Icon size={15} className={'transition-transform duration-200 ' + (on ? 'scale-110' : 'group-hover:scale-110')} />
+              {label}
+            </Link>
+          )
+        })}
+      </div>
     </nav>
   )
 }

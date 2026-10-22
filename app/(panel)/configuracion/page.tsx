@@ -1,24 +1,36 @@
-import { getContexto } from '@/lib/context'
-import { hoyEn } from '@/lib/fechas'
+import ConfigIndex from '@/components/config-index'
 import GestionUsuarios from '@/components/usuarios-ui'
+import { getContexto } from '@/lib/context'
+import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
-import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm, SedesPanel, UbicacionesPanel } from './forms'
-import { fechaCorta } from '@/lib/fechas'
+import { AforoForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
+
+function Seccion({ id, titulo, texto, i, children, borde }: { id: string; titulo: React.ReactNode; texto?: string; i: number; children: React.ReactNode; borde?: string }) {
+  return (
+    <section id={id} className={'reveal card scroll-mt-32 p-5 ' + (borde ?? '')} style={{ ['--i' as string]: i }}>
+      <h2 className="card-title">{titulo}</h2>
+      {texto && <p className="mt-1 text-sm text-rs-muted">{texto}</p>}
+      {children}
+    </section>
+  )
+}
 
 export default async function ConfiguracionPage() {
   const ctx = await getContexto()
   const { supabase, negocio, sede } = ctx
   const hoy = hoyEn(negocio.zona_horaria)
+  const conSedes = ctx.sedesTodas.length > 0
 
   let bq = supabase.from('fechas_bloqueadas_reservas').select('id, fecha, hora_desde, hora_hasta, motivo, sucursal_id').eq('negocio_id', negocio.id).gte('fecha', hoy)
   if (sede) bq = bq.or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`)
-  const nombresSede = new Map(ctx.sedesTodas.map((x) => [x.id, x.nombre]))
+  const nombresSede = Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre]))
 
-  const [{ data: bloqueos }, { data: ubicaciones }, { data: miembros }] = await Promise.all([
+  const [{ data: bloqueos }, { data: ubicaciones }, { data: reglas }, { data: miembros }] = await Promise.all([
     bq.order('fecha'),
     supabase.from('ubicaciones').select('id, nombre, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
+    ctx.puedeAdministrar ? supabase.from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo').eq('negocio_id', negocio.id).order('creado_en') : Promise.resolve({ data: [] }),
     ctx.puedeAdministrar
       ? supabase.from('membresias').select('user_id, rol, activo, sucursal_ids, perfiles(id, usuario, nombre, activo, es_superadmin)').eq('negocio_id', negocio.id)
       : Promise.resolve({ data: null }),
@@ -29,72 +41,89 @@ export default async function ConfiguracionPage() {
     membresias: [{ negocio_id: negocio.id, negocio_nombre: negocio.nombre, rol: m.rol, activo: m.activo, sucursal_ids: m.sucursal_ids ?? [] }],
   }))
 
+  const puedeBloquear = ctx.puedeAdministrar || ctx.rol === 'encargado'
+  const sedesAsignables = ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))
+  const nombresUbicacion = [...new Set((ubicaciones ?? []).map((u) => u.nombre))]
+  const muestraSedes = ctx.puedeAdministrar && (conSedes || ctx.esSuperadmin)
+
+  const indice = [
+    { id: 'negocio', label: 'Negocio' },
+    ...(muestraSedes ? [{ id: 'sedes', label: 'Sedes' }] : []),
+    { id: 'aforo', label: 'Aforo' },
+    { id: 'bloqueos', label: 'Fechas bloqueadas' },
+    ...(ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
+    ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
+    ...(ctx.puedeAdministrar ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
+  ]
+
+  let n = 0
   return (
-    <div className="max-w-4xl space-y-6">
-      <section className="card p-5">
-        <h2 className="card-title">Negocio</h2>
+    <div className="max-w-4xl space-y-5">
+      <ConfigIndex secciones={indice} />
+
+      <Seccion id="negocio" i={n++} titulo="Negocio">
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-4">
           <div><dt className="text-xs text-rs-muted">Nombre</dt><dd className="mt-0.5 font-medium">{negocio.nombre}</dd></div>
           <div><dt className="text-xs text-rs-muted">WhatsApp</dt><dd className="mt-0.5 font-medium">{negocio.whatsapp_nro ?? '—'}</dd></div>
           <div><dt className="text-xs text-rs-muted">Horario</dt><dd className="mt-0.5 font-medium">Argentina (GMT-3)</dd></div>
           <div><dt className="text-xs text-rs-muted">Tu rol</dt><dd className="mt-0.5 font-medium">{ctx.rol === 'superadmin' ? 'Superadmin' : ROL[ctx.rol]}</dd></div>
         </dl>
-      </section>
+      </Seccion>
 
-      <section className="card p-5">
-        <h2 className="card-title">{ctx.sedesTodas.length > 0 ? 'Aforo general del negocio' : 'Aforo máximo por día'}</h2>
-        <p className="mt-1 text-sm text-rs-muted">Cantidad máxima de personas con reserva confirmada en un mismo día. Se muestra en el dashboard y alerta al llegar al 90%.{ctx.sedesTodas.length > 0 ? ' Lo usan las sedes que no tienen un aforo propio.' : ''}</p>
+      {muestraSedes && (
+        <Seccion id="sedes" i={n++} titulo="Sedes" texto='Cada sede tiene su aforo, sus fechas bloqueadas y su WhatsApp. Los usuarios pueden limitarse a una o más sedes desde "Usuarios".'>
+          <div className="mt-3"><SedesPanel sedes={ctx.sedesGestion} puedeCrear={ctx.sinRestriccionSede} /></div>
+        </Seccion>
+      )}
+
+      <Seccion id="aforo" i={n++} titulo="Aforo" texto="Se muestra en el dashboard, avisa al llegar al 90% y advierte al cargar una reserva que supera el cupo (se puede guardar igual).">
+        <h3 className="mt-4 text-sm font-semibold">{conSedes ? 'Total por día del negocio' : 'Total por día'}</h3>
+        <p className="text-xs text-rs-muted">Máximo de personas con reserva (nueva o confirmada) en un mismo día.{conSedes ? ' Lo usan las sedes que no tienen un total propio.' : ''}</p>
         <AforoForm aforo={negocio.aforo_maximo_reservas} puedeEditar={ctx.puedeAdministrar} />
-      </section>
+        {ctx.puedeAdministrar && (
+          <>
+            <h3 className="mt-6 text-sm font-semibold">Reglas por franja horaria y ubicación</h3>
+            <p className="mb-2 text-xs text-rs-muted">Ej.: "INTERIOR de 20:00 a 23:00, máximo 20 personas". Una reserva cuenta en todas las reglas que le corresponden.</p>
+            <ReglasPanel reglas={(reglas ?? []) as any} sedes={sedesAsignables} nombresSede={nombresSede} ubicaciones={nombresUbicacion} puedeTodas={ctx.sinRestriccionSede} />
+          </>
+        )}
+      </Seccion>
 
-      <section className="card p-5">
-        <h2 className="card-title">Fechas bloqueadas</h2>
-        <p className="mt-1 text-sm text-rs-muted">Días (o franjas horarias) en los que no se aceptan reservas.</p>
-        {(ctx.puedeAdministrar || ctx.rol === 'encargado') && <BloqueoForm sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} puedeTodas={ctx.sinRestriccionSede} />}
+      <Seccion id="bloqueos" i={n++} titulo="Fechas bloqueadas" texto="Días (o franjas horarias) en los que no se aceptan reservas.">
+        {puedeBloquear && <BloqueoForm sedes={sedesAsignables} puedeTodas={ctx.sinRestriccionSede} />}
         <ul className="mt-4 divide-y divide-rs-border/60">
           {(bloqueos ?? []).length === 0 && <li className="py-3 text-sm text-rs-muted">No hay fechas bloqueadas próximas.</li>}
           {(bloqueos ?? []).map((b) => (
             <li key={b.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
               <span>
                 <span className="font-medium">{fechaCorta(b.fecha)}</span>
-                <span className="text-rs-muted">{b.hora_desde ? ` · ${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)}` : ' · todo el día'}{ctx.sedesTodas.length > 0 ? ` · ${b.sucursal_id ? nombresSede.get(b.sucursal_id) : 'todas las sedes'}` : ''}{b.motivo ? ` · ${b.motivo}` : ''}</span>
+                <span className="text-rs-muted">{b.hora_desde ? ` · ${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)}` : ' · todo el día'}{conSedes ? ` · ${b.sucursal_id ? nombresSede[b.sucursal_id] : 'todas las sedes'}` : ''}{b.motivo ? ` · ${b.motivo}` : ''}</span>
               </span>
-              {(ctx.puedeAdministrar || ctx.rol === 'encargado') && <BorrarBloqueo id={b.id} />}
+              {puedeBloquear && <BorrarBloqueo id={b.id} />}
             </li>
           ))}
         </ul>
-      </section>
-
-      {ctx.puedeAdministrar && (ctx.sedesTodas.length > 0 || ctx.esSuperadmin) && (
-        <section id="sedes" className="card scroll-mt-4 p-5">
-          <h2 className="card-title">Sedes</h2>
-          <p className="mt-1 text-sm text-rs-muted">Cada sede tiene su aforo, sus fechas bloqueadas y su WhatsApp. Los usuarios pueden limitarse a una o más sedes desde "Usuarios del negocio".</p>
-          <div className="mt-3"><SedesPanel sedes={ctx.sedesGestion} puedeCrear={ctx.sinRestriccionSede} /></div>
-        </section>
-      )}
+      </Seccion>
 
       {ctx.puedeAdministrar && (
-        <section className="card p-5">
-          <h2 className="card-title">Ubicaciones</h2>
-          <p className="mt-1 text-sm text-rs-muted">Zonas del local para elegir al cargar una reserva (ej. interior, exterior).</p>
-          <div className="mt-3"><UbicacionesPanel ubicaciones={ubicaciones ?? []} sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} puedeTodas={ctx.sinRestriccionSede} /></div>
-        </section>
+        <Seccion id="ubicaciones" i={n++} titulo="Ubicaciones" texto="Zonas del local para elegir al cargar una reserva (ej. interior, exterior). También sirven para las reglas de aforo.">
+          <div className="mt-3"><UbicacionesPanel ubicaciones={ubicaciones ?? []} sedes={sedesAsignables} puedeTodas={ctx.sinRestriccionSede} /></div>
+        </Seccion>
       )}
 
       {ctx.esSuperadmin && (
-        <section className="card border-rs-lime/30 p-5">
-          <h2 className="card-title">Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></h2>
+        <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo={<>Funciones del negocio <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[10px] normal-case tracking-normal text-rs-lime">solo superadmin</span></>}>
           <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
-        </section>
+        </Seccion>
       )}
 
       {ctx.puedeAdministrar && (
-        <section>
+        <section id="usuarios" className="reveal scroll-mt-32" style={{ ['--i' as string]: n++ }}>
           <h2 className="card-title mb-3">Usuarios del negocio</h2>
           <GestionUsuarios
             usuarios={usuarios}
             negocios={[{ id: negocio.id, nombre: negocio.nombre }]}
-            sedesPorNegocio={{ [negocio.id]: ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre })) }} nombresSede={Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre]))}
+            sedesPorNegocio={{ [negocio.id]: sedesAsignables }} nombresSede={nombresSede}
             modo="negocio" negocioActual={negocio.id} esSuperadmin={ctx.esSuperadmin} miRol={ctx.rol} yoId={ctx.userId}
           />
         </section>

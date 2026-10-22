@@ -1,9 +1,12 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import {useEffect, useState} from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Plus } from 'lucide-react'
+import { useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
+import { useAccionFormulario } from '@/components/use-accion-formulario'
+import { Spinner } from '@/components/ui'
 import type { ActionResult } from '@/app/(panel)/actions'
 import { actualizarNegocio, crearNegocio } from '@/app/(panel)/admin-actions'
 import { cambiarNegocio } from '@/app/(panel)/actions'
@@ -23,13 +26,14 @@ export interface NegocioAdmin {
 const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
 
 function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(n ? actualizarNegocio : crearNegocio, null)
+  const { state, pending, formProps } = useAccionFormulario(n ? actualizarNegocio : crearNegocio)
+  const toast = useToast()
   const [nombre, setNombre] = useState(n?.nombre ?? '')
   const [slug, setSlug] = useState(n?.slug ?? '')
   const [slugManual, setSlugManual] = useState(false)
-  useEffect(() => { if (state?.ok) onDone() }, [state, onDone])
+  useEffect(() => { if (state?.ok) { toast({ texto: n ? 'Negocio actualizado' : 'Negocio creado' }); onDone() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form action={action} className="grid grid-cols-2 gap-3">
+    <form {...formProps} className="grid grid-cols-2 gap-3">
       {n && <input type="hidden" name="id" value={n.id} />}
       <div className="col-span-2">
         <label className="label" htmlFor="n_nombre">Nombre *</label>
@@ -59,7 +63,7 @@ function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
-        <button disabled={pending} className="btn btn-primary">{pending ? 'Guardando…' : n ? 'Guardar cambios' : 'Crear negocio'}</button>
+        <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : n ? 'Guardar cambios' : 'Crear negocio'}</button>
       </div>
     </form>
   )

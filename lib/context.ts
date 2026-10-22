@@ -24,6 +24,9 @@ export interface Sede {
   whatsapp_nro: string | null
   aforo_maximo_reservas: number | null
   activa: boolean
+  direccion: string | null
+  telefono: string | null
+  maps_url: string | null
 }
 
 export interface Contexto {
@@ -83,7 +86,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     : ((membresias?.find((m) => m.negocio_id === negocio.id)?.rol as Rol | undefined) ?? 'solo_lectura')
 
   // Sedes: la lista completa (RLS deja ver los nombres) y el alcance del usuario.
-  const { data: sedesData } = await supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa').eq('negocio_id', negocio.id).order('orden').order('nombre')
+  const { data: sedesData } = await supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa, direccion, telefono, maps_url').eq('negocio_id', negocio.id).order('orden').order('nombre')
   const sedesTodas = (sedesData ?? []) as Sede[]
   const alcance = perfil.es_superadmin ? [] : ((membresias?.find((m) => m.negocio_id === negocio.id)?.sucursal_ids as string[] | undefined) ?? [])
   const sinRestriccionSede = alcance.length === 0

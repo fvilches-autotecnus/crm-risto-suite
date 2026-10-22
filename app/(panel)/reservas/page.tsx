@@ -40,8 +40,8 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start gap-2">
-        {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+        {ctx.puedeEscribir && <div><NuevaReservaBtn fechaDefault={hoy} op={op} /></div>}
         <div className="min-w-0 flex-1">
           <Suspense><FiltrosReservas /></Suspense>
         </div>
