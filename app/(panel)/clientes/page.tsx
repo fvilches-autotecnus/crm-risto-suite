@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Search, Users } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
 import { EstadoVacio } from '@/components/ui'
+import EditarNombreCliente from '@/components/editar-nombre-cliente'
 import { Chip, EtiquetarNumeroBtn } from '@/components/etiquetas-ui'
 import { integracionBC } from '@/lib/etiquetas'
 import { getContexto } from '@/lib/context'
@@ -79,7 +80,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
               const r = resumen.get(c.id)
               return (
                 <tr key={c.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                  <td className="td font-medium"><Link href={`/clientes/${c.id}`} className="transition-colors hover:text-rs-lime">{c.nombre}</Link></td>
+                  <td className="td font-medium"><Link href={`/clientes/${c.id}`} className="transition-colors hover:text-rs-lime">{c.nombre}</Link>{ctx.puedeEscribir && <EditarNombreCliente id={c.id} nombre={c.nombre} />}</td>
                   <td className="td text-rs-muted">{c.telefono ?? '—'}</td>
                   <td className="td"><div className="flex flex-wrap gap-1">{(c.chips ?? []).slice(0, 3).map((x, k) => x.etiquetas && <Chip key={k} nombre={x.etiquetas.nombre} />)}{(c.chips ?? []).length > 3 && <span className="text-xs text-rs-muted">+{c.chips.length - 3}</span>}</div></td>
                   <td className="td">{r?.total ?? 0}</td>
