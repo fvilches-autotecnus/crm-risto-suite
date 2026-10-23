@@ -16,12 +16,13 @@ function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: strin
   useEffect(() => { if (state?.ok) onDone() }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
-      {cliente ? <input type="hidden" name="cliente_id" value={cliente.id} /> : (
-        <>
-          <div className="col-span-2"><label className="label" htmlFor="c_nombre">Nombre *</label><input id="c_nombre" name="nombre" className="input w-full" required /></div>
-          <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono *" required /></div>
-        </>
-      )}
+      {cliente && <input type="hidden" name="cliente_id" value={cliente.id} />}
+      <div className="col-span-2">
+        <label className="label" htmlFor="c_nombre">Nombre {!cliente && '*'}</label>
+        <input id="c_nombre" name="nombre" defaultValue={cliente && cliente.nombre.trim().toLowerCase() !== 'sin nombre' ? cliente.nombre : ''} maxLength={120} autoComplete="off" className="input w-full uppercase" required={!cliente} />
+        <p className="mt-1 text-xs text-rs-muted">Podés reescribirlo. Los clientes con cumpleaños se guardan en MAYÚSCULAS.</p>
+      </div>
+      {!cliente && <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono *" required /></div>}
       <div><label className="label" htmlFor="c_dia">Día *</label><input id="c_dia" name="dia" type="number" min={1} max={31} defaultValue={cliente?.dia ?? ''} className="input w-full" required /></div>
       <div>
         <label className="label" htmlFor="c_mes">Mes *</label>
@@ -31,7 +32,7 @@ function CumpleForm({ cliente, onDone }: { cliente?: { id: string; nombre: strin
         </select>
       </div>
       <div className="col-span-2"><label className="label" htmlFor="c_anio">Año de nacimiento <span className="font-normal normal-case text-rs-muted">(opcional, para mostrar la edad)</span></label><input id="c_anio" name="anio" type="number" inputMode="numeric" min={1900} max={new Date().getFullYear()} placeholder="Ej. 1990" defaultValue={cliente?.anio ?? ''} className="input w-full" /></div>
-      {!cliente && <p className="col-span-2 -mt-1 text-xs text-rs-muted">Si el teléfono ya es de un cliente, se le carga el cumpleaños; si no, se crea el cliente con este nombre.</p>}
+      {!cliente && <p className="col-span-2 -mt-1 text-xs text-rs-muted">Si el teléfono ya es de un cliente, se le carga el cumpleaños y se reescribe su nombre con el que pongas; si no, se crea el cliente con este nombre.</p>}
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>

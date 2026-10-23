@@ -15,9 +15,9 @@ function NombreForm({ id, nombre, onDone }: { id: string; nombre: string; onDone
       <input type="hidden" name="id" value={id} />
       <div>
         <label className="label" htmlFor="cl_nombre">Nombre del cliente</label>
-        <input id="cl_nombre" name="nombre" defaultValue={nombre === 'Sin nombre' ? '' : nombre} maxLength={120} autoComplete="off" placeholder="Nombre y apellido" className="input w-full" />
+        <input id="cl_nombre" name="nombre" defaultValue={nombre.trim().toLowerCase() === 'sin nombre' ? '' : nombre} maxLength={120} autoComplete="off" placeholder="Nombre y apellido" className="input w-full" />
       </div>
-      <p className="text-xs text-rs-muted">Cambia el nombre en el perfil del cliente y en todas las listas que lo muestran. Las reservas, reseñas y vouchers ya cargados conservan el nombre con el que se escribieron.</p>
+      <p className="text-xs text-rs-muted">Cambia el nombre en el perfil del cliente y en todas las listas que lo muestran. Si el cliente tiene cumpleaños cargado, el nombre se guarda en MAYÚSCULAS. Las reservas, reseñas y vouchers ya cargados conservan el nombre con el que se escribieron.</p>
       {state && !state.ok && <p role="alert" className="animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>

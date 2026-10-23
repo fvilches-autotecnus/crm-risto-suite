@@ -105,9 +105,13 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
     nacimiento = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
   }
 
+  // el nombre se puede reescribir al cargar el cumpleaños (la base lo guarda en mayúsculas para quien tiene cumpleaños)
+  const nombreNuevo = text(fd, 'nombre').replace(/\s+/g, ' ')
+  if (nombreNuevo.length > 120) return fail('El nombre es demasiado largo (máximo 120 caracteres)')
+
   const clienteId = text(fd, 'cliente_id')
   if (clienteId) {
-    const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
+    const { error } = await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento, ...(nombreNuevo ? { nombre: nombreNuevo } : {}) }).eq('id', clienteId).eq('negocio_id', ctx.negocio.id)
     if (error) return fail('No se pudo guardar el cumpleaños')
     refrescar()
     return { ok: true }
@@ -119,7 +123,7 @@ export async function guardarCumple(_prev: ActionResult | null, fd: FormData): P
   if (!tel) return fail('Ingresá un teléfono válido (con código de país)')
   const { data: existente } = await ctx.supabase.from('clientes').select('id').eq('negocio_id', ctx.negocio.id).eq('telefono', tel).maybeSingle()
   const { error } = existente
-    ? await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento }).eq('id', existente.id)
+    ? await ctx.supabase.from('clientes').update({ cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento, nombre }).eq('id', existente.id)
     : await ctx.supabase.from('clientes').insert({ negocio_id: ctx.negocio.id, nombre, telefono: tel, cumple_dia: dia, cumple_mes: mes, fecha_nacimiento: nacimiento, canal_origen: 'manual' })
   if (error) return fail('No se pudo guardar el cumpleaños')
   refrescar()
