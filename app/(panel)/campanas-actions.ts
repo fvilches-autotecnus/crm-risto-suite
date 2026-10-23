@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { CAMPANAS_EDITABLES, ESTADOS_CAMPANA, ESTADOS_ENVIO } from '@/lib/campanas'
+import { CAMPANAS_EDITABLES, ESTADOS_CAMPANA, MODOS_CAMPANA } from '@/lib/campanas'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -30,17 +30,19 @@ export async function guardarCampana(_prev: ActionResult | null, fd: FormData): 
   const tipoSel = text(fd, 'tipo') || 'otra'
   const tipo = tipoSel === 'otro_texto' ? text(fd, 'tipo_otro').toLowerCase().replace(/\s+/g, '_') : tipoSel
   const estado = text(fd, 'estado') || 'activa'
+  const modo = text(fd, 'modo') || 'manual'
   const inicio = text(fd, 'fecha_inicio')
   const fin = text(fd, 'fecha_fin')
   if (!nombre) return fail('Escribí el nombre de la campaña')
   if (nombre.length > 120) return fail('El nombre es demasiado largo (máximo 120 caracteres)')
   if (!/^[a-z0-9_áéíóúñ]{2,40}$/.test(tipo)) return fail('El tipo de campaña no es válido')
   if (!ESTADOS_CAMPANA.some((e) => e.value === estado)) return fail('Estado no válido')
+  if (!MODOS_CAMPANA.some((m) => m.value === modo)) return fail('Elegí si la campaña es automática o manual')
   if (inicio && !FECHA_RE.test(inicio)) return fail('La fecha de inicio no es válida')
   if (fin && !FECHA_RE.test(fin)) return fail('La fecha de fin no es válida')
   if (inicio && fin && fin < inicio) return fail('La fecha de fin no puede ser anterior al inicio')
 
-  const fila = { nombre, tipo, estado, mensaje: text(fd, 'mensaje') || null, fecha_inicio: inicio || null, fecha_fin: fin || null }
+  const fila = { nombre, tipo, estado, modo, mensaje: text(fd, 'mensaje') || null, fecha_inicio: inicio || null, fecha_fin: fin || null }
   const { error } = id
     ? await ctx.supabase.from('campanas').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('campanas').insert({ ...fila, negocio_id: ctx.negocio.id })
@@ -59,19 +61,17 @@ export async function eliminarCampana(id: string): Promise<ActionResult> {
   return { ok: true }
 }
 
-/** Registra uno o varios envíos de una campaña. Con cantidad > 1 se cargan envíos sin destinatario (solo para contar). */
+/** Registra uno o varios envíos de una campaña. Con cantidad > 1 se cargan envíos sin destinatario (solo para llevar la cuenta). */
 export async function registrarEnvios(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const { ctx, error: sinPermiso } = await puedeEditar()
   if (sinPermiso) return fail(sinPermiso)
   const campanaId = text(fd, 'campana_id')
-  const estado = text(fd, 'estado') || 'enviado'
   const fecha = text(fd, 'fecha')
   const hora = text(fd, 'hora') || '12:00'
   const cantidad = Math.floor(Number(text(fd, 'cantidad') || '1'))
   const telRaw = text(fd, 'telefono')
   const tel = telRaw.replace(/\D/g, '')
 
-  if (!ESTADOS_ENVIO.some((e) => e.value === estado)) return fail('Estado no válido')
   if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > MAX_MASIVO) return fail(`La cantidad tiene que estar entre 1 y ${MAX_MASIVO}`)
   if (fecha && !FECHA_RE.test(fecha)) return fail('La fecha no es válida')
   if (!HORA_RE.test(hora)) return fail('La hora no es válida')
@@ -89,7 +89,7 @@ export async function registrarEnvios(_prev: ActionResult | null, fd: FormData):
     const { data: cli } = await ctx.supabase.from('clientes').select('id').eq('negocio_id', ctx.negocio.id).eq('telefono', tel).maybeSingle()
     clienteId = cli?.id ?? null
   }
-  const base = { negocio_id: ctx.negocio.id, campana_id: campanaId, estado, enviado_en: cuando, detalle }
+  const base = { negocio_id: ctx.negocio.id, campana_id: campanaId, estado: 'enviado', enviado_en: cuando, detalle }
   const filas = cantidad === 1
     ? [{ ...base, nombre, telefono: tel || null, cliente_id: clienteId }]
     : Array.from({ length: cantidad }, () => ({ ...base, nombre: null, telefono: null, cliente_id: null }))
@@ -97,16 +97,6 @@ export async function registrarEnvios(_prev: ActionResult | null, fd: FormData):
     const { error } = await ctx.supabase.from('campanas_envios').insert(filas.slice(i, i + 1000))
     if (error) return fail('No se pudieron registrar los envíos')
   }
-  refrescar()
-  return { ok: true }
-}
-
-export async function cambiarEstadoEnvio(id: string, estado: string): Promise<ActionResult> {
-  const { ctx, error: sinPermiso } = await puedeEditar()
-  if (sinPermiso) return fail(sinPermiso)
-  if (!ESTADOS_ENVIO.some((e) => e.value === estado)) return fail('Estado no válido')
-  const { error } = await ctx.supabase.from('campanas_envios').update({ estado }).eq('id', id).eq('negocio_id', ctx.negocio.id)
-  if (error) return fail('No se pudo actualizar el envío')
   refrescar()
   return { ok: true }
 }

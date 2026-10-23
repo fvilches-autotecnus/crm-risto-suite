@@ -1,6 +1,7 @@
 /**
- * Campañas automáticas: seguimiento de mensajes de marketing (solo lectura a futuro).
- * Hoy se pueden crear, editar y borrar a mano; cuando los envíos los cargue la automatización
+ * Campañas: seguimiento de mensajes de marketing (solo lectura a futuro).
+ * Se registra qué se envió y a quién. No se mide cuántos entregaron, leyeron, respondieron o fallaron: no hay de dónde sacarlo.
+ * Hoy se pueden crear, editar y borrar a mano; cuando los envíos los cargue solo la automatización
  * (función bot_registrar_envio_campana), pasar CAMPANAS_EDITABLES a false: las pantallas quedan solo de consulta.
  */
 export const CAMPANAS_EDITABLES = true
@@ -22,16 +23,13 @@ export const ESTADOS_CAMPANA = [
 export type EstadoCampana = (typeof ESTADOS_CAMPANA)[number]['value']
 export const labelEstadoCampana = (v: string) => ESTADOS_CAMPANA.find((e) => e.value === v)?.label ?? v
 
-/** De "salió" a "respondió": cada estado incluye a los anteriores al contar (entregados = entregado + leído + respondido). */
-export const ESTADOS_ENVIO = [
-  { value: 'enviado', label: 'Enviado' },
-  { value: 'entregado', label: 'Entregado' },
-  { value: 'leido', label: 'Leído' },
-  { value: 'respondido', label: 'Respondió' },
-  { value: 'fallido', label: 'Fallido' },
+/** Automática: la dispara un flujo (ej. n8n). Manual: la hace una persona. */
+export const MODOS_CAMPANA = [
+  { value: 'automatica', label: 'Automática' },
+  { value: 'manual', label: 'Manual' },
 ] as const
-export type EstadoEnvio = (typeof ESTADOS_ENVIO)[number]['value']
-export const labelEstadoEnvio = (v: string) => ESTADOS_ENVIO.find((e) => e.value === v)?.label ?? v
+export type ModoCampana = (typeof MODOS_CAMPANA)[number]['value']
+export const labelModoCampana = (v: string) => MODOS_CAMPANA.find((m) => m.value === v)?.label ?? 'Manual'
 
 export interface Campana {
   id: string
@@ -40,16 +38,17 @@ export interface Campana {
   canal: string
   mensaje: string | null
   estado: EstadoCampana
+  modo: ModoCampana
   fecha_inicio: string | null
   fecha_fin: string | null
   creado_en: string
 }
-export const CAMPANA_COLS = 'id, nombre, tipo, canal, mensaje, estado, fecha_inicio, fecha_fin, creado_en'
+export const CAMPANA_COLS = 'id, nombre, tipo, canal, mensaje, estado, modo, fecha_inicio, fecha_fin, creado_en'
 
-export interface ResumenCampana { campana_id: string; enviados: number; entregados: number; leidos: number; respondidos: number; fallidos: number; ultimo_envio: string | null }
+/** enviados = mensajes enviados en el período · clientes = clientes distintos a los que se les envió */
+export interface ResumenCampana { campana_id: string; enviados: number; clientes: number; ultimo_envio: string | null }
 
-export interface Envio { id: string; campana_id: string; nombre: string | null; telefono: string | null; estado: EstadoEnvio; enviado_en: string; detalle: string | null }
-export const ENVIO_COLS = 'id, campana_id, nombre, telefono, estado, enviado_en, detalle'
+export interface Envio { id: string; campana_id: string; cliente_id: string | null; nombre: string | null; telefono: string | null; enviado_en: string; detalle: string | null }
+export const ENVIO_COLS = 'id, campana_id, cliente_id, nombre, telefono, enviado_en, detalle'
 
 export const DIAS_PERIODO = [7, 14, 30, 90, 180]
-export const pct = (parte: number, total: number) => (total > 0 ? Math.round((parte / total) * 100) : 0)
