@@ -7,6 +7,7 @@ import { labelTipo } from '@/lib/reservas'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
+import { labelOrigen } from '@/lib/origen'
 import { EtiquetasCliente, type EtiquetaUI } from '@/components/etiquetas-ui'
 import { integracionBC } from '@/lib/etiquetas'
 import { EditarCumple } from '@/components/cumples-ui'
@@ -56,7 +57,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-bold">{cliente.nombre}</h1>{ctx.puedeEscribir && <EditarNombreCliente id={cliente.id} nombre={cliente.nombre} conTexto />}</div>
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
           <div><dt className="card-title">Teléfono</dt><dd className="mt-1">{cliente.telefono ?? '—'}</dd></div>
-          <div><dt className="card-title">Origen</dt><dd className="mt-1">{cliente.canal_origen === 'whatsapp' ? 'WhatsApp' : 'Manual'}</dd></div>
+          <div><dt className="card-title">Origen</dt><dd className="mt-1">{labelOrigen(cliente.canal_origen)}</dd></div>
           <div><dt className="card-title">Cliente desde</dt><dd className="mt-1">{fechaCorta(cliente.creado_en.slice(0, 10))}</dd></div>
         </dl>
         {cliente.telefono && ctx.modulosActivos.conversaciones && (

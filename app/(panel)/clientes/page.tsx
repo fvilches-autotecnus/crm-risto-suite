@@ -6,6 +6,7 @@ import { EstadoVacio } from '@/components/ui'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
 import { Chip, EtiquetarNumeroBtn } from '@/components/etiquetas-ui'
 import { integracionBC } from '@/lib/etiquetas'
+import { ORIGENES, labelOrigen } from '@/lib/origen'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, fechaHoraLarga } from '@/lib/fechas'
 import { numPagina, POR_PAGINA } from '@/lib/paginacion'
@@ -21,7 +22,7 @@ const ORDENES = [
   { value: 'nombre', label: 'Nombre (A–Z)' },
 ]
 
-export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string; etiqueta?: string }> }) {
+export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string; etiqueta?: string; origen?: string }> }) {
   const ctx = await getContexto()
   const { supabase, negocio } = ctx
   const sp = await searchParams
@@ -36,10 +37,12 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const [{ data: catalogoDb }, bc] = await Promise.all([supabase.from('etiquetas').select('id, nombre').eq('negocio_id', negocio.id).order('nombre'), integracionBC(negocio.id)])
   const catalogo = (catalogoDb ?? []) as { id: string; nombre: string }[]
   const etiquetaSel = catalogo.some((e) => e.id === sp.etiqueta) ? sp.etiqueta! : ''
+  const origenSel = ORIGENES.some((o) => o.value === sp.origen) ? sp.origen! : ''
   // 'filtro' deja solo los clientes con esa etiqueta (join interno); 'chips' trae todas sus etiquetas para mostrarlas
   const columnas: string = `id, nombre, telefono, canal_origen, ultima_interaccion, ultima_reserva, creado_en, chips:cliente_etiquetas(etiquetas(nombre))${etiquetaSel ? ', filtro:cliente_etiquetas!inner(etiqueta_id)' : ''}`
   let cq = supabase.from('clientes').select(columnas, { count: 'exact' }).eq('negocio_id', negocio.id)
   if (etiquetaSel) cq = cq.eq('filtro.etiqueta_id', etiquetaSel)
+  if (origenSel) cq = cq.eq('canal_origen', origenSel)
   if (texto) cq = cq.or([`nombre.ilike.%${texto}%`, ...(digitos ? [`telefono.like.%${digitos}%`] : [])].join(','))
   const { data: clientes, count: totalClientes } = await cq.order(orden.startsWith('ultima_') ? 'ultima_reserva' : orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre' || orden === 'ultima_asc', nullsFirst: false }).order('id').range(desdeFila, desdeFila + POR_PAGINA - 1)
   const { data: filas } = await supabase.rpc('resumen_reservas_clientes', { p_negocio: negocio.id })
@@ -64,8 +67,12 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
             {catalogo.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
           </select>
         )}
+        <select name="origen" defaultValue={origenSel} aria-label="Filtrar por origen" className="input">
+          <option value="">Todos los orígenes</option>
+          {ORIGENES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
         <button className="btn">Buscar</button>
-        {(q || etiquetaSel) && <Link href="/clientes" className="btn">Limpiar</Link>}
+        {(q || etiquetaSel || origenSel) && <Link href="/clientes" className="btn">Limpiar</Link>}
         <div className="ml-auto flex items-center gap-2">{ctx.puedeEscribir && <EtiquetarNumeroBtn catalogo={catalogo} esBotconversa={bc.activo} />}<OrdenSelect opciones={ORDENES} /></div>
       </form>
 
@@ -85,7 +92,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                   <td className="td"><div className="flex flex-wrap gap-1">{(c.chips ?? []).slice(0, 3).map((x, k) => x.etiquetas && <Chip key={k} nombre={x.etiquetas.nombre} />)}{(c.chips ?? []).length > 3 && <span className="text-xs text-rs-muted">+{c.chips.length - 3}</span>}</div></td>
                   <td className="td">{r?.total ?? 0}</td>
                   <td className="td text-rs-muted">{(c.ultima_reserva ?? r?.ultima) ? fechaCorta((c.ultima_reserva ?? r?.ultima)!) : '—'}</td>
-                  <td className="td text-rs-muted">{c.canal_origen === 'whatsapp' ? 'WhatsApp' : 'Manual'}</td>
+                  <td className="td text-rs-muted">{labelOrigen(c.canal_origen)}</td>
                   <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en)}</td>
                 </tr>
               )
