@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { MessageCircleQuestion, Search } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
+import ResumenIA from '@/components/resumen-ia'
 import { EstadoVacio } from '@/components/ui'
 import { getContexto } from '@/lib/context'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
 import ConsultaAcciones from './acciones'
+import { resumirConsultas } from '../ia-actions'
 
 const ESTADOS = [{ v: 'todas', l: 'Todas' }, { v: 'pendiente', l: 'Pendientes' }, { v: 'resuelta', l: 'Resueltas' }]
 const TIPOS = [{ v: 'todos', l: 'Todos' }, { v: 'consulta', l: 'Consultas' }, { v: 'reclamo', l: 'Reclamos' }]
@@ -45,9 +47,12 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
 
   return (
     <div className="space-y-5">
-      <div className="animate-fade-up">
-        <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><MessageCircleQuestion className="text-rs-lime" size={22} />Consultas y reclamos</h1>
-        <p className="text-sm text-rs-muted">Lo que escriben los clientes y hay que responder o resolver</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="animate-fade-up">
+          <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><MessageCircleQuestion className="text-rs-lime" size={22} />Consultas y reclamos</h1>
+          <p className="text-sm text-rs-muted">Lo que escriben los clientes y hay que responder o resolver</p>
+        </div>
+        <ResumenIA key={JSON.stringify({ estado, tipo, q })} titulo="Resumen de consultas y reclamos con IA" pista="Resume las consultas y reclamos que ves con los filtros actuales" generar={resumirConsultas.bind(null, { estado, tipo, q })} />
       </div>
 
       <div className="card space-y-3 p-4">

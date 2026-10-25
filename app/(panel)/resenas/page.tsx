@@ -5,7 +5,9 @@ import { GraficoColumnas, TarjetaGrafico } from '@/components/charts'
 import { Tile } from '@/components/dashboard-ui'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
+import ResumenIA from '@/components/resumen-ia'
 import { Estrellas, ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resenas-ui'
+import { resumirResenas } from '../ia-actions'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
@@ -80,7 +82,10 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Star className="text-rs-lime" size={22} />Reseñas</h1>
           <p className="text-sm text-rs-muted">Cuántas conseguimos y qué dicen los clientes</p>
         </div>
-        {ctx.puedeEscribir && <NuevaResenaBtn sedes={sedesOpc} hoy={hoy} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <ResumenIA key={JSON.stringify({ puntaje: puntaje ? String(puntaje) : '', origen, periodo, q })} titulo="Resumen de reseñas con IA" pista="Resume lo que dicen las reseñas que ves con los filtros actuales" generar={resumirResenas.bind(null, { puntaje: puntaje ? String(puntaje) : '', origen, periodo, q })} />
+          {ctx.puedeEscribir && <NuevaResenaBtn sedes={sedesOpc} hoy={hoy} />}
+        </div>
       </div>
 
       <div className={'grid grid-cols-2 gap-3 sm:gap-4 ' + (conVoucher ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
