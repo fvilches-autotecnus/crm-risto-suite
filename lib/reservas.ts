@@ -46,12 +46,11 @@ export interface Reserva {
   motivo_cancelacion: string | null
   asistio_en: string | null   // cuándo se marcó que el cliente llegó (Fidelización)
   monto_sena: number | null
-  espera_whatsapp?: boolean   // reserva del sitio web que todavía espera el mensaje del cliente por WhatsApp
   creado_en: string
 }
 
 export const RESERVA_COLS =
-  'id, numero, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, espera_whatsapp, creado_en'
+  'id, numero, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, creado_en'
 
 /** Reservas que ocupan lugar (cuentan para aforo y para "hoy"). */
 export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => ESTADOS_OCUPAN.includes(r.estado)

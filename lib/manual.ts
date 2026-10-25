@@ -84,7 +84,8 @@ export const MANUAL: SeccionManual[] = [
         'Si el negocio tiene los avisos por WhatsApp activados para ese estado, la ventanita pregunta **“¿Avisamos al cliente?”**. Si decís que sí, el cliente recibe el mensaje automáticamente.',
         'Todo cambio de estado y toda eliminación tienen **Deshacer** durante unos segundos (en el aviso que aparece abajo).',
       ] },
-      { t: 'p', x: '**Chips en la lista.** “Mesa 4” te lleva al plano del salón (si usás Salón y mesas). **“Falta su WhatsApp”** marca una reserva hecha en el sitio web cuyo cliente todavía no mandó el mensaje (ver “Sitio de reservas”). El botón **“Llegó”** aparece en reservas confirmadas si usás Fidelización por asistencia.' },
+      { t: 'p', x: '**Chips en la lista.** “Mesa 4” te lleva al plano del salón (si usás Salón y mesas). El botón **“Llegó”** aparece en reservas confirmadas si usás Fidelización por asistencia.' },
+      { t: 'p', x: '**Solicitudes web esperando el WhatsApp.** Si el sitio de reservas está activo, arriba de la lista aparece este bloque con lo que los clientes armaron en el sitio y todavía no confirmaron por WhatsApp. **No son reservas**: no ocupan mesa ni aforo (ver “Sitio de reservas”).' },
       { t: 'ojo', x: 'Eliminar una reserva la saca de la lista pero se puede deshacer enseguida. Para que quede registro de que no se concretó, es mejor **cancelarla** (con motivo).' },
     ],
   },
@@ -106,23 +107,25 @@ export const MANUAL: SeccionManual[] = [
     ],
   },
   {
-    id: 'sitio-reservas', grupo: 'Operación diaria', titulo: 'Sitio de reservas (versión de prueba)', modulo: 'reservas', resumen: 'La página pública donde el cliente elige día, mesa y termina por WhatsApp.',
+    id: 'sitio-reservas', grupo: 'Operación diaria', titulo: 'Sitio de reservas (versión de prueba)', modulo: 'reservas', resumen: 'La página pública donde el cliente elige día y mesa, y la reserva se registra cuando escribe por WhatsApp.',
     bloques: [
-      { t: 'p', x: 'Es una página pública, sin login: **crm.ristosuite.app/reservar/club-fellini-bar** (cambia el final según el negocio). El enlace se puede compartir por Instagram, WhatsApp o un QR. Está marcada como **“Sitio de prueba”**.' },
+      { t: 'p', x: 'Es una página pública, sin login: **crm.ristosuite.app/reservar/club-fellini-bar** (cambia el final según el negocio). El enlace se puede compartir por Instagram, WhatsApp o un QR. Está marcada como **“Sitio de prueba”**. Necesita que el negocio tenga cargado su **WhatsApp** (Configuración → Negocio).' },
+      { t: 'p', x: '**La idea:** igual que los pedidos de Toque, el cliente no “reserva” en la web: **arma su solicitud y la termina de confirmar por WhatsApp**. La reserva real **no existe hasta que llega su mensaje**. Así no se acumulan reservas fantasma de gente que abandonó a la mitad, y el teléfono es el de quien escribe (por eso el formulario **no pide teléfono**).' },
       { t: 'p', x: '**Cómo lo vive el cliente:**' },
       { t: 'pasos', x: [
         'Elige **día, cantidad de personas, ubicación, tipo de reserva y horario**. Todo sale de lo que tenés configurado en el CRM: las ubicaciones, los tipos, los horarios, el aforo y las fechas bloqueadas. Un horario completo o cerrado aparece como “Completo” o “Cerrado”.',
         'Elige su mesa **tocando el plano**, o toca **“Que un asesor la elija”**. Las mesas que no sirven para su grupo se ven “No apta”; las que ya tienen una reserva **confirmada, pendiente de pago o en revisión de pago** se ven “Reservada” y no se pueden tocar.',
-        'Deja nombre, teléfono y comentarios, y toca **Reservar y enviar por WhatsApp**.',
-        'La reserva se guarda y se abre **WhatsApp con un mensaje ya escrito** (“SOLICITUD DE RESERVA…”, con todos los datos). El cliente tiene que **enviarlo**: ese es el paso que la deja en curso.',
+        'Deja su nombre y comentarios, y toca **Reservar y enviar por WhatsApp**.',
+        'Se guarda la **solicitud en espera** (con un **código** de 6 caracteres) y se abre **WhatsApp con un mensaje ya escrito** (“SOLICITUD DE RESERVA…” con el código y todos los datos). El cliente tiene que **enviarlo sin cambiarlo**: ese es el paso que registra la reserva.',
       ] },
-      { t: 'p', x: '**Cómo lo manejás vos:**' },
+      { t: 'p', x: '**Qué pasa del lado del local:**' },
       { t: 'pasos', x: [
-        'En **Reservas** la reserva aparece como **Nueva**, con la marca “[Sitio de prueba]” en observaciones y las mesas ya asignadas si las eligió el cliente.',
-        'Mientras el cliente no mande el mensaje, se ve el chip **“Falta su WhatsApp”**. Es la forma de distinguir una reserva real de una que alguien armó y abandonó. Cuando escribe, el bot la marca solo; si no, tocá **“Ya escribió”**.',
-        'Hablás con el cliente y la **confirmás** (o pasás a **Pendiente de pago** si pedís seña). Recién ahí la mesa queda **bloqueada** para los demás en el sitio.',
-        'Si el cliente no escribe nunca, cancelala (con motivo) o eliminala: mientras sea “Nueva” no ocupa mesa ni aforo.',
+        'Cuando el mensaje llega, **el bot** lo reconoce por la frase “SOLICITUD DE RESERVA” y su código, y **crea la reserva** con el teléfono de quien escribió. Aparece en **Reservas** como **Nueva**, con la marca “[Sitio de prueba]” en observaciones y las mesas ya asignadas si las eligió el cliente. El bot le contesta que la recibió.',
+        'Hablás con el cliente y la **confirmás** (o la pasás a **Pendiente de pago** si pedís seña). Recién ahí la mesa queda **bloqueada** para los demás en el sitio.',
+        'Si el bot no la tomó (todavía no está configurada la regla, o el cliente escribió cambiando el texto), la solicitud queda en el bloque **“Solicitudes web esperando el WhatsApp”** de **Reservas**. Buscás su código en el chat de WhatsApp, tocás **“Registrar con su teléfono”**, escribís el número con el que te escribió y se crea la reserva.',
+        'Si el cliente nunca escribe, la solicitud no molesta: no ocupa mesa ni aforo, vence a las **48 horas** y se borra sola. También podés **descartarla** (el tachito).',
       ] },
+      { t: 'ojo', x: 'Si entre que el cliente armó la solicitud y mandó el mensaje la mesa se ocupó o el horario se completó, **igual se crea la reserva** (el cliente ya escribió), pero **sin mesa** y con un aviso en las observaciones para que un asesor la resuelva con él.' },
       { t: 'ojo', x: 'Una reserva **“Nueva” no bloquea** la mesa: dos clientes pueden pedir la misma mientras ninguna esté confirmada. Si pasa, al asignar la segunda el sistema te avisa del choque y vos resolvés con el cliente.' },
       { t: 'p', x: '**Configuración del sitio** (dueño, administrador): en **Configuración → Sitio de reservas (prueba)**.' },
       { t: 'lista', x: [
@@ -132,7 +135,7 @@ export const MANUAL: SeccionManual[] = [
         '**Horarios:** una lista separada por coma (13:00, 21:00). Vacío = usa los horarios que más se usan en tus reservas.',
         '**Días hacia adelante, anticipación mínima y rango de personas.** Y un **mensaje** que ve el cliente (por ejemplo: “Tolerancia de 15 minutos”).',
       ] },
-      { t: 'tip', x: 'Para probarlo: abrí el enlace desde tu celular, hacé una reserva a tu nombre, enviá el mensaje de WhatsApp y mirá cómo aparece en Reservas. Después cancelala.' },
+      { t: 'tip', x: 'Para probarlo: abrí el enlace desde tu celular, armá una solicitud con tu nombre, enviá el mensaje de WhatsApp y mirá cómo aparece la reserva en Reservas. Después cancelala.' },
     ],
   },
   {
@@ -309,7 +312,7 @@ export const MANUAL: SeccionManual[] = [
   {
     id: 'automatizaciones', grupo: 'Administración', titulo: 'Automatizaciones (n8n y BotConversa)', solo: 'superadmin', resumen: 'Qué hace cada flujo, cómo se corre y qué cuidar.',
     bloques: [
-      { t: 'p', x: 'El CRM es la base de datos y el panel. Los mensajes de WhatsApp los mandan **BotConversa** (el bot de cada negocio) y **n8n** (los flujos automáticos). Se hablan llamando a **funciones de la base** (`bot_crear_reserva`, `bot_emitir_voucher`, `bot_reserva_web_recibida`…). El detalle técnico de cada una está en el documento **docs/bot-scripts.md** del repositorio de la base.' },
+      { t: 'p', x: 'El CRM es la base de datos y el panel. Los mensajes de WhatsApp los mandan **BotConversa** (el bot de cada negocio) y **n8n** (los flujos automáticos). Se hablan llamando a **funciones de la base** (`bot_crear_reserva`, `bot_emitir_voucher`, `bot_reserva_web_confirmar`…). El detalle técnico de cada una está en el documento **docs/bot-scripts.md** del repositorio de la base.' },
       { t: 'tabla', cab: ['Flujo', 'Para qué', 'Cómo se dispara'], filas: [
         ['Origen del cliente / Calificación / Respuesta negativa / Emitir voucher (Fellini)', 'Los cuatro pasos de la encuesta de reseña: registran de dónde vino el cliente, su puntaje, su queja y emiten el voucher si calificó bien.', 'Los llama BotConversa por webhook (automático).'],
         ['Emitir voucher de retorno (BotConversa)', 'Entrega el voucher de la campaña de retorno al cliente que responde.', 'Webhook (automático).'],
@@ -326,7 +329,7 @@ export const MANUAL: SeccionManual[] = [
       ] },
       { t: 'ojo', x: 'Antes de modificar un flujo por API o desde el editor de n8n, **asegurate de que nadie lo tenga abierto en otra pestaña**: si alguien guarda una copia vieja, pisa tus cambios sin avisar. Después de cada cambio, recargá y verificá.' },
       { t: 'ojo', x: 'Para que los mensajes de plantilla funcionen, el nombre de cada plantilla tiene que existir y estar aprobado en WhatsApp. Algunos flujos tienen un nombre provisorio (por ejemplo `fellini_retorno` o `fellini_premio`) que hay que reemplazar por el real.' },
-      { t: 'p', x: '**Reserva del sitio web → WhatsApp.** En BotConversa creá una regla por palabra clave **SOLICITUD DE RESERVA** que llame a `bot_reserva_web_recibida` con el negocio, el teléfono de quien escribe y (opcional) el número de reserva. Devuelve los datos de la reserva para que el bot conteste, y saca el chip “Falta su WhatsApp” del panel. Situación 29 de docs/bot-scripts.md.' },
+      { t: 'p', x: '**Reserva del sitio web → WhatsApp.** Cuando el cliente manda “SOLICITUD DE RESERVA … Código: XXXXXX”, el bot tiene que llamar a `bot_reserva_web_confirmar` con el negocio, el teléfono de quien escribe y el texto del mensaje. Eso **crea la reserva** (antes de eso solo existe una solicitud en espera) y devuelve sus datos para que el bot conteste. En Fellini está armado el flujo de n8n **“Fellini - Confirmar reserva web (BotConversa)”**: en BotConversa solo hay que crear una regla por palabra clave **SOLICITUD DE RESERVA** que lo llame (situación 29 de docs/bot-scripts.md).' },
     ],
   },
 
@@ -341,7 +344,7 @@ export const MANUAL: SeccionManual[] = [
         ['El sitio de reservas dice “no encontrado”', 'Está apagado (Configuración → Sitio de reservas → Activo) o el negocio no tiene el módulo Reservas.'],
         ['El sitio no ofrece un horario', 'Puede estar completo (aforo), bloqueado (Fechas bloqueadas), en el pasado o dentro de la anticipación mínima.'],
         ['El cliente dice que no puede elegir una mesa', 'Está reservada (confirmada, pendiente de pago o revisar pago) a esa hora, o no sirve para esa cantidad de personas (capacidad mínima/máxima), o es fija y quiso juntarla.'],
-        ['Una reserva web dice “Falta su WhatsApp”', 'El cliente todavía no mandó el mensaje. Escribile vos si querés, y tocá “Ya escribió” cuando responda; si no escribe, cancelala.'],
+        ['Un cliente dice que reservó en el sitio y no lo veo', 'Mirá el bloque “Solicitudes web esperando el WhatsApp” de Reservas: si su solicitud está ahí, todavía no mandó el mensaje o el bot no lo tomó. Registrala con “Registrar con su teléfono”. Si no está, la solicitud venció (48 h) o nunca se guardó.'],
         ['Dos clientes pidieron la misma mesa', 'Es posible mientras ninguna esté confirmada. Al asignar la segunda te avisa del choque; hablá con el cliente y cambiá una de las dos.'],
         ['El voucher no llegó', 'Buscá el teléfono en Vouchers. Si no existe, el bot no lo emitió: revisá que el cliente tenga una reseña de 4 o 5 estrellas (campaña de reseña) y que no haya recibido ya uno.'],
         ['La pantalla se ve “congelada” después de guardar', 'Recargá la página. Si se repite, avisá al soporte.'],

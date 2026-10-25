@@ -10,6 +10,7 @@ import { numPagina, paginar } from '@/lib/paginacion'
 import { cargarOpciones } from '@/lib/sedes'
 import { usaAsistencia } from '@/lib/fidelidad-servidor'
 import { mesasPorReserva } from '@/lib/mesas-servidor'
+import SolicitudesWeb, { type SolicitudWebUI } from '@/components/solicitudes-web'
 
 type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
 
@@ -53,6 +54,14 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const pg = paginar(filtradas, numPagina(sp.pagina))
   const mostradas = pg.items
 
+  // Solicitudes del sitio web que todavía esperan el mensaje de WhatsApp (no son reservas: no ocupan mesa ni aforo)
+  const { data: sols } = await supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, tipo_reserva, observaciones, mesas, creado_en')
+    .eq('negocio_id', negocio.id).is('reserva_id', null).gte('creado_en', new Date(Date.now() - 48 * 3600 * 1000).toISOString()).order('creado_en', { ascending: false }).limit(100)
+  const idsMesas = [...new Set((sols ?? []).flatMap((s) => (s.mesas as string[] | null) ?? []))]
+  const numerosMesa: Record<string, string> = {}
+  if (idsMesas.length) for (const m of (await supabase.from('mesas').select('id, numero').in('id', idsMesas)).data ?? []) numerosMesa[m.id as string] = m.numero as string
+  const solicitudes: SolicitudWebUI[] = (sols ?? []).map((s) => ({ ...s, mesas: ((s.mesas as string[] | null) ?? []).map((i) => numerosMesa[i]).filter(Boolean).join(' + ') || null })) as SolicitudWebUI[]
+
   // Opciones de los filtros: lo que ya existe (tipos usados + ubicaciones configuradas o usadas)
   const ubicaciones = [...new Set([...op.ubicaciones.map((u) => u.nombre), ...todas.map((r) => r.ubicacion).filter(Boolean) as string[]])].sort()
 
@@ -62,6 +71,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         <h1 className="text-xl font-bold sm:text-2xl">Reservas</h1>
         {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
       </div>
+      <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} />
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
       <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />

@@ -34,13 +34,32 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   return { ok: true }
 }
 
-/** El cliente de una reserva del sitio ya escribió por WhatsApp (el botón "Ya escribió"). El bot lo hace solo con bot_reserva_web_recibida. */
-export async function marcarWhatsappRecibido(reservaId: string): Promise<ActionResult> {
+const AVISOS: Record<string, string> = {
+  mesa_ocupada: 'La mesa que había elegido ya no estaba libre: la reserva quedó sin mesa.', mesa_no_disponible: 'La mesa que había elegido ya no existe: la reserva quedó sin mesa.',
+  horario_completo: 'Ojo: ese horario ya está completo según el aforo.',
+}
+
+/** Registra una solicitud del sitio como reserva real con el teléfono de quien escribió por WhatsApp (cuando el bot no la tomó solo). */
+export interface ResultadoSolicitud { ok: boolean; error?: string; numero?: number; nota?: string }
+export async function registrarSolicitudWeb(id: string, telefono: string): Promise<ResultadoSolicitud> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
-  if (!UUID.test(reservaId)) return fail('Reserva no válida')
-  const { data, error } = await ctx.supabase.from('reservas').update({ espera_whatsapp: false }).eq('id', reservaId).eq('negocio_id', ctx.negocio.id).select('id').maybeSingle()
-  if (error || !data) return fail('No se pudo marcar la reserva')
+  if (!UUID.test(id)) return fail('Solicitud no válida')
+  const { data, error } = await ctx.supabase.rpc('registrar_solicitud_web', { p_id: id, p_telefono: String(telefono ?? '').slice(0, 30) })
+  const r = data as { ok?: boolean; error?: string; avisos?: string[]; reserva?: { numero: number } } | null
+  if (error || !r) return fail('No se pudo registrar la reserva')
+  if (!r.ok) return fail(r.error === 'telefono_invalido' ? 'Revisá el teléfono' : r.error === 'solicitud_vencida' ? 'La solicitud venció (pasaron más de 48 horas o ya pasó la fecha)' : r.error === 'sin_permiso' ? 'No tenés permiso para registrar reservas' : 'No se pudo registrar la reserva')
+  revalidatePath('/reservas')
+  return { ok: true, numero: r.reserva?.numero, nota: (r.avisos ?? []).map((a) => AVISOS[a]).filter(Boolean).join(' ') || undefined }
+}
+
+/** Descarta una solicitud en espera (el cliente no escribió o se arrepintió). */
+export async function descartarSolicitudWeb(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  if (!UUID.test(id)) return fail('Solicitud no válida')
+  const { error } = await ctx.supabase.from('reservas_web_solicitudes').delete().eq('id', id).eq('negocio_id', ctx.negocio.id).is('reserva_id', null)
+  if (error) return fail('No se pudo descartar la solicitud')
   revalidatePath('/reservas')
   return { ok: true }
 }

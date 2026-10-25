@@ -20,11 +20,11 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
     admin.from('reservas_web_config').select('activo, elegir_mesa, tipos, dias_adelante, personas_min, personas_max, mensaje').eq('negocio_id', negocio.id).maybeSingle(),
     admin.from('ubicaciones').select('nombre').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
   ])
-  if (!cfg?.activo) notFound()
+  if (!cfg?.activo || !/\d{6,}/.test(String(negocio.whatsapp_nro ?? ''))) notFound()   // sin WhatsApp del negocio nadie podría confirmar la solicitud
   const tipos = ((cfg.tipos as string[] | null)?.length ? (cfg.tipos as string[]) : ['comun']).map((t) => ({ value: t, label: labelTipo(t) }))
   return (
     <ReservarPublico slug={slug} nombre={negocio.nombre as string} ubicaciones={(ubs ?? []).map((u) => u.nombre as string)} tipos={tipos}
       cfg={{ elegir_mesa: cfg.elegir_mesa === true, dias_adelante: cfg.dias_adelante, personas_min: cfg.personas_min, personas_max: cfg.personas_max, mensaje: cfg.mensaje }}
-      hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={negocio.whatsapp_nro as string | null} />
+      hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={negocio.whatsapp_nro as string} />
   )
 }

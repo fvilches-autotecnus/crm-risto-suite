@@ -139,7 +139,7 @@ export default async function ConfiguracionPage() {
 
       {webCfg && (
         <Seccion id="reservas-web" i={n++} titulo="Sitio de reservas (prueba)" texto="Una página pública para que los clientes reserven solos, eligiendo su mesa en el plano o dejando que un asesor la elija. Usa tus ubicaciones, aforo, fechas bloqueadas y planos de mesas.">
-          <div className="mt-3"><ReservasWebConfig config={webCfg} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} /></div>
+          <div className="mt-3"><ReservasWebConfig config={webCfg} tieneWhatsapp={!!negocio.whatsapp_nro} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} /></div>
         </Seccion>
       )}
 
