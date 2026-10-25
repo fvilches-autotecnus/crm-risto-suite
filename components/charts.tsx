@@ -182,7 +182,7 @@ export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }:
 // ---------------------------------------------------------------------------
 // Columnas (comparar categorías: día de la semana)
 // ---------------------------------------------------------------------------
-export function GraficoColumnas({ datos, unidad = 'reservas' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string }) {
+export function GraficoColumnas({ datos, unidad = 'reservas', titulo = 'Reservas por día de la semana' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string; titulo?: string }) {
   const [ref, W] = useAncho<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const H = 220, m = { l: 34, r: 10, t: 22, b: 26 }
@@ -193,7 +193,7 @@ export function GraficoColumnas({ datos, unidad = 'reservas' }: { datos: { etiqu
   const top = datos.findIndex((d) => d.valor === max)
   return (
     <div ref={ref} className="relative w-full min-w-0 overflow-hidden" onPointerLeave={() => setHover(null)}>
-      <svg width={W} height={H} role="img" aria-label="Reservas por día de la semana" className="block overflow-visible">
+      <svg width={W} height={H} role="img" aria-label={titulo} className="block overflow-visible">
         {marcas.map((v) => (
           <g key={v}>
             <line x1={m.l} x2={W - m.r} y1={m.t + ih - (v / tope) * ih} y2={m.t + ih - (v / tope) * ih} stroke={GRILLA} strokeWidth={1} />

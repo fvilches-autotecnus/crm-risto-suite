@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Cake } from 'lucide-react'
+import { GraficoColumnas, TarjetaGrafico } from '@/components/charts'
+import { Tile } from '@/components/dashboard-ui'
 import { AgregarCumpleBtn, EditarCumple } from '@/components/cumples-ui'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
@@ -37,6 +39,15 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
       : a.prox.dias - b.prox.dias || a.nombre.localeCompare(b.nombre))
 
   const pg = paginar(filas, numPagina(sp.pagina))
+
+  // Cumpleaños por mes (de todos los clientes con cumpleaños cargado, sin importar el período elegido)
+  const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+  const porMes = MESES.map((etiqueta, i) => ({ etiqueta, valor: (clientes ?? []).filter((c) => c.cumple_mes === i + 1).length }))
+  const totalCumples = (clientes ?? []).length
+  const mesActual = Number(hoy.slice(5, 7))
+  const maxMes = Math.max(...porMes.map((m) => m.valor), 0)
+  const mesTop = porMes.findIndex((m) => m.valor === maxMes)
   const link = (p: string) => `/cumpleanos?periodo=${p}${orden !== 'proximo' ? `&orden=${orden}` : ''}`
 
   return (
@@ -48,6 +59,19 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
         </div>
         {ctx.puedeEscribir && <AgregarCumpleBtn />}
       </div>
+
+      {totalCumples > 0 && (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <Tile i={0} valor={totalCumples} etiqueta="Con cumpleaños cargado" color="text-rs-text" sub="Clientes en total" />
+            <Tile i={1} valor={porMes[mesActual - 1].valor} etiqueta={`Cumplen en ${MESES_LARGO[mesActual - 1]}`} color="text-rs-lime" sub="Este mes" />
+            <Tile i={2} valor={maxMes} etiqueta={`Mes con más: ${MESES_LARGO[mesTop]}`} color="text-rs-ok" sub={`${Math.round((maxMes / totalCumples) * 100)}% de todos los cumpleaños`} />
+          </div>
+          <TarjetaGrafico i={3} titulo="Cumpleaños por mes" columnas={['Mes', 'Cumpleaños']} filas={porMes.map((m) => [m.etiqueta, m.valor])}>
+            <GraficoColumnas datos={porMes} unidad="cumpleaños" titulo="Cumpleaños por mes" />
+          </TarjetaGrafico>
+        </>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {PERIODOS_CUMPLE.map((p) => <Link key={p.value} href={link(p.value)} className={'btn btn-sm ' + (periodo === p.value ? 'btn-primary' : '')}>{p.label}</Link>)}
