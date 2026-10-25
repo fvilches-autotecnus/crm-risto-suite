@@ -201,7 +201,7 @@ export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; o
   )
 }
 
-export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; op: OpcionesSede }) {
+export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false, mesas = {} }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; mesas?: Record<string, string>; op: OpcionesSede }) {
   const toast = useToast()
   const [editando, setEditando] = useState<Reserva | null>(null)
   const [cambio, setCambio] = useState<{ r: Reserva; estado: EstadoReserva } | null>(null)
@@ -288,7 +288,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 {mostrarSede && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
                 <td className="td">{fechaCorta(r.fecha)}</td>
                 <td className="td">{horaCorta(r.hora)}</td>
-                <td className="td">{r.cantidad_personas ?? '—'}</td>
+                <td className="td">{r.cantidad_personas ?? '—'}{mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="ml-2 whitespace-nowrap rounded-full bg-rs-lav/15 px-2 py-0.5 text-xs font-semibold text-rs-lav" title="Ver en el plano del salón">Mesa {mesas[r.id]}</a>}</td>
                 <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
@@ -319,6 +319,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
               {mostrarSede && r.sucursal_id && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{op.nombresSede[r.sucursal_id] ?? '—'}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</span>}
               {(!mostrarSede || !r.sucursal_id) && r.ubicacion && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{r.ubicacion}</span>}
               <span>{labelTipo(r.tipo_reserva)}</span>
+              {mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="font-semibold text-rs-lav">Mesa {mesas[r.id]}</a>}
             </div>
             {nota(r) && <p className="mt-2 text-sm text-rs-muted/90">{nota(r)}</p>}
             {puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(r)}</div>}

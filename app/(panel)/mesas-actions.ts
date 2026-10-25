@@ -1,0 +1,220 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { getContexto } from '@/lib/context'
+import { seSuperponen } from '@/lib/mesas'
+import type { ActionResult } from './actions'
+
+const fail = (error: string): ActionResult => ({ ok: false, error })
+const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
+const UUID = /^[0-9a-f-]{36}$/i
+const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
+const refrescar = () => { revalidatePath('/mesas'); revalidatePath('/reservas'); revalidatePath('/') }
+
+async function permiso(estructura: boolean) {
+  const ctx = await getContexto()
+  if (!ctx.modulosActivos.mesas) return { ctx, error: 'Este negocio no tiene el módulo Salón y mesas' }
+  if (!ctx.puedeEscribir) return { ctx, error: 'Tu usuario es de solo lectura' }
+  if (estructura && !(ctx.puedeAdministrar || ctx.rol === 'encargado')) return { ctx, error: 'Solo dueños, administradores y encargados pueden cambiar el plano' }
+  return { ctx, error: null as string | null }
+}
+type Ctx = Awaited<ReturnType<typeof getContexto>>
+
+/** Mesas del salón (sin la que se está moviendo) y el tamaño del plano, para validar límites y superposiciones. */
+async function datosSalon(ctx: Ctx, salonId: string, excluir?: string) {
+  const [{ data: salon }, { data: mesas }] = await Promise.all([
+    ctx.supabase.from('salones').select('id, nombre, ancho, alto').eq('id', salonId).eq('negocio_id', ctx.negocio.id).maybeSingle(),
+    ctx.supabase.from('mesas').select('id, numero, x, y, w, h').eq('salon_id', salonId).eq('negocio_id', ctx.negocio.id),
+  ])
+  return { salon, mesas: (mesas ?? []).filter((m) => m.id !== excluir) }
+}
+function validarRect(salon: { ancho: number; alto: number }, otras: { numero: string; x: number; y: number; w: number; h: number }[], r: { x: number; y: number; w: number; h: number }): string | null {
+  if (r.x < 0 || r.y < 0 || r.x + r.w > salon.ancho || r.y + r.h > salon.alto) return 'Se sale del plano: achicalo o ampliá el salón'
+  const choca = otras.find((o) => seSuperponen(r, o))
+  return choca ? `Se superpone con “${choca.numero}”` : null
+}
+function buscarHueco(salon: { ancho: number; alto: number }, otras: { x: number; y: number; w: number; h: number }[], w: number, h: number): { x: number; y: number } | null {
+  for (let y = 0; y + h <= salon.alto; y++) for (let x = 0; x + w <= salon.ancho; x++) if (!otras.some((o) => seSuperponen({ x, y, w, h }, o))) return { x, y }
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Salones y mesas (armar el plano)
+// ---------------------------------------------------------------------------
+export async function guardarSalon(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  const id = text(fd, 'id'), nombre = text(fd, 'nombre').replace(/\s+/g, ' ')
+  const ancho = entero(text(fd, 'ancho'), 8, 80), alto = entero(text(fd, 'alto'), 6, 60)
+  if (!nombre || nombre.length > 40) return fail('Poné un nombre de hasta 40 letras (ej. Salón, Patio, Terraza)')
+  if (!ancho || !alto) return fail('El tamaño del plano va de 8 a 80 de ancho y de 6 a 60 de alto')
+  if (id) {
+    if (!UUID.test(id)) return fail('Salón no válido')
+    const { mesas } = await datosSalon(ctx, id)
+    const fuera = mesas.find((m) => m.x + m.w > ancho || m.y + m.h > alto)
+    if (fuera) return fail(`La mesa “${fuera.numero}” quedaría fuera del plano: movela antes de achicar el salón`)
+    const { error: e } = await ctx.supabase.from('salones').update({ nombre, ancho, alto }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo guardar el salón')
+  } else {
+    const { data: ult } = await ctx.supabase.from('salones').select('orden').eq('negocio_id', ctx.negocio.id).order('orden', { ascending: false }).limit(1)
+    const { error: e } = await ctx.supabase.from('salones').insert({ negocio_id: ctx.negocio.id, sucursal_id: ctx.sede?.id ?? null, nombre, ancho, alto, orden: (ult?.[0]?.orden ?? -1) + 1 })
+    if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo crear el salón')
+  }
+  refrescar()
+  return { ok: true }
+}
+
+export async function eliminarSalon(id: string): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  if (!UUID.test(id)) return fail('Salón no válido')
+  if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden borrar un salón')
+  const { error: e } = await ctx.supabase.from('salones').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo borrar el salón')
+  refrescar()
+  return { ok: true }
+}
+
+export async function guardarMesa(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  const id = text(fd, 'id'), salonId = text(fd, 'salon_id'), tipo = text(fd, 'tipo') === 'deco' ? 'deco' : 'mesa', numero = text(fd, 'numero').replace(/\s+/g, ' ')
+  if (!UUID.test(salonId)) return fail('Elegí un salón')
+  if (!numero || numero.length > 24) return fail(tipo === 'deco' ? 'Escribí el texto del cartel (hasta 24 letras)' : 'Poné el número de la mesa (hasta 24 caracteres)')
+  const capacidad = tipo === 'mesa' ? entero(text(fd, 'capacidad'), 1, 40) : null
+  if (tipo === 'mesa' && !capacidad) return fail('La capacidad va de 1 a 40 personas')
+  const w = entero(text(fd, 'w') || (tipo === 'deco' ? '4' : '2'), 1, 40), h = entero(text(fd, 'h') || '2', 1, 40)
+  if (!w || !h) return fail('El tamaño de la mesa no es válido')
+  const forma = text(fd, 'forma') === 'redonda' ? 'redonda' : 'cuadrada'
+  const { salon, mesas } = await datosSalon(ctx, salonId, id || undefined)
+  if (!salon) return fail('Salón no encontrado')
+  let x = entero(text(fd, 'x') || '-1', 0, 200), y = entero(text(fd, 'y') || '-1', 0, 200)
+  if (!id && (x === null || y === null || text(fd, 'x') === '')) {
+    const hueco = buscarHueco(salon, mesas, w, h)
+    if (!hueco) return fail('No hay lugar libre en el plano: ampliá el salón o creá otro')
+    x = hueco.x; y = hueco.y
+  }
+  if (x === null || y === null) return fail('Posición no válida')
+  const e1 = validarRect(salon, mesas, { x, y, w, h }); if (e1) return fail(e1)
+  const datos = { salon_id: salonId, tipo, numero, capacidad, x, y, w, h, forma, activa: fd.get('__activa_form') ? fd.get('activa') === 'on' : true }
+  if (id) {
+    if (!UUID.test(id)) return fail('Mesa no válida')
+    const { error: e } = await ctx.supabase.from('mesas').update(datos).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    if (e) return fail(e.code === '23505' ? `Ya hay una mesa “${numero}” en este salón` : 'No se pudo guardar la mesa')
+  } else {
+    const { error: e } = await ctx.supabase.from('mesas').insert({ ...datos, negocio_id: ctx.negocio.id })
+    if (e) return fail(e.code === '23505' ? `Ya hay una mesa “${numero}” en este salón` : 'No se pudo crear la mesa')
+  }
+  refrescar()
+  return { ok: true }
+}
+
+export async function moverMesa(id: string, x: number, y: number): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  if (!UUID.test(id) || !Number.isInteger(x) || !Number.isInteger(y)) return fail('Posición no válida')
+  const { data: m } = await ctx.supabase.from('mesas').select('salon_id, w, h').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
+  if (!m) return fail('Mesa no encontrada')
+  const { salon, mesas } = await datosSalon(ctx, m.salon_id, id)
+  if (!salon) return fail('Salón no encontrado')
+  const e1 = validarRect(salon, mesas, { x, y, w: m.w, h: m.h }); if (e1) return fail(e1)
+  const { error: e } = await ctx.supabase.from('mesas').update({ x, y }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo mover la mesa')
+  refrescar()
+  return { ok: true }
+}
+
+export async function eliminarMesa(id: string): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  if (!UUID.test(id)) return fail('Mesa no válida')
+  const { error: e } = await ctx.supabase.from('mesas').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo borrar la mesa')
+  refrescar()
+  return { ok: true }
+}
+
+/** Crea varias mesas de una vez, acomodadas solas en los lugares libres del plano. */
+export async function crearVariasMesas(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  const salonId = text(fd, 'salon_id'), cantidad = entero(text(fd, 'cantidad'), 1, 60), capacidad = entero(text(fd, 'capacidad'), 1, 40), desde = entero(text(fd, 'desde') || '1', 0, 9999)
+  const forma = text(fd, 'forma') === 'redonda' ? 'redonda' : 'cuadrada'
+  if (!UUID.test(salonId)) return fail('Elegí un salón')
+  if (!cantidad || !capacidad || desde === null) return fail('Indicá cuántas mesas (1 a 60), su capacidad y desde qué número')
+  const { salon, mesas } = await datosSalon(ctx, salonId)
+  if (!salon) return fail('Salón no encontrado')
+  const usados = new Set(mesas.map((m) => m.numero.trim().toLowerCase()))
+  const ocupados = mesas.map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h }))
+  const filas: Record<string, unknown>[] = []
+  for (let n = desde; filas.length < cantidad && n < desde + 1000; n++) {
+    if (usados.has(String(n))) continue
+    const hueco = buscarHueco(salon, ocupados, 2, 2)
+    if (!hueco) return fail(`Solo entran ${filas.length} mesas más en este plano: ampliá el salón para el resto`)
+    ocupados.push({ ...hueco, w: 2, h: 2 })
+    filas.push({ negocio_id: ctx.negocio.id, salon_id: salonId, tipo: 'mesa', numero: String(n), capacidad, x: hueco.x, y: hueco.y, w: 2, h: 2, forma })
+  }
+  const { error: e } = await ctx.supabase.from('mesas').insert(filas)
+  if (e) return fail('No se pudieron crear las mesas')
+  refrescar()
+  return { ok: true, cantidad: filas.length }
+}
+
+export async function guardarDuracionMesas(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  const min = entero(text(fd, 'duracion_min'), 30, 480)
+  if (!min) return fail('La duración va de 30 a 480 minutos')
+  const { error: e } = await ctx.supabase.from('mesas_config').upsert({ negocio_id: ctx.negocio.id, duracion_min: min })
+  if (e) return fail('No se pudo guardar')
+  refrescar()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Servicio del día
+// ---------------------------------------------------------------------------
+export type ResultadoAsignacion = ActionResult & { conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidadInsuficiente?: boolean; capacidad?: number; personas?: number | null }
+
+/** Asigna (o reemplaza) las mesas de una reserva. Si alguna ya está tomada a esa hora devuelve los conflictos y no asigna, salvo `forzar`. */
+export async function asignarMesas(reservaId: string, mesaIds: string[], forzar = false): Promise<ResultadoAsignacion> {
+  const { ctx, error } = await permiso(false); if (error) return fail(error)
+  if (!UUID.test(reservaId) || !mesaIds.every((m) => UUID.test(m)) || mesaIds.length > 8) return fail('Datos no válidos')
+  const { data, error: e } = await ctx.supabase.rpc('asignar_mesas', { p_reserva: reservaId, p_mesas: mesaIds, p_forzar: forzar })
+  if (e) return fail('No se pudo asignar la mesa')
+  const r = data as { ok: boolean; error?: string; conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidad_insuficiente?: boolean; capacidad?: number; personas?: number | null }
+  if (!r.ok) {
+    if (r.error === 'mesa_ocupada') return { ok: false, error: 'mesa_ocupada', conflictos: r.conflictos }
+    return fail(r.error === 'sin_permiso' ? 'No tenés permiso para asignar mesas' : r.error === 'mesa_invalida' ? 'Alguna mesa ya no existe o está fuera de servicio' : 'No se pudo asignar la mesa')
+  }
+  refrescar()
+  return { ok: true, capacidadInsuficiente: r.capacidad_insuficiente, capacidad: r.capacidad, personas: r.personas }
+}
+
+/** Avanza la reserva en el salón: llegó → sentada → liberada (o la deja como estaba). */
+export async function marcarServicio(reservaId: string, paso: 'llego' | 'sentada' | 'liberada' | 'reabrir'): Promise<ActionResult> {
+  const { ctx, error } = await permiso(false); if (error) return fail(error)
+  if (!UUID.test(reservaId)) return fail('Reserva no válida')
+  const ahora = new Date().toISOString()
+  const { data: r } = await ctx.supabase.from('reservas').select('asistio_en, sentada_en').eq('id', reservaId).eq('negocio_id', ctx.negocio.id).maybeSingle()
+  if (!r) return fail('Reserva no encontrada')
+  const cambios = paso === 'llego' ? { asistio_en: r.asistio_en ?? ahora }
+    : paso === 'sentada' ? { asistio_en: r.asistio_en ?? ahora, sentada_en: r.sentada_en ?? ahora, liberada_en: null }
+    : paso === 'liberada' ? { liberada_en: ahora }
+    : { sentada_en: null, liberada_en: null }
+  const { error: e } = await ctx.supabase.from('reservas').update(cambios).eq('id', reservaId).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo actualizar la reserva')
+  refrescar()
+  return { ok: true }
+}
+
+export async function ocuparMesa(id: string, pax: number | null): Promise<ActionResult> {
+  const { ctx, error } = await permiso(false); if (error) return fail(error)
+  if (!UUID.test(id)) return fail('Mesa no válida')
+  const { data, error: e } = await ctx.supabase.rpc('ocupar_mesa', { p_mesa: id, p_pax: pax && pax > 0 && pax < 100 ? Math.trunc(pax) : null })
+  if (e || !(data as { ok: boolean }).ok) return fail('No se pudo ocupar la mesa')
+  refrescar()
+  return { ok: true }
+}
+
+export async function liberarMesa(id: string): Promise<ActionResult> {
+  const { ctx, error } = await permiso(false); if (error) return fail(error)
+  if (!UUID.test(id)) return fail('Mesa no válida')
+  const { data, error: e } = await ctx.supabase.rpc('liberar_mesa', { p_mesa: id })
+  if (e || !(data as { ok: boolean }).ok) return fail('No se pudo liberar la mesa')
+  refrescar()
+  return { ok: true }
+}

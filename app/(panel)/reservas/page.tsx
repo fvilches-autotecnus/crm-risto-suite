@@ -9,6 +9,7 @@ import Paginacion from '@/components/paginacion'
 import { numPagina, paginar } from '@/lib/paginacion'
 import { cargarOpciones } from '@/lib/sedes'
 import { usaAsistencia } from '@/lib/fidelidad-servidor'
+import { mesasPorReserva } from '@/lib/mesas-servidor'
 
 type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
 
@@ -62,7 +63,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
       </div>
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
-      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} />
+      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>
   )

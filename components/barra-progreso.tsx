@@ -58,7 +58,8 @@ export default function BarraProgreso() {
       if (url.pathname === window.location.pathname && url.search === window.location.search) return   // mismo lugar o solo #ancla
       iniciar.current()
     }
-    const alEnviar = (e: Event) => { const f = e.target as HTMLFormElement; if (f?.method?.toLowerCase() === 'get') iniciar.current() }
+    // Solo los formularios que de verdad navegan (búsquedas con GET sin controlador propio): los que guardan datos con una acción llaman a preventDefault y no son una navegación.
+    const alEnviar = (e: Event) => { const f = e.target as HTMLFormElement; if (!e.defaultPrevented && f?.method?.toLowerCase() === 'get') iniciar.current() }
     const ini = () => iniciar.current(), fin = () => terminar.current()
     document.addEventListener('click', alClick)
     document.addEventListener('submit', alEnviar)

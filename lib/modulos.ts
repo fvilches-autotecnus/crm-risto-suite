@@ -5,7 +5,7 @@
  */
 
 export type ModuloClave =
-  | 'reservas' | 'shows' | 'carta' | 'pedidos'
+  | 'reservas' | 'mesas' | 'shows' | 'carta' | 'pedidos'
   | 'clientes' | 'consultas' | 'cumpleanos' | 'vouchers' | 'resenas' | 'fidelizacion' | 'campanas' | 'metricas' | 'derivadas' | 'conversaciones'
 
 export interface ModuloDef {
@@ -22,6 +22,7 @@ export interface ModuloDef {
 
 export const MODULOS: ModuloDef[] = [
   { clave: 'reservas', titulo: 'Reservas', texto: 'Reservas de mesas: agenda, aforo, ubicaciones, fechas bloqueadas y avisos al cliente.', grupo: 'Operación', porDefecto: true },
+  { clave: 'mesas', titulo: 'Salón y mesas', texto: 'Plano del salón con sus mesas: asignar mesa a cada reserva, ver cuáles están libres, reservadas u ocupadas y mover el servicio en vivo.', grupo: 'Operación', porDefecto: false, conviene: { con: ['reservas'], porque: 'las mesas se asignan a las reservas; sin Reservas solo podrías ver el plano y marcar mesas ocupadas a mano.' } },
   { clave: 'shows', titulo: 'Shows', texto: 'Shows y eventos del local (cartelera, entradas y cupos).', grupo: 'Operación', porDefecto: false, conviene: { con: ['reservas'], porque: 'los shows se llenan con reservas de mesa; sin Reservas solo podrías mostrar la cartelera.' }, enPreparacion: true },
   { clave: 'carta', titulo: 'Carta', texto: 'Carta digital: categorías, productos, precios y fotos. Sirve para que los clientes vean el menú (con o sin pedidos) y es la base de los pedidos.', grupo: 'Operación', porDefecto: false },
   { clave: 'pedidos', titulo: 'Pedidos', texto: 'Pedidos de los clientes (delivery y retiro) armados desde la carta digital.', grupo: 'Operación', porDefecto: false, conviene: { con: ['carta'], porque: 'los pedidos se arman eligiendo productos de la carta; sin carta cada pedido habría que escribirlo a mano y no habría precios ni disponibilidad.' } },

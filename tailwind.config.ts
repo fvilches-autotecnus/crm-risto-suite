@@ -3,7 +3,7 @@ import type { Config } from 'tailwindcss'
 // Identidad Risto Suite (tomada del portal CRM de reservas.ristosuite.app/crm):
 // negro + verde lima, tarjetas verde muy oscuro, texto crema-verdoso.
 const config: Config = {
-  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
