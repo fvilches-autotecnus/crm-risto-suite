@@ -2,12 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { DIAS_PERIODO } from '@/lib/campanas'
+import { iniciarCarga } from '@/lib/carga'
 
 /** Selector de período (últimos N días) para pantallas con filtro por URL (?dias=). */
 export default function SelectorDias({ ruta, dias, extra = {} }: { ruta: string; dias: number; extra?: Record<string, string> }) {
   const router = useRouter()
   const ir = (d: string) => {
     const p = new URLSearchParams({ ...extra, dias: d })
+    iniciarCarga()
     router.push(`${ruta}?${p.toString()}`)
   }
   return (

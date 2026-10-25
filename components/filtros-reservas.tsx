@@ -1,10 +1,11 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { ArrowDownUp, RefreshCw, Search, X } from 'lucide-react'
 import { FechaInput } from '@/components/inputs'
 import { PUNTO_ESTADO } from '@/components/menu-estado'
+import { iniciarCarga, terminarCarga } from '@/lib/carga'
 import { ESTADOS, labelTipo } from '@/lib/reservas'
 
 export const ORDENES = [
@@ -29,6 +30,8 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
   const sp = useSearchParams()
   const [q, setQ] = useState(sp.get('q') ?? '')
   const buscador = useRef<HTMLInputElement>(null)
+  const [refrescando, refrescar] = useTransition()
+  useEffect(() => { if (refrescando) iniciarCarga(); else terminarCarga() }, [refrescando])
   const rango = sp.get('rango') ?? 'hoy'
   const estado = sp.get('estado') ?? ''
   const tipo = sp.get('tipo') ?? ''
@@ -39,6 +42,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
     const p = new URLSearchParams(window.location.search) // no `sp`: puede estar atrasado si hay una navegación en curso
     for (const [k, v] of Object.entries(cambios)) v ? p.set(k, v) : p.delete(k)
     p.delete('pagina')
+    iniciarCarga()
     router.push('/reservas?' + p.toString())
   }
 
@@ -83,7 +87,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
             {ORDENES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </label>
-        <button onClick={() => router.refresh()} aria-label="Actualizar" title="Actualizar" className="btn w-9 px-0"><RefreshCw size={14} /></button>
+        <button onClick={() => refrescar(() => router.refresh())} disabled={refrescando} aria-label="Actualizar" title="Actualizar" className="btn w-9 px-0"><RefreshCw size={14} className={refrescando ? "animate-spin" : ""} /></button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -133,7 +137,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
             {a.texto}<X size={11} className="text-rs-muted" />
           </button>
         ))}
-        {hayCambios && <button onClick={() => { setQ(''); router.push('/reservas') }} className="ml-auto text-rs-lime transition hover:underline">Restablecer filtros</button>}
+        {hayCambios && <button onClick={() => { setQ(''); iniciarCarga(); router.push('/reservas') }} className="ml-auto text-rs-lime transition hover:underline">Restablecer filtros</button>}
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
+import { iniciarCarga, terminarCarga } from '@/lib/carga'
 import { cambiarNegocio } from '@/app/(panel)/actions'
 
 // Selector de negocio (superadmin / usuarios con varios negocios). Es "controlado": muestra lo elegido al instante,
@@ -10,6 +11,7 @@ export default function NegocioSelect({ negocios, actual }: { negocios: { id: st
   const router = useRouter()
   const [valor, setValor] = useState(actual)
   const [pending, start] = useTransition()
+  useEffect(() => { if (!pending) terminarCarga() }, [pending])
   useEffect(() => setValor(actual), [actual])
 
   return (
@@ -20,12 +22,14 @@ export default function NegocioSelect({ negocios, actual }: { negocios: { id: st
       onChange={(e) => {
         const id = e.target.value
         setValor(id)
+        iniciarCarga()
         start(async () => {
           const fd = new FormData()
           fd.set('negocio_id', id)
           await cambiarNegocio(fd)
           router.refresh()
         })
+        // la barra se apaga cuando termina la transición (ver efecto de `pending`)
       }}
       className={'h-6 max-w-[180px] rounded-full border-0 bg-rs-raised px-2.5 text-xs text-rs-lime outline-none transition ' + (pending ? 'animate-pulse opacity-70' : '')}
     >

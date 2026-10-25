@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { ArrowDownUp } from 'lucide-react'
+import { iniciarCarga } from '@/lib/carga'
 
 export const ORDEN_ALTA = [
   { value: 'alta_desc', label: 'Alta: más recientes primero' },
@@ -24,6 +25,7 @@ export default function OrdenSelect({ opciones = ORDEN_ALTA as unknown as { valu
           const p = new URLSearchParams(window.location.search)
           e.target.value === porDefecto ? p.delete('orden') : p.set('orden', e.target.value)
           p.delete('pagina')
+          iniciarCarga()
           router.push(`${pathname}?${p.toString()}`)
         }}
         className="input pl-9"

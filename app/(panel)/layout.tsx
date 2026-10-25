@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import Image from 'next/image'
 import { LogOut } from 'lucide-react'
+import BarraProgreso from '@/components/barra-progreso'
 import BotToggle from '@/components/bot-toggle'
 import AvisosEnVivo from '@/components/avisos-en-vivo'
 import { FeedbackProvider } from '@/components/feedback'
@@ -16,6 +18,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   return (
     <FeedbackProvider>
+      <Suspense fallback={null}><BarraProgreso /></Suspense>
       <AvisosEnVivo negocioId={ctx.negocio.id} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
       <div className="min-h-screen">
         <header className="sticky top-0 z-40 border-b border-rs-raised bg-rs-header/90 backdrop-blur-md">

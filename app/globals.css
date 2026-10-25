@@ -50,3 +50,8 @@ body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, sys
     font-size: 16px !important;
   }
 }
+
+/* Mientras carga la pantalla siguiente (barra de progreso arriba), el contenido se atenúa y no responde a clics repetidos. */
+main { transition: opacity .2s ease; }
+html[data-navegando] main { opacity: .55; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { main { transition: none; } }

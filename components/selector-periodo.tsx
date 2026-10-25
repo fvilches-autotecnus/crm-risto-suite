@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { iniciarCarga } from '@/lib/carga'
 
 const OPCIONES = [7, 14, 30, 90, 180]
 const AGRUPAR = [{ v: 'auto', l: 'Automático' }, { v: 'dia', l: 'Por día' }, { v: 'semana', l: 'Por semana' }, { v: 'mes', l: 'Por mes' }]
@@ -11,6 +12,7 @@ export default function SelectorPeriodo({ dias, agrupar }: { dias: number; agrup
   const ir = (c: Record<string, string>) => {
     const p = new URLSearchParams({ dias: String(dias), ...(agrupar !== 'auto' ? { agrupar } : {}), ...c })
     for (const [k, v] of [...p.entries()]) if (!v) p.delete(k)
+    iniciarCarga()
     router.push(`/metricas?${p.toString()}`)
   }
   return (
