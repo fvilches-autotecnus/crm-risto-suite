@@ -10,7 +10,6 @@ import NegocioSelect from '@/components/negocio-select'
 import SedeSelect from '@/components/sede-select'
 import { getContexto } from '@/lib/context'
 import { contarPausados } from '@/lib/pausados'
-import { cerrarSesion } from './actions'
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContexto()
@@ -38,7 +37,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <div className="flex shrink-0 items-center gap-3">
               {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
               <span className="hidden text-sm font-semibold md:inline">{ctx.nombreUsuario}</span>
-              <form action={cerrarSesion}>
+              <form action="/salir" method="post">
                 <button className="btn btn-sm h-8 px-3"><LogOut size={14} /> Salir</button>
               </form>
             </div>

@@ -20,8 +20,12 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
   const usuario = data?.claims?.sub
   const { pathname } = request.nextUrl
+  if (pathname === '/salir') return response   // cerrar sesión funciona aunque la sesión ya haya vencido
 
   if (!usuario && pathname !== '/login') {
+    // Una acción (botón, formulario) enviada con la sesión vencida: una redirección común la dejaba "sin respuesta" en pantalla.
+    // Con este encabezado Next lleva al navegador a /login (igual que cuando una acción hace redirect()).
+    if (request.headers.get('next-action')) return new NextResponse(null, { status: 200, headers: { 'x-action-redirect': '/login;push', 'Cache-Control': 'no-store' } })
     return NextResponse.redirect(new URL('/login', request.url))
   }
   if (usuario && pathname === '/login') {
