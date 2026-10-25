@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Search, Ticket } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
+import VouchersEnVivo from '@/components/vouchers-en-vivo'
 import { NuevoVoucherBtn, ListaVouchers, type VoucherUI } from '@/components/vouchers-ui'
 import { getContexto } from '@/lib/context'
 import Paginacion from '@/components/paginacion'
@@ -35,6 +36,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-5">
+      <VouchersEnVivo negocioId={negocio.id} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="animate-fade-up">
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Ticket className="text-rs-lime" size={22} />Vouchers</h1>
