@@ -22,11 +22,12 @@ async function permiso(opciones: { ajustes?: boolean } = {}) {
 }
 const refrescar = (slug: string) => { revalidatePath('/carta'); revalidatePath(`/carta/${slug}`) }
 
-/** "12.500,50" (formato argentino), "12500.5" o "$ 12500" → número; vacío → null; inválido → NaN. */
+/** "12.500,50" / "12.500" (formato argentino, el punto separa miles), "12500.5" o "$ 12500" → número; vacío → null; inválido → NaN. */
 function leerPrecio(t: string): number | null {
   const s = t.replace(/[$\s]/g, '')
   if (!s) return null
-  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
+  const miles = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)
+  const n = Number(miles || s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
   return Number.isFinite(n) && n >= 0 && n <= MAX_PRECIO ? Math.round(n * 100) / 100 : NaN
 }
 

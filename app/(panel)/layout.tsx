@@ -18,7 +18,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   return (
     <FeedbackProvider>
       <Suspense fallback={null}><BarraProgreso /></Suspense>
-      <AvisosEnVivo negocioId={ctx.negocio.id} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
+      <AvisosEnVivo negocioId={ctx.negocio.id} pedidos={ctx.modulosActivos.pedidos} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
       <div className="min-h-screen">
         <header className="sticky top-0 z-40 border-b border-rs-raised bg-rs-header/90 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
