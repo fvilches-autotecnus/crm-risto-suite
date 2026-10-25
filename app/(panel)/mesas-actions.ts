@@ -44,7 +44,7 @@ function buscarHueco(salon: { ancho: number; alto: number }, otras: { x: number;
 export async function guardarSalon(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const { ctx, error } = await permiso(true); if (error) return fail(error)
   const id = text(fd, 'id'), nombre = text(fd, 'nombre').replace(/\s+/g, ' ')
-  const ancho = entero(text(fd, 'ancho'), 8, 80), alto = entero(text(fd, 'alto'), 6, 60)
+  const ancho = entero(text(fd, 'ancho'), 8, 80), alto = entero(text(fd, 'alto'), 6, 60), ubicacion = text(fd, 'ubicacion').slice(0, 60) || null
   if (!nombre || nombre.length > 40) return fail('Poné un nombre de hasta 40 letras (ej. Salón, Patio, Terraza)')
   if (!ancho || !alto) return fail('El tamaño del plano va de 8 a 80 de ancho y de 6 a 60 de alto')
   if (id) {
@@ -52,11 +52,11 @@ export async function guardarSalon(_prev: ActionResult | null, fd: FormData): Pr
     const { mesas } = await datosSalon(ctx, id)
     const fuera = mesas.find((m) => m.x + m.w > ancho || m.y + m.h > alto)
     if (fuera) return fail(`La mesa “${fuera.numero}” quedaría fuera del plano: movela antes de achicar el salón`)
-    const { error: e } = await ctx.supabase.from('salones').update({ nombre, ancho, alto }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    const { error: e } = await ctx.supabase.from('salones').update({ nombre, ancho, alto, ubicacion }).eq('id', id).eq('negocio_id', ctx.negocio.id)
     if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo guardar el salón')
   } else {
     const { data: ult } = await ctx.supabase.from('salones').select('orden').eq('negocio_id', ctx.negocio.id).order('orden', { ascending: false }).limit(1)
-    const { error: e } = await ctx.supabase.from('salones').insert({ negocio_id: ctx.negocio.id, sucursal_id: ctx.sede?.id ?? null, nombre, ancho, alto, orden: (ult?.[0]?.orden ?? -1) + 1 })
+    const { error: e } = await ctx.supabase.from('salones').insert({ negocio_id: ctx.negocio.id, sucursal_id: ctx.sede?.id ?? null, nombre, ancho, alto, ubicacion, orden: (ult?.[0]?.orden ?? -1) + 1 })
     if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo crear el salón')
   }
   refrescar()
@@ -79,7 +79,9 @@ export async function guardarMesa(_prev: ActionResult | null, fd: FormData): Pro
   if (!UUID.test(salonId)) return fail('Elegí un salón')
   if (!numero || numero.length > 24) return fail(tipo === 'deco' ? 'Escribí el texto del cartel (hasta 24 letras)' : 'Poné el número de la mesa (hasta 24 caracteres)')
   const capacidad = tipo === 'mesa' ? entero(text(fd, 'capacidad'), 1, 40) : null
-  if (tipo === 'mesa' && !capacidad) return fail('La capacidad va de 1 a 40 personas')
+  if (tipo === 'mesa' && !capacidad) return fail('La capacidad máxima va de 1 a 40 personas')
+  const capacidadMin = tipo === 'mesa' ? entero(text(fd, 'capacidad_min') || '1', 1, 40) : 1
+  if (!capacidadMin || (capacidad && capacidadMin > capacidad)) return fail('La capacidad mínima tiene que estar entre 1 y la máxima')
   const w = entero(text(fd, 'w') || (tipo === 'deco' ? '4' : '2'), 1, 40), h = entero(text(fd, 'h') || '2', 1, 40)
   if (!w || !h) return fail('El tamaño de la mesa no es válido')
   const forma = text(fd, 'forma') === 'redonda' ? 'redonda' : 'cuadrada'
@@ -93,7 +95,8 @@ export async function guardarMesa(_prev: ActionResult | null, fd: FormData): Pro
   }
   if (x === null || y === null) return fail('Posición no válida')
   const e1 = validarRect(salon, mesas, { x, y, w, h }); if (e1) return fail(e1)
-  const datos = { salon_id: salonId, tipo, numero, capacidad, x, y, w, h, forma, activa: fd.get('__activa_form') ? fd.get('activa') === 'on' : true }
+  const movil = tipo === 'mesa' && fd.get('movil') === 'on'
+  const datos = { salon_id: salonId, tipo, numero, capacidad, capacidad_min: capacidadMin, movil, x, y, w, h, forma, activa: fd.get('__activa_form') ? fd.get('activa') === 'on' : true }
   if (id) {
     if (!UUID.test(id)) return fail('Mesa no válida')
     const { error: e } = await ctx.supabase.from('mesas').update(datos).eq('id', id).eq('negocio_id', ctx.negocio.id)
@@ -133,9 +136,11 @@ export async function eliminarMesa(id: string): Promise<ActionResult> {
 export async function crearVariasMesas(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const { ctx, error } = await permiso(true); if (error) return fail(error)
   const salonId = text(fd, 'salon_id'), cantidad = entero(text(fd, 'cantidad'), 1, 60), capacidad = entero(text(fd, 'capacidad'), 1, 40), desde = entero(text(fd, 'desde') || '1', 0, 9999)
+  const capacidadMin = entero(text(fd, 'capacidad_min') || '1', 1, 40), movil = fd.get('movil') === 'on'
   const forma = text(fd, 'forma') === 'redonda' ? 'redonda' : 'cuadrada'
   if (!UUID.test(salonId)) return fail('Elegí un salón')
   if (!cantidad || !capacidad || desde === null) return fail('Indicá cuántas mesas (1 a 60), su capacidad y desde qué número')
+  if (!capacidadMin || capacidadMin > capacidad) return fail('La capacidad mínima tiene que estar entre 1 y la máxima')
   const { salon, mesas } = await datosSalon(ctx, salonId)
   if (!salon) return fail('Salón no encontrado')
   const usados = new Set(mesas.map((m) => m.numero.trim().toLowerCase()))
@@ -146,7 +151,7 @@ export async function crearVariasMesas(_prev: ActionResult | null, fd: FormData)
     const hueco = buscarHueco(salon, ocupados, 2, 2)
     if (!hueco) return fail(`Solo entran ${filas.length} mesas más en este plano: ampliá el salón para el resto`)
     ocupados.push({ ...hueco, w: 2, h: 2 })
-    filas.push({ negocio_id: ctx.negocio.id, salon_id: salonId, tipo: 'mesa', numero: String(n), capacidad, x: hueco.x, y: hueco.y, w: 2, h: 2, forma })
+    filas.push({ negocio_id: ctx.negocio.id, salon_id: salonId, tipo: 'mesa', numero: String(n), capacidad, capacidad_min: capacidadMin, movil, x: hueco.x, y: hueco.y, w: 2, h: 2, forma })
   }
   const { error: e } = await ctx.supabase.from('mesas').insert(filas)
   if (e) return fail('No se pudieron crear las mesas')
@@ -167,7 +172,7 @@ export async function guardarDuracionMesas(_prev: ActionResult | null, fd: FormD
 // ---------------------------------------------------------------------------
 // Servicio del día
 // ---------------------------------------------------------------------------
-export type ResultadoAsignacion = ActionResult & { conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidadInsuficiente?: boolean; capacidad?: number; personas?: number | null }
+export type ResultadoAsignacion = ActionResult & { conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidadInsuficiente?: boolean; capacidadMinima?: boolean; capacidad?: number; capacidadMin?: number; personas?: number | null }
 
 /** Asigna (o reemplaza) las mesas de una reserva. Si alguna ya está tomada a esa hora devuelve los conflictos y no asigna, salvo `forzar`. */
 export async function asignarMesas(reservaId: string, mesaIds: string[], forzar = false): Promise<ResultadoAsignacion> {
@@ -175,13 +180,13 @@ export async function asignarMesas(reservaId: string, mesaIds: string[], forzar 
   if (!UUID.test(reservaId) || !mesaIds.every((m) => UUID.test(m)) || mesaIds.length > 8) return fail('Datos no válidos')
   const { data, error: e } = await ctx.supabase.rpc('asignar_mesas', { p_reserva: reservaId, p_mesas: mesaIds, p_forzar: forzar })
   if (e) return fail('No se pudo asignar la mesa')
-  const r = data as { ok: boolean; error?: string; conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidad_insuficiente?: boolean; capacidad?: number; personas?: number | null }
+  const r = data as { ok: boolean; error?: string; conflictos?: { mesa: string; reserva_numero: number; hora: string; cliente: string | null }[]; capacidad_insuficiente?: boolean; capacidad_minima_no_alcanzada?: boolean; capacidad?: number; capacidad_min?: number; personas?: number | null }
   if (!r.ok) {
     if (r.error === 'mesa_ocupada') return { ok: false, error: 'mesa_ocupada', conflictos: r.conflictos }
-    return fail(r.error === 'sin_permiso' ? 'No tenés permiso para asignar mesas' : r.error === 'mesa_invalida' ? 'Alguna mesa ya no existe o está fuera de servicio' : 'No se pudo asignar la mesa')
+    return fail(r.error === 'mesas_fijas_no_se_juntan' ? 'Las mesas fijas no se pueden juntar: solo se juntan las móviles' : r.error === 'sin_permiso' ? 'No tenés permiso para asignar mesas' : r.error === 'mesa_invalida' ? 'Alguna mesa ya no existe o está fuera de servicio' : 'No se pudo asignar la mesa')
   }
   refrescar()
-  return { ok: true, capacidadInsuficiente: r.capacidad_insuficiente, capacidad: r.capacidad, personas: r.personas }
+  return { ok: true, capacidadInsuficiente: r.capacidad_insuficiente, capacidadMinima: r.capacidad_minima_no_alcanzada, capacidad: r.capacidad, capacidadMin: r.capacidad_min, personas: r.personas }
 }
 
 /** Avanza la reserva en el salón: llegó → sentada → liberada (o la deja como estaba). */

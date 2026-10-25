@@ -18,18 +18,20 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
   const puedeEstructura = ctx.puedeAdministrar || ctx.rol === 'encargado'
   const modo = sp.modo === 'editar' && puedeEstructura ? 'editar' : 'servicio'
 
-  let qSalones = supabase.from('salones').select('id, nombre, orden, ancho, alto, sucursal_id').eq('negocio_id', negocio.id).order('orden').order('creado_en')
+  let qSalones = supabase.from('salones').select('id, nombre, orden, ancho, alto, sucursal_id, ubicacion').eq('negocio_id', negocio.id).order('orden').order('creado_en')
   if (sede) qSalones = qSalones.or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`)
   let qReservas = supabase.from('reservas').select('id, numero, cliente_nombre, cliente_telefono, hora, cantidad_personas, estado, ubicacion, observaciones, asistio_en, sentada_en, liberada_en, sucursal_id')
     .eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', fecha).not('estado', 'in', '(cancelada,no_show)').order('hora')
   if (sede) qReservas = qReservas.eq('sucursal_id', sede.id)
-  const [{ data: salones }, { data: mesas }, { data: reservas }, { data: asign }, { data: cfg }] = await Promise.all([
+  const [{ data: ubs }, { data: salones }, { data: mesas }, { data: reservas }, { data: asign }, { data: cfg }] = await Promise.all([
+    supabase.from('ubicaciones').select('nombre').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
     qSalones,
-    supabase.from('mesas').select('id, salon_id, tipo, numero, capacidad, x, y, w, h, forma, activa, ocupada_desde, ocupada_pax').eq('negocio_id', negocio.id).order('creado_en').limit(2000),
+    supabase.from('mesas').select('id, salon_id, tipo, numero, capacidad, capacidad_min, movil, x, y, w, h, forma, activa, ocupada_desde, ocupada_pax').eq('negocio_id', negocio.id).order('creado_en').limit(2000),
     qReservas,
     supabase.from('reserva_mesas').select('reserva_id, mesa_id').eq('negocio_id', negocio.id).limit(10000),
     supabase.from('mesas_config').select('duracion_min').eq('negocio_id', negocio.id).maybeSingle(),
   ])
+  const ubicaciones = (ubs ?? []).map((u) => u.nombre as string)
   const idsSalon = new Set((salones ?? []).map((s) => s.id))
   const porReserva = new Map<string, string[]>()
   for (const a of asign ?? []) porReserva.set(a.reserva_id, [...(porReserva.get(a.reserva_id) ?? []), a.mesa_id])
@@ -42,7 +44,7 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
         <p className="text-sm text-rs-muted">{modo === 'editar' ? 'Armá el plano del local' : 'Plano del salón: asigná mesas a las reservas y seguí el servicio en vivo'}</p>
       </div>
       <SalonUI salones={(salones ?? []) as Salon[]} mesas={((mesas ?? []) as Mesa[]).filter((m) => idsSalon.has(m.salon_id))} reservas={reservasSalon} duracion={cfg?.duracion_min ?? 120} fecha={fecha} hoy={hoy} modo={modo}
-        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} />
+        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} ubicaciones={ubicaciones} />
     </div>
   )
 }

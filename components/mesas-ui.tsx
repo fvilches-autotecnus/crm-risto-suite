@@ -15,12 +15,12 @@ import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { iniciarCarga } from '@/lib/carga'
 import {
-  ESTADOS_MESA, aMinutos, conflictoCon, deMinutos, estadoMesa, seSuperponen, sugerirMesas, type Mesa, type ReservaSalon, type Salon,
+  ESTADOS_MESA, aMinutos, conflictoCon, deMinutos, estadoMesa, rangoCapacidad, sePuedenJuntar, seSuperponen, sugerirMesas, type Mesa, type ReservaSalon, type Salon,
 } from '@/lib/mesas'
 
 interface Props {
   salones: Salon[]; mesas: Mesa[]; reservas: ReservaSalon[]; duracion: number; fecha: string; hoy: string; modo: 'servicio' | 'editar'
-  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number
+  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]
 }
 
 const Acciones = ({ pending, texto, onCancel }: { pending: boolean; texto: string; onCancel: () => void }) => (
@@ -100,13 +100,13 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
           const r = rs[0]
           const resaltado = resaltar?.[m.id]
           return (
-            <button key={m.id} type="button" style={base} aria-label={`Mesa ${m.numero}, ${m.capacidad} personas, ${est.label.toLowerCase()}`}
+            <button key={m.id} type="button" style={base} aria-label={`Mesa ${m.numero}, ${rangoCapacidad(m)} personas, ${m.movil ? 'móvil, ' : 'fija, '}${est.label.toLowerCase()}`}
               onPointerDown={(e) => { if (editar) { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); setArrastre({ id: m.id, x: m.x, y: m.y, ox: m.x, oy: m.y, px: e.clientX, py: e.clientY, mueve: false }) } }}
               onClick={() => { if (!editar) onClick(m) }}
-              className={'absolute flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition-colors ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (editar ? 'border-rs-control bg-rs-card text-rs-text cursor-grab touch-none ' : est.clases + ' ') +
+              className={'absolute flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition-colors ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (m.movil ? 'border-dashed ' : '') + (editar ? 'border-rs-control bg-rs-card text-rs-text cursor-grab touch-none ' : est.clases + ' ') +
                 (sel ? 'ring-2 ring-rs-lime ring-offset-1 ring-offset-black ' : '') + (resaltado === 'choque' ? '!border-rs-danger ' : resaltado === 'ok' ? '!border-rs-lime ' : '') + (choque ? '!border-rs-danger !bg-rs-danger/30 ' : '') + (enArrastre ? 'z-10 opacity-90 ' : '')}>
               <span className="font-bold">{m.numero}</span>
-              <span className="opacity-70" style={{ fontSize: '.7em' }}><Users className="mr-0.5 inline" size={9} />{m.capacidad}</span>
+              <span className="opacity-70" style={{ fontSize: '.7em' }}><Users className="mr-0.5 inline" size={9} />{rangoCapacidad(m)}</span>
               {!editar && r && m.w >= 3 && <span className="max-w-full truncate px-1 opacity-90" style={{ fontSize: '.62em' }}>{(r.cliente_nombre ?? '').split(' ')[0]} {r.hora?.slice(0, 5)}</span>}
               {!editar && !r && estado === 'ocupada' && m.ocupada_pax && <span className="opacity-90" style={{ fontSize: '.62em' }}>{m.ocupada_pax} pers.</span>}
             </button>
@@ -121,7 +121,7 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
 // ---------------------------------------------------------------------------
 // Pantalla
 // ---------------------------------------------------------------------------
-export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial }: Props) {
+export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones }: Props) {
   const router = useRouter()
   const toast = useToast()
   const confirmar = useConfirm()
@@ -178,11 +178,17 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
       if (!r.ok) { toast({ tipo: 'error', texto: r.error === 'mesa_ocupada' ? 'Las mesas están ocupadas' : r.error ?? 'Error' }); return }
       toast({ texto: ids.length ? `Reserva #${reserva.numero}: mesa ${ids.map((i) => nombreMesa.get(i)).join(' + ')}` : `Reserva #${reserva.numero}: sin mesa` })
       if (r.capacidadInsuficiente) toast({ tipo: 'info', texto: `Ojo: las mesas elegidas suman ${r.capacidad} lugares y la reserva es de ${r.personas} personas.` })
+      if (r.capacidadMinima) toast({ tipo: 'info', texto: `Ojo: la reserva es de ${r.personas} personas y las mesas elegidas piden como mínimo ${r.capacidadMin}.` })
       setAsignando(null)
     })
   }
   const clickMesa = (m: Mesa) => {
-    if (asignando) { if (m.tipo !== 'mesa' || !m.activa) return; setAsignando({ ...asignando, ids: asignando.ids.includes(m.id) ? asignando.ids.filter((i) => i !== m.id) : [...asignando.ids, m.id] }); return }
+    if (asignando) {
+      if (m.tipo !== 'mesa' || !m.activa) return
+      const ids = asignando.ids.includes(m.id) ? asignando.ids.filter((i) => i !== m.id) : [...asignando.ids, m.id]
+      if (!sePuedenJuntar(mesas.filter((x) => ids.includes(x.id)))) { toast({ tipo: 'info', texto: 'Las mesas fijas no se pueden juntar: solo se juntan las móviles (borde punteado).' }); return }
+      setAsignando({ ...asignando, ids }); return
+    }
     setSeleccion(m.id)
   }
 
@@ -201,7 +207,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
         <p className="font-semibold">Todavía no armaste el plano del salón</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-rs-muted">Creá tu primer salón (por ejemplo “Salón”, “Patio” o “Terraza”), cargá las mesas con su capacidad y acomodalas como están en el local.</p>
         {puedeEstructura && <button type="button" onClick={() => setDialogo('salon-nuevo')} className="btn btn-primary mt-4"><Plus size={14} />Crear el primer salón</button>}
-        {dialogo === 'salon-nuevo' && <Modal titulo="Nuevo salón" onClose={() => setDialogo(null)}><FormSalon onDone={() => setDialogo(null)} /></Modal>}
+        {dialogo === 'salon-nuevo' && <Modal titulo="Nuevo salón" onClose={() => setDialogo(null)}><FormSalon ubicaciones={ubicaciones} onDone={() => setDialogo(null)} /></Modal>}
       </div>
     )
   }
@@ -293,8 +299,8 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
         </aside>
       </div>
 
-      {dialogo === 'salon-nuevo' && <Modal titulo="Nuevo salón" onClose={() => setDialogo(null)}><FormSalon onDone={() => setDialogo(null)} /></Modal>}
-      {dialogo === 'salon' && salon && <Modal titulo="Editar salón" onClose={() => setDialogo(null)}><FormSalon salon={salon} onDone={() => setDialogo(null)} /></Modal>}
+      {dialogo === 'salon-nuevo' && <Modal titulo="Nuevo salón" onClose={() => setDialogo(null)}><FormSalon ubicaciones={ubicaciones} onDone={() => setDialogo(null)} /></Modal>}
+      {dialogo === 'salon' && salon && <Modal titulo="Editar salón" onClose={() => setDialogo(null)}><FormSalon salon={salon} ubicaciones={ubicaciones} onDone={() => setDialogo(null)} /></Modal>}
       {(dialogo === 'mesa' || dialogo === 'deco') && salon && <Modal titulo={dialogo === 'mesa' ? 'Nueva mesa' : 'Nuevo cartel'} onClose={() => setDialogo(null)}><FormNuevaMesa salonId={salon.id} deco={dialogo === 'deco'} sugerido={String(Math.max(0, ...mesasSalon.filter((m) => m.tipo === 'mesa').map((m) => Number(m.numero) || 0)) + 1)} onDone={() => setDialogo(null)} /></Modal>}
       {dialogo === 'varias' && salon && <Modal titulo="Agregar varias mesas" onClose={() => setDialogo(null)}><FormVarias salonId={salon.id} onDone={() => setDialogo(null)} /></Modal>}
       {dialogo === 'duracion' && <Modal titulo="Duración de una mesa" onClose={() => setDialogo(null)}><FormDuracion actual={duracion} onDone={() => setDialogo(null)} /></Modal>}
@@ -333,7 +339,7 @@ function PanelMesa({ mesa, reservas, t, duracion, esHoy, puedeEscribir, pend, pa
   return (
     <section className="card space-y-3 p-4">
       <div className="flex items-start justify-between gap-2">
-        <div><h2 className="text-lg font-bold">Mesa {mesa.numero}</h2><p className="text-sm text-rs-muted"><Users size={12} className="mr-1 inline" />{mesa.capacidad} personas</p></div>
+        <div><h2 className="text-lg font-bold">Mesa {mesa.numero}</h2><p className="text-sm text-rs-muted"><Users size={12} className="mr-1 inline" />{rangoCapacidad(mesa)} personas · {mesa.movil ? 'móvil (se puede juntar)' : 'fija'}</p></div>
         <span className="flex items-center gap-2"><span className={'badge ' + est.clases}>{est.label}</span><button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded p-1 text-rs-muted hover:bg-rs-raised"><X size={15} /></button></span>
       </div>
       {rs.map((r) => (
@@ -397,7 +403,8 @@ function PanelEdicion({ mesa, onBorrar, onCerrar }: { mesa: Mesa; onBorrar: () =
       <input type="hidden" name="id" value={mesa.id} /><input type="hidden" name="salon_id" value={mesa.salon_id} /><input type="hidden" name="tipo" value={mesa.tipo} /><input type="hidden" name="x" value={mesa.x} /><input type="hidden" name="y" value={mesa.y} />
       <div className="flex items-center justify-between"><h2 className="font-bold">{deco ? 'Cartel' : `Mesa ${mesa.numero}`}</h2><button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded p-1 text-rs-muted hover:bg-rs-raised"><X size={15} /></button></div>
       <div><label className="label" htmlFor="e_num">{deco ? 'Texto del cartel' : 'Número o nombre'}</label><input id="e_num" name="numero" defaultValue={mesa.numero} maxLength={24} className="input w-full" required /></div>
-      {!deco && <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="e_cap">Capacidad</label><input id="e_cap" name="capacidad" type="number" min={1} max={40} defaultValue={mesa.capacidad ?? 2} className="input w-full" required /></div>
+      {!deco && <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="e_capmin">Capacidad mínima</label><input id="e_capmin" name="capacidad_min" type="number" min={1} max={40} defaultValue={mesa.capacidad_min} className="input w-full" required /></div><div><label className="label" htmlFor="e_cap">Capacidad máxima</label><input id="e_cap" name="capacidad" type="number" min={1} max={40} defaultValue={mesa.capacidad ?? 2} className="input w-full" required /></div></div>}
+      {!deco && <div className="grid grid-cols-2 gap-3"><label className="col-span-2 flex items-start gap-2 text-sm"><input type="checkbox" name="movil" defaultChecked={mesa.movil} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Móvil (se puede juntar)</span><span className="block text-xs text-rs-muted">Las mesas móviles se pueden juntar con otras móviles para grupos grandes. Las fijas siempre van solas.</span></span></label>
         <div><label className="label" htmlFor="e_forma">Forma</label><select id="e_forma" name="forma" defaultValue={mesa.forma} className="input w-full"><option value="cuadrada">Cuadrada</option><option value="redonda">Redonda</option></select></div></div>}
       <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="e_w">Ancho</label><input id="e_w" name="w" type="number" min={1} max={40} defaultValue={mesa.w} className="input w-full" /></div><div><label className="label" htmlFor="e_h">Alto</label><input id="e_h" name="h" type="number" min={1} max={40} defaultValue={mesa.h} className="input w-full" /></div></div>
       {!deco && <label className="flex items-center gap-2 text-sm"><input type="hidden" name="__activa_form" value="1" /><input type="checkbox" name="activa" defaultChecked={mesa.activa} className="h-4 w-4 accent-[#c8e62b]" />En servicio</label>}
@@ -410,13 +417,14 @@ function PanelEdicion({ mesa, onBorrar, onCerrar }: { mesa: Mesa; onBorrar: () =
 // ---------------------------------------------------------------------------
 // Formularios
 // ---------------------------------------------------------------------------
-function FormSalon({ salon, onDone }: { salon?: Salon; onDone: () => void }) {
+function FormSalon({ salon, ubicaciones, onDone }: { salon?: Salon; ubicaciones: string[]; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarSalon)
   useCerrarAlGuardar(state, salon ? 'Salón guardado' : 'Salón creado', onDone)
   return (
     <form {...formProps} className="space-y-3">
       {salon && <input type="hidden" name="id" value={salon.id} />}
       <div><label className="label" htmlFor="s_nombre">Nombre *</label><input id="s_nombre" name="nombre" defaultValue={salon?.nombre ?? ''} maxLength={40} placeholder="Ej. Salón, Patio, Terraza" className="input w-full" required /></div>
+      {ubicaciones.length > 0 && <div><label className="label" htmlFor="s_ubic">Ubicación del CRM</label><select id="s_ubic" name="ubicacion" defaultValue={salon?.ubicacion ?? ''} className="input w-full"><option value="">Todas</option>{ubicaciones.map((u) => <option key={u} value={u}>{u}</option>)}</select><p className="mt-1 text-xs text-rs-muted">Si este plano es de una ubicación (por ejemplo SALÓN o PLANTA ALTA), el sitio de reservas lo muestra solo a quien elige esa ubicación.</p></div>}
       <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="s_ancho">Ancho del plano</label><input id="s_ancho" name="ancho" type="number" min={8} max={80} defaultValue={salon?.ancho ?? 24} className="input w-full" /></div><div><label className="label" htmlFor="s_alto">Alto del plano</label><input id="s_alto" name="alto" type="number" min={6} max={60} defaultValue={salon?.alto ?? 16} className="input w-full" /></div></div>
       <p className="text-xs text-rs-muted">El plano es una grilla de casilleros: una mesa chica ocupa 2×2. Un plano de 24×16 alcanza para un salón mediano; podés agrandarlo después.</p>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
@@ -431,7 +439,9 @@ function FormNuevaMesa({ salonId, deco, sugerido, onDone }: { salonId: string; d
     <form {...formProps} className="space-y-3">
       <input type="hidden" name="salon_id" value={salonId} /><input type="hidden" name="tipo" value={deco ? 'deco' : 'mesa'} />
       <div><label className="label" htmlFor="n_num">{deco ? 'Texto del cartel *' : 'Número o nombre *'}</label><input id="n_num" name="numero" defaultValue={deco ? '' : sugerido} maxLength={24} placeholder={deco ? 'Ej. Barra, Entrada, Baños' : ''} className="input w-full" required autoFocus /></div>
-      {!deco && <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="n_cap">Capacidad *</label><input id="n_cap" name="capacidad" type="number" min={1} max={40} defaultValue={4} className="input w-full" required /></div><div><label className="label" htmlFor="n_forma">Forma</label><select id="n_forma" name="forma" className="input w-full"><option value="cuadrada">Cuadrada</option><option value="redonda">Redonda</option></select></div></div>}
+      {!deco && <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="n_capmin">Capacidad mínima</label><input id="n_capmin" name="capacidad_min" type="number" min={1} max={40} defaultValue={1} className="input w-full" /></div><div><label className="label" htmlFor="n_cap">Capacidad máxima *</label><input id="n_cap" name="capacidad" type="number" min={1} max={40} defaultValue={4} className="input w-full" required /></div></div>}
+      {!deco && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="movil" className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Móvil (se puede juntar)</span><span className="block text-xs text-rs-muted">Si no la marcás, la mesa es fija y siempre va sola.</span></span></label>}
+      {!deco && <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="n_forma">Forma</label><select id="n_forma" name="forma" className="input w-full"><option value="cuadrada">Cuadrada</option><option value="redonda">Redonda</option></select></div></div>}
       <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="n_w">Ancho</label><input id="n_w" name="w" type="number" min={1} max={40} defaultValue={deco ? 4 : 2} className="input w-full" /></div><div><label className="label" htmlFor="n_h">Alto</label><input id="n_h" name="h" type="number" min={1} max={40} defaultValue={2} className="input w-full" /></div></div>
       <p className="text-xs text-rs-muted">Se coloca en el primer lugar libre del plano; después la arrastrás adonde va.</p>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
@@ -445,7 +455,8 @@ function FormVarias({ salonId, onDone }: { salonId: string; onDone: () => void }
   return (
     <form {...formProps} className="space-y-3">
       <input type="hidden" name="salon_id" value={salonId} />
-      <div className="grid grid-cols-3 gap-3"><div><label className="label" htmlFor="v_cant">Cuántas *</label><input id="v_cant" name="cantidad" type="number" min={1} max={60} defaultValue={10} className="input w-full" required /></div><div><label className="label" htmlFor="v_cap">Capacidad *</label><input id="v_cap" name="capacidad" type="number" min={1} max={40} defaultValue={4} className="input w-full" required /></div><div><label className="label" htmlFor="v_desde">Desde el N.º</label><input id="v_desde" name="desde" type="number" min={0} defaultValue={1} className="input w-full" /></div></div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><label className="label" htmlFor="v_cant">Cuántas *</label><input id="v_cant" name="cantidad" type="number" min={1} max={60} defaultValue={10} className="input w-full" required /></div><div><label className="label" htmlFor="v_capmin">Cap. mínima</label><input id="v_capmin" name="capacidad_min" type="number" min={1} max={40} defaultValue={1} className="input w-full" /></div><div><label className="label" htmlFor="v_cap">Cap. máxima *</label><input id="v_cap" name="capacidad" type="number" min={1} max={40} defaultValue={4} className="input w-full" required /></div><div><label className="label" htmlFor="v_desde">Desde el N.º</label><input id="v_desde" name="desde" type="number" min={0} defaultValue={1} className="input w-full" /></div></div>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="movil" className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Móviles (se pueden juntar)</span><span className="block text-xs text-rs-muted">Sin marcar, las mesas son fijas y siempre van solas.</span></span></label>
       <div><label className="label" htmlFor="v_forma">Forma</label><select id="v_forma" name="forma" className="input w-full"><option value="cuadrada">Cuadrada</option><option value="redonda">Redonda</option></select></div>
       <p className="text-xs text-rs-muted">Las mesas se acomodan solas en los lugares libres del plano (los números que ya existen se saltean). Después las movés como quieras.</p>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}

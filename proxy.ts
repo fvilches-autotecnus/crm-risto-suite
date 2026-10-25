@@ -22,6 +22,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   if (pathname === '/salir') return response   // cerrar sesión funciona aunque la sesión ya haya vencido
   if (pathname.startsWith('/carta/')) return response   // carta pública (la ven los clientes sin iniciar sesión)
+  if (pathname.startsWith('/reservar/')) return response   // sitio público de reservas
 
   if (!usuario && pathname !== '/login') {
     // Una acción (botón, formulario) enviada con la sesión vencida: una redirección común la dejaba "sin respuesta" en pantalla.

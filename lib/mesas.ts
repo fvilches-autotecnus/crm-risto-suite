@@ -1,8 +1,8 @@
 /** Salón y mesas: tipos y cálculos del plano (estado de cada mesa en un momento, sugerencia de mesas, superposición). Sin dependencias de servidor. */
 
-export interface Salon { id: string; nombre: string; orden: number; ancho: number; alto: number; sucursal_id: string | null }
+export interface Salon { id: string; nombre: string; orden: number; ancho: number; alto: number; sucursal_id: string | null; ubicacion: string | null }
 export interface Mesa {
-  id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; capacidad: number | null
+  id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; capacidad: number | null; capacidad_min: number; movil: boolean
   x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; activa: boolean; ocupada_desde: string | null; ocupada_pax: number | null
 }
 export interface ReservaSalon {
@@ -28,6 +28,11 @@ export const seSuperponen = (a: { x: number; y: number; w: number; h: number }, 
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
 const ACTIVAS = ['nueva', 'confirmada', 'pendiente_pago', 'revisar_pago']
+
+/** "2–4" (o solo "4" cuando no hay mínimo). */
+export const rangoCapacidad = (m: Pick<Mesa, 'capacidad' | 'capacidad_min'>) => ((m.capacidad_min ?? 1) > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
+/** Un conjunto de mesas se puede juntar solo si son todas móviles (una mesa sola siempre se puede). */
+export const sePuedenJuntar = (ms: Pick<Mesa, 'movil'>[]) => ms.length <= 1 || ms.every((m) => m.movil)
 
 /** Reservas que, en el minuto `t`, tienen tomada esa mesa (ventana desde 30 min antes de la hora hasta que termina la duración típica). */
 export function reservasDeMesa(mesaId: string, reservas: ReservaSalon[], t: number, duracion: number, esHoy: boolean): ReservaSalon[] {
@@ -61,18 +66,20 @@ const centro = (m: Mesa) => ({ cx: m.x + m.w / 2, cy: m.y + m.h / 2 })
 export function sugerirMesas(reserva: ReservaSalon, mesas: Mesa[], todas: ReservaSalon[], duracion: number): string[] {
   const pax = reserva.cantidad_personas ?? 2
   const libres = mesas.filter((m) => m.tipo === 'mesa' && m.activa && m.capacidad && !conflictoCon(m.id, reserva, todas, duracion))
-  const unica = libres.filter((m) => m.capacidad! >= pax).sort((a, b) => a.capacidad! - pax - (b.capacidad! - pax) || a.numero.localeCompare(b.numero, 'es', { numeric: true }))[0]
+  // una sola mesa: el grupo tiene que estar entre su capacidad mínima y máxima
+  const unica = libres.filter((m) => m.capacidad! >= pax && pax >= (m.capacidad_min ?? 1)).sort((a, b) => a.capacidad! - pax - (b.capacidad! - pax) || a.numero.localeCompare(b.numero, 'es', { numeric: true }))[0]
   if (unica) return [unica.id]
   let mejor: { ids: string[]; costo: number } | null = null
   const dist = (a: Mesa, b: Mesa) => Math.hypot(centro(a).cx - centro(b).cx, centro(a).cy - centro(b).cy)
-  for (let i = 0; i < libres.length; i++) for (let j = i + 1; j < libres.length; j++) {
-    if (libres[i].salon_id !== libres[j].salon_id) continue
-    const cap2 = libres[i].capacidad! + libres[j].capacidad!
-    if (cap2 >= pax) { const costo = (cap2 - pax) * 2 + dist(libres[i], libres[j]); if (!mejor || costo < mejor.costo) mejor = { ids: [libres[i].id, libres[j].id], costo } }
-    else for (let k = j + 1; k < libres.length; k++) {
-      if (libres[k].salon_id !== libres[i].salon_id) continue
-      const cap3 = cap2 + libres[k].capacidad!
-      if (cap3 >= pax) { const costo = (cap3 - pax) * 2 + dist(libres[i], libres[j]) + dist(libres[j], libres[k]) + 4; if (!mejor || costo < mejor.costo) mejor = { ids: [libres[i].id, libres[j].id, libres[k].id], costo } }
+  const juntables = libres.filter((m) => m.movil)   // solo las móviles se pueden juntar
+  for (let i = 0; i < juntables.length; i++) for (let j = i + 1; j < juntables.length; j++) {
+    if (juntables[i].salon_id !== juntables[j].salon_id) continue
+    const cap2 = juntables[i].capacidad! + juntables[j].capacidad!, min2 = juntables[i].capacidad_min + juntables[j].capacidad_min
+    if (cap2 >= pax && pax >= min2) { const costo = (cap2 - pax) * 2 + dist(juntables[i], juntables[j]); if (!mejor || costo < mejor.costo) mejor = { ids: [juntables[i].id, juntables[j].id], costo } }
+    else for (let k = j + 1; k < juntables.length; k++) {
+      if (juntables[k].salon_id !== juntables[i].salon_id) continue
+      const cap3 = cap2 + juntables[k].capacidad!, min3 = min2 + juntables[k].capacidad_min
+      if (cap3 >= pax && pax >= min3) { const costo = (cap3 - pax) * 2 + dist(juntables[i], juntables[j]) + dist(juntables[j], juntables[k]) + 4; if (!mejor || costo < mejor.costo) mejor = { ids: [juntables[i].id, juntables[j].id, juntables[k].id], costo } }
     }
   }
   return mejor?.ids ?? []
