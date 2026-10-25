@@ -5,6 +5,7 @@ import { getContexto } from '@/lib/context'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
 
@@ -30,5 +31,16 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   if (error) return fail('No se pudo guardar la configuración')
   revalidatePath(`/reservar/${ctx.negocio.slug}`)
   revalidatePath('/configuracion')
+  return { ok: true }
+}
+
+/** El cliente de una reserva del sitio ya escribió por WhatsApp (el botón "Ya escribió"). El bot lo hace solo con bot_reserva_web_recibida. */
+export async function marcarWhatsappRecibido(reservaId: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  if (!UUID.test(reservaId)) return fail('Reserva no válida')
+  const { data, error } = await ctx.supabase.from('reservas').update({ espera_whatsapp: false }).eq('id', reservaId).eq('negocio_id', ctx.negocio.id).select('id').maybeSingle()
+  if (error || !data) return fail('No se pudo marcar la reserva')
+  revalidatePath('/reservas')
   return { ok: true }
 }

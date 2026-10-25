@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
+import { CalendarPlus, Check, MapPin, MessageCircle, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
+import { marcarWhatsappRecibido } from '@/app/(panel)/reservas-web-actions'
 import { marcarLlego } from '@/app/(panel)/fidelidad-actions'
 import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
@@ -255,6 +256,15 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
     </div>
   )
 
+  const yaEscribio = (r: Reserva) => correr(r.id, () => marcarWhatsappRecibido(r.id), () => toast({ texto: `Reserva #${r.numero}: el cliente ya escribió` }))
+  // Reserva hecha en el sitio web que todavía no llegó por WhatsApp: no es una reserva tomada hasta que el cliente escriba.
+  const esperaWA = (r: Reserva) => r.espera_whatsapp ? (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      <span title="La hizo desde el sitio web y todavía no escribió el mensaje por WhatsApp" className="inline-flex items-center gap-1 rounded-full bg-rs-warn/15 px-2 py-0.5 text-[11px] font-semibold text-rs-warn"><MessageCircle size={11} />Falta su WhatsApp</span>
+      {puedeEscribir && <button disabled={pending} onClick={() => yaEscribio(r)} className="text-[11px] font-semibold text-rs-lime underline-offset-2 hover:underline">Ya escribió</button>}
+    </div>
+  ) : null
+
   const nota = (r: Reserva) => (r.estado === 'cancelada' && r.motivo_cancelacion ? `Motivo: ${r.motivo_cancelacion}` : r.observaciones)
 
   if (reservas.length === 0) {
@@ -292,7 +302,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
-                <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</td>
+                <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}{esperaWA(r)}</td>
                 <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
@@ -311,7 +321,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
                 <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>
-              <div className="text-right"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</div>
+              <div className="text-right"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}{esperaWA(r)}</div>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-rs-muted">
               <span className="inline-flex items-center gap-1.5"><Users size={13} />{r.cantidad_personas ?? '—'} personas</span>

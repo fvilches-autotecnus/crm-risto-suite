@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Armchair, BarChart3, BookOpen, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
+import { Armchair, BarChart3, BookOpen, BookOpenText, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -24,6 +24,7 @@ const TABS = [
   { href: '/pausados', label: 'Chats pausados', icon: PauseCircle, modulo: 'pausados' },
   { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare, modulo: 'conversaciones' },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
+  { href: '/ayuda', label: 'Ayuda', icon: BookOpenText },
 ]
 
 export default function Nav({ esSuperadmin = false, pausados = 0, modulos = {} }: { esSuperadmin?: boolean; pausados?: number; modulos?: Record<string, boolean> }) {

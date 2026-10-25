@@ -1,0 +1,370 @@
+import type { ModuloClave } from '@/lib/modulos'
+
+/**
+ * Manual de usuario del CRM (pantalla /ayuda). Está escrito como datos para poder mostrar solo lo que le sirve a cada usuario:
+ * las secciones de un módulo se marcan "no activo en este negocio" si está apagado, y las de administración solo las ven quienes
+ * administran. Texto en negrita con **doble asterisco**.
+ */
+
+export type Bloque =
+  | { t: 'p'; x: string }
+  | { t: 'pasos'; x: string[] }
+  | { t: 'lista'; x: string[] }
+  | { t: 'tip'; x: string }
+  | { t: 'ojo'; x: string }
+  | { t: 'tabla'; cab: string[]; filas: string[][] }
+
+export interface SeccionManual {
+  id: string
+  grupo: string
+  titulo: string
+  resumen: string
+  modulo?: ModuloClave
+  /** admin = dueño, administrador o superadmin; superadmin = solo superadmin */
+  solo?: 'admin' | 'superadmin'
+  bloques: Bloque[]
+}
+
+export const GRUPOS_MANUAL = ['Primeros pasos', 'Operación diaria', 'Clientes y marketing', 'Análisis', 'Administración', 'Ayuda'] as const
+
+export const MANUAL: SeccionManual[] = [
+  // ───────────────────────── Primeros pasos
+  {
+    id: 'ingresar', grupo: 'Primeros pasos', titulo: 'Ingresar, salir y moverse', resumen: 'Cómo entrar, elegir negocio o sede y entender el menú.',
+    bloques: [
+      { t: 'p', x: 'Se entra desde **crm.ristosuite.app** con tu **usuario** (no es un email) y tu contraseña. Si no tenés usuario, pedíselo al dueño o administrador del negocio.' },
+      { t: 'p', x: 'Arriba a la izquierda ves el nombre del negocio. Si tu usuario trabaja en **más de un negocio** o el negocio tiene **sedes**, aparecen selectores para cambiar de uno a otro: todo lo que ves (reservas, clientes, vouchers…) es del negocio y la sede elegidos.' },
+      { t: 'p', x: 'La barra de pestañas muestra **solo los módulos que tu negocio tiene encendidos**. Si falta algo que esperabas ver, no es un error: ese módulo está apagado y lo enciende el superadmin (ver “Módulos”).' },
+      { t: 'p', x: 'Para salir, usá el botón **Salir** (arriba a la derecha). Si dejaste la pantalla abierta mucho tiempo, igual cierra la sesión.' },
+      { t: 'tip', x: 'En el celular la barra de pestañas se desliza hacia los costados, y las tablas se convierten en tarjetas.' },
+      { t: 'tip', x: 'Las pantallas se actualizan solas (reservas nuevas, pedidos, vouchers). Cuando entra una reserva o un pedido nuevo suena un aviso y aparece una notificación. Si algo no cambia, recargá la página.' },
+    ],
+  },
+  {
+    id: 'roles', grupo: 'Primeros pasos', titulo: 'Roles: qué puede hacer cada usuario', resumen: 'Dueño, administrador, encargado, staff y solo lectura.',
+    bloques: [
+      { t: 'tabla', cab: ['Rol', 'Qué puede hacer'], filas: [
+        ['Dueño', 'Todo en su negocio, incluida la gestión de usuarios y de otros dueños.'],
+        ['Administrador', 'Configura el negocio y gestiona encargados, staff y usuarios de solo lectura.'],
+        ['Encargado', 'Opera las reservas y puede apagar o encender el bot. También arma el plano del salón.'],
+        ['Staff', 'Carga y edita reservas, pedidos y el trabajo del día a día.'],
+        ['Solo lectura', 'Mira todo, no cambia nada (los botones de acción no aparecen).'],
+        ['Superadmin', 'Es el rol de Risto Suite: ve todos los negocios, crea negocios y usuarios, y enciende o apaga los módulos de cada uno.'],
+      ] },
+      { t: 'p', x: 'Un usuario puede tener un rol distinto en cada negocio, y puede estar limitado a algunas sedes.' },
+    ],
+  },
+
+  // ───────────────────────── Operación diaria
+  {
+    id: 'dashboard', grupo: 'Operación diaria', titulo: 'Dashboard (pantalla de inicio)', resumen: 'El resumen del día: reservas, aforo y alertas.',
+    bloques: [
+      { t: 'p', x: 'Muestra cómo viene el día: **Reservas hoy**, **Personas hoy**, **Pendientes** (las que todavía hay que revisar) y **Reservas semana**; el **aforo del día** (cuánto del cupo del local está tomado) y la lista de **reservas del día**. Con las flechas pasás al día anterior o al siguiente.' },
+      { t: 'p', x: 'Las **alertas activas** te avisan, por ejemplo, cuando el aforo llega al 90 %. El aforo se configura en Configuración → Aforo.' },
+      { t: 'p', x: 'Si tu negocio no tiene el módulo Reservas, en su lugar el inicio te muestra los módulos que tiene encendidos y los que se pueden sumar.' },
+    ],
+  },
+  {
+    id: 'reservas', grupo: 'Operación diaria', titulo: 'Reservas', modulo: 'reservas', resumen: 'Cargar, confirmar, cancelar y seguir las reservas.',
+    bloques: [
+      { t: 'p', x: 'Las reservas llegan de tres lugares: las **carga una persona del local** (botón **Nueva reserva**), las **toma el bot de WhatsApp** y las **hacen los clientes desde el sitio de reservas** (ver “Sitio de reservas”). Todas aparecen en la misma lista.' },
+      { t: 'tabla', cab: ['Estado', 'Qué significa'], filas: [
+        ['Nueva', 'Entró y nadie la revisó todavía. **No bloquea mesa** en el sitio de reservas.'],
+        ['Confirmada', 'El local la aceptó. Cuenta para el aforo y **bloquea la mesa**.'],
+        ['Pendiente de pago', 'Se pidió una seña y falta que el cliente la pague. Cuenta para el aforo y **bloquea la mesa**. Al elegir este estado cargás el monto a pagar.'],
+        ['Revisar pago', 'El cliente mandó un comprobante y hay que verificarlo. **Bloquea la mesa**.'],
+        ['Cancelada', 'Se canceló (queda el motivo). Libera la mesa y el aforo.'],
+        ['No-show', 'Confirmó pero no vino.'],
+      ] },
+      { t: 'p', x: '**Buscar y filtrar.** Arriba elegís el período (Hoy, Mañana, 7 días, Futuras o un rango de fechas), el estado (los botones muestran cuántas hay de cada uno), el tipo y la ubicación. También podés buscar por nombre o teléfono y ordenar por fecha de alta o fecha de reserva.' },
+      { t: 'p', x: '**Nueva reserva.** Botón arriba a la derecha: nombre, teléfono, fecha, hora, personas, tipo, ubicación y observaciones. Si el negocio tiene aforo, te avisa cuando la reserva superaría el cupo (podés guardarla igual).' },
+      { t: 'pasos', x: [
+        'En cada reserva, la **tilde** la confirma y la **cruz** la cancela. El menú de estados permite elegir cualquier otro (pendiente de pago, revisar pago, no-show…).',
+        'Según el estado puede abrirse una ventanita: para **pendiente de pago** pide el monto, para **cancelada** el motivo.',
+        'Si el negocio tiene los avisos por WhatsApp activados para ese estado, la ventanita pregunta **“¿Avisamos al cliente?”**. Si decís que sí, el cliente recibe el mensaje automáticamente.',
+        'Todo cambio de estado y toda eliminación tienen **Deshacer** durante unos segundos (en el aviso que aparece abajo).',
+      ] },
+      { t: 'p', x: '**Chips en la lista.** “Mesa 4” te lleva al plano del salón (si usás Salón y mesas). **“Falta su WhatsApp”** marca una reserva hecha en el sitio web cuyo cliente todavía no mandó el mensaje (ver “Sitio de reservas”). El botón **“Llegó”** aparece en reservas confirmadas si usás Fidelización por asistencia.' },
+      { t: 'ojo', x: 'Eliminar una reserva la saca de la lista pero se puede deshacer enseguida. Para que quede registro de que no se concretó, es mejor **cancelarla** (con motivo).' },
+    ],
+  },
+  {
+    id: 'mesas', grupo: 'Operación diaria', titulo: 'Salón y mesas', modulo: 'mesas', resumen: 'El plano: asignar mesas, ver qué está libre y manejar el servicio.',
+    bloques: [
+      { t: 'p', x: 'Muestra el plano de tu salón. Tiene dos modos: **servicio** (el día a día) y **editar** (armar el plano).' },
+      { t: 'p', x: '**Modo servicio.** Elegís la fecha y el momento (**Ahora**, una hora o Almuerzo / Cena). Cada mesa se pinta según su estado: libre, reservada, **llegó** (amarillo), ocupada o fuera de servicio. Tocás una mesa y se abre su panel. Abajo ves la **lista de reservas del día**:' },
+      { t: 'lista', x: [
+        '**Asignar / Cambiar:** elegís la mesa (o varias, si son móviles y se juntan). Si otra reserva ya tiene esa mesa a esa hora, te avisa y podés forzarlo.',
+        '**Sugerir:** el sistema propone la mesa más justa para la cantidad de personas, o dos o tres móviles juntas.',
+        '**Llegó → Sentar → Liberar:** marcan que el cliente llegó, que se sentó (la mesa pasa a Ocupada) y que se fue (la mesa vuelve a Libre).',
+        '**Ocupar sin reserva:** para gente que llega sin reservar; anotás cuántos son.',
+      ] },
+      { t: 'p', x: '**Mesas fijas y móviles.** Cada mesa tiene **capacidad mínima y máxima** (por ejemplo, de 2 a 4). Una mesa **fija** no se puede juntar con otras. Las **móviles** (borde punteado) se pueden juntar entre sí: la capacidad del grupo es la suma de los mínimos hasta la suma de los máximos. No se pueden juntar una fija con una móvil, ni dos fijas.' },
+      { t: 'p', x: '**Modo editar** (botón **Editar plano**, para dueño, administrador y encargado). Podés crear **salones** (ancho y alto), agregar mesas, **varias mesas** de una vez, y **carteles** (BARRA, ESCENARIO, ENTRADA…). Las mesas se arrastran con el mouse y no se pisan entre sí. En cada mesa editás número, capacidad mínima y máxima, forma y si es **Móvil**. En cada salón elegís su **Ubicación del CRM** (SALÓN, PLANTA ALTA…): así el sitio de reservas sabe qué plano mostrar cuando el cliente elige esa ubicación.' },
+      { t: 'p', x: '**Duración de la mesa:** cuánto tiempo se considera ocupada una mesa reservada (por defecto 120 minutos). Dos reservas chocan si caen a menos de esa duración una de otra.' },
+      { t: 'tip', x: '**Hoja de QR de las mesas** (/qr-mesas): imprime un QR por mesa que lleva a la carta con la mesa ya cargada, para pedir desde la mesa (necesita Carta y Pedidos).' },
+    ],
+  },
+  {
+    id: 'sitio-reservas', grupo: 'Operación diaria', titulo: 'Sitio de reservas (versión de prueba)', modulo: 'reservas', resumen: 'La página pública donde el cliente elige día, mesa y termina por WhatsApp.',
+    bloques: [
+      { t: 'p', x: 'Es una página pública, sin login: **crm.ristosuite.app/reservar/club-fellini-bar** (cambia el final según el negocio). El enlace se puede compartir por Instagram, WhatsApp o un QR. Está marcada como **“Sitio de prueba”**.' },
+      { t: 'p', x: '**Cómo lo vive el cliente:**' },
+      { t: 'pasos', x: [
+        'Elige **día, cantidad de personas, ubicación, tipo de reserva y horario**. Todo sale de lo que tenés configurado en el CRM: las ubicaciones, los tipos, los horarios, el aforo y las fechas bloqueadas. Un horario completo o cerrado aparece como “Completo” o “Cerrado”.',
+        'Elige su mesa **tocando el plano**, o toca **“Que un asesor la elija”**. Las mesas que no sirven para su grupo se ven “No apta”; las que ya tienen una reserva **confirmada, pendiente de pago o en revisión de pago** se ven “Reservada” y no se pueden tocar.',
+        'Deja nombre, teléfono y comentarios, y toca **Reservar y enviar por WhatsApp**.',
+        'La reserva se guarda y se abre **WhatsApp con un mensaje ya escrito** (“SOLICITUD DE RESERVA…”, con todos los datos). El cliente tiene que **enviarlo**: ese es el paso que la deja en curso.',
+      ] },
+      { t: 'p', x: '**Cómo lo manejás vos:**' },
+      { t: 'pasos', x: [
+        'En **Reservas** la reserva aparece como **Nueva**, con la marca “[Sitio de prueba]” en observaciones y las mesas ya asignadas si las eligió el cliente.',
+        'Mientras el cliente no mande el mensaje, se ve el chip **“Falta su WhatsApp”**. Es la forma de distinguir una reserva real de una que alguien armó y abandonó. Cuando escribe, el bot la marca solo; si no, tocá **“Ya escribió”**.',
+        'Hablás con el cliente y la **confirmás** (o pasás a **Pendiente de pago** si pedís seña). Recién ahí la mesa queda **bloqueada** para los demás en el sitio.',
+        'Si el cliente no escribe nunca, cancelala (con motivo) o eliminala: mientras sea “Nueva” no ocupa mesa ni aforo.',
+      ] },
+      { t: 'ojo', x: 'Una reserva **“Nueva” no bloquea** la mesa: dos clientes pueden pedir la misma mientras ninguna esté confirmada. Si pasa, al asignar la segunda el sistema te avisa del choque y vos resolvés con el cliente.' },
+      { t: 'p', x: '**Configuración del sitio** (dueño, administrador): en **Configuración → Sitio de reservas (prueba)**.' },
+      { t: 'lista', x: [
+        '**Activo:** apagado, el enlace muestra “no encontrado”.',
+        '**El cliente puede elegir su mesa:** si lo apagás, siempre decide un asesor.',
+        '**Tipos de reserva que se ofrecen:** tildás cuáles (Común, Cumpleaños, Cena show…).',
+        '**Horarios:** una lista separada por coma (13:00, 21:00). Vacío = usa los horarios que más se usan en tus reservas.',
+        '**Días hacia adelante, anticipación mínima y rango de personas.** Y un **mensaje** que ve el cliente (por ejemplo: “Tolerancia de 15 minutos”).',
+      ] },
+      { t: 'tip', x: 'Para probarlo: abrí el enlace desde tu celular, hacé una reserva a tu nombre, enviá el mensaje de WhatsApp y mirá cómo aparece en Reservas. Después cancelala.' },
+    ],
+  },
+  {
+    id: 'shows', grupo: 'Operación diaria', titulo: 'Shows', modulo: 'shows', resumen: 'Cartelera y cupos de shows (en preparación).',
+    bloques: [
+      { t: 'p', x: 'La carpeta del módulo existe y se enciende desde Administración, pero **todavía no tiene pantallas completas**. Está pensado para la cartelera de shows y eventos, con entradas y cupos. Mientras tanto, las cenas show se manejan como un **tipo de reserva** (“Cena show”).' },
+    ],
+  },
+  {
+    id: 'carta', grupo: 'Operación diaria', titulo: 'Carta digital', modulo: 'carta', resumen: 'El menú online: categorías, productos, fotos y precios.',
+    bloques: [
+      { t: 'p', x: 'Armás la carta de tu negocio y los clientes la ven en una página pública: **crm.ristosuite.app/carta/<tu-negocio>**, sin necesidad de login. Funciona sola (solo para mirar) o junto con Pedidos.' },
+      { t: 'pasos', x: [
+        'Creá las **categorías** (Entradas, Platos, Postres…). Podés ordenarlas y ocultarlas.',
+        'Agregá **productos**: nombre, descripción, precio (o **variantes** con su precio, por ejemplo Chico / Grande), **foto** y **etiquetas** (recomendado, vegano, sin TACC, picante…). Las fotos se achican solas.',
+        'Usá el interruptor **Disponible / Agotado** para marcar lo que se terminó sin borrarlo. También podés **destacar** u **ocultar** un producto.',
+        '**Importar texto:** pegás una lista con el formato “Categoría | Producto | Precio | Descripción” y se cargan todos juntos.',
+        'En **Ajustes** elegís si se muestran precios, el título y un mensaje. Desde ahí sacás también el **QR** de la carta para imprimir.',
+      ] },
+      { t: 'tip', x: 'El enlace de la carta se puede cargar en la variable del bot de BotConversa que usa el menú, para que el bot mande siempre la carta actualizada.' },
+    ],
+  },
+  {
+    id: 'pedidos', grupo: 'Operación diaria', titulo: 'Pedidos', modulo: 'pedidos', resumen: 'Pedidos de retiro, delivery y mesa que llegan desde la carta.',
+    bloques: [
+      { t: 'p', x: 'Los clientes arman su pedido desde la carta pública (agregan productos, eligen retiro, delivery o mesa, forma de pago y dejan sus datos). **Los precios siempre los recalcula el servidor desde la carta**: el cliente no puede cambiarlos.' },
+      { t: 'pasos', x: [
+        'Activá **“Recibiendo pedidos”** (interruptor en la pantalla de Pedidos). Apagado, la carta sigue visible pero no se puede pedir.',
+        'Cada pedido nuevo suena, avisa y aparece como tarjeta con sus ítems. Con el botón de **siguiente paso** lo avanzás: Aceptado → Preparando → Listo → (En camino) → Entregado.',
+        'Podés **cancelar** un pedido con motivo, **reabrirlo**, **imprimir el ticket** (formato 80 mm) o **avisar al cliente por WhatsApp** con un clic (abre WhatsApp con un mensaje según el estado).',
+        'También podés cargar un **pedido manual** (por ejemplo, uno que llegó por teléfono).',
+      ] },
+      { t: 'p', x: '**Ajustes:** recibir retiro, delivery y/o pedidos a la mesa; costo de envío fijo; pedido mínimo; tiempo estimado; medios de pago (efectivo, transferencia, tarjeta) y los datos para transferir; y un mensaje para el cliente.' },
+      { t: 'p', x: '**Pedidos a la mesa:** imprimí la hoja de QR (Salón y mesas → QR de mesas). Cada QR abre la carta con el número de mesa ya cargado.' },
+      { t: 'ojo', x: 'Todavía no cobra online ni calcula el envío por zona: el pago se coordina con el cliente. El aviso por WhatsApp al cambiar de estado es un botón manual.' },
+    ],
+  },
+
+  // ───────────────────────── Clientes y marketing
+  {
+    id: 'clientes', grupo: 'Clientes y marketing', titulo: 'Clientes', modulo: 'clientes', resumen: 'Base de clientes, historial y etiquetas.',
+    bloques: [
+      { t: 'p', x: 'Cada persona que reservó, pidió o escribió queda como cliente, identificada por su **teléfono**. Podés buscar por nombre o teléfono y filtrar por **etiqueta** y por **origen** (de dónde llegó: WhatsApp, QR de la carta, Wifi…).' },
+      { t: 'p', x: 'La **ficha del cliente** reúne su teléfono, origen, desde cuándo es cliente, su cumpleaños, su tarjeta de fidelidad, sus vouchers, sus reseñas y el **historial de reservas**. Desde ahí podés corregir su nombre y emitirle un voucher.' },
+      { t: 'p', x: '**Etiquetas:** sirven para clasificar (por ejemplo “post visita”, “VIP”). Se crean en Configuración → Etiquetas de clientes. Si el negocio usa BotConversa, al etiquetar acá también se etiqueta allá.' },
+    ],
+  },
+  {
+    id: 'cumpleanos', grupo: 'Clientes y marketing', titulo: 'Cumpleaños', modulo: 'cumpleanos', resumen: 'Próximos cumpleaños y qué meses tienen más.',
+    bloques: [
+      { t: 'p', x: 'Lista los **próximos cumpleaños** de tus clientes (con la edad que cumplen). Se cargan solos cuando una reserva trae la fecha, o a mano con **Agregar cumpleaños**.' },
+      { t: 'p', x: 'El **gráfico de barras** muestra cuántos cumpleaños hay en cada mes, para anticipar cuándo conviene hacer promociones. El saludo y el voucher de cumpleaños los manda el flujo automático del bot (ver “Automatizaciones”).' },
+    ],
+  },
+  {
+    id: 'vouchers', grupo: 'Clientes y marketing', titulo: 'Vouchers', modulo: 'vouchers', resumen: 'Códigos de beneficio: emitir, ver y marcar como usados.',
+    bloques: [
+      { t: 'p', x: 'Un voucher es un código de beneficio (“1 postre de regalo”, “$5.000 de descuento”) asociado a un cliente y a una **campaña** (reseña, cumpleaños, retorno, fidelidad…). Puede estar **Vigente**, **Usado** o **Vencido**.' },
+      { t: 'pasos', x: [
+        'Los vouchers los **emite el bot solo** (por una reseña de 4 o 5 estrellas, por cumpleaños, por una campaña de retorno o por Fidelización) y aparecen al instante en la lista.',
+        'También podés emitir uno a mano: **Nuevo voucher** → teléfono, beneficio, campaña, vencimiento (el código se genera solo, o lo escribís).',
+        'Cuando el cliente lo usa en el local, tocá **Usado**. Tiene Deshacer.',
+      ] },
+      { t: 'tip', x: 'Los códigos no se repiten: un mismo teléfono recibe un solo voucher por campaña, y el sistema evita que dos campañas generen el mismo código.' },
+    ],
+  },
+  {
+    id: 'fidelizacion', grupo: 'Clientes y marketing', titulo: 'Fidelización por visitas', modulo: 'fidelizacion', resumen: 'Un premio automático al llegar a cierta cantidad de visitas.',
+    bloques: [
+      { t: 'p', x: 'Premia a quienes vuelven. Definís **reglas** (por ejemplo “a la 5.ª visita, 1 postre de regalo”, o “cada 10 visitas”) y el sistema emite solo el voucher cuando el cliente la cumple.' },
+      { t: 'p', x: '**Qué es una visita:** un día distinto con una reserva confirmada ya pasada (criterio “confirmadas”, no pide trabajo extra) o con el botón **Llegó** apretado (criterio “asistencia”, más exacto). Solo se cuentan visitas **desde la fecha de inicio** que elijas: por defecto el día que lo activás, así no se premia el pasado a menos que quieras.' },
+      { t: 'pasos', x: [
+        'Entrá a Fidelización → **Ajustes** y elegí el criterio y desde cuándo se cuenta.',
+        'Creá las **reglas**: cantidad de visitas, premio, vencimiento, y si se repite (“cada N”) o es única.',
+        'Desde ese momento los premios se emiten solos (cuando se carga o cambia una reserva, y todos los días a la mañana). El botón **Emitir premios** lo fuerza.',
+        'Ves el ranking de clientes con sus visitas, los premios emitidos y, en cada ficha de cliente, su tarjeta de fidelidad.',
+      ] },
+      { t: 'p', x: 'El **aviso al cliente** (“¡ganaste un premio!”) lo manda un flujo de n8n, que hoy está en modo de prueba (ver “Automatizaciones”).' },
+    ],
+  },
+  {
+    id: 'resenas', grupo: 'Clientes y marketing', titulo: 'Reseñas', modulo: 'resenas', resumen: 'Qué dicen los clientes y el resumen con IA.',
+    bloques: [
+      { t: 'p', x: 'Las reseñas llegan de la encuesta que hace el bot por WhatsApp. Ves el **puntaje promedio**, cuántas conseguiste y los comentarios; podés buscar por nombre, teléfono o texto y filtrar.' },
+      { t: 'p', x: 'El botón **Resumen con IA** lee las reseñas que estás viendo (con los filtros aplicados) y genera conclusiones: qué elogian, qué critican y qué conviene mejorar.' },
+    ],
+  },
+  {
+    id: 'consultas', grupo: 'Clientes y marketing', titulo: 'Consultas y reclamos', modulo: 'consultas', resumen: 'Lo que el bot no supo responder y hay que atender.',
+    bloques: [
+      { t: 'p', x: 'Cuando un cliente escribe algo que el bot no resuelve (una consulta) o se queja (un reclamo), queda acá. Filtrás por **Pendientes / Resueltas** y por tipo.' },
+      { t: 'pasos', x: ['Abrí el mensaje, respondé al cliente por WhatsApp y marcá la consulta como **Resuelta**.', 'Podés pedir un **Resumen con IA** para ver de qué se trata lo que más se repite.'] },
+    ],
+  },
+  {
+    id: 'campanas', grupo: 'Clientes y marketing', titulo: 'Campañas', modulo: 'campanas', resumen: 'Seguimiento de a quién se le mandó cada campaña.',
+    bloques: [
+      { t: 'p', x: 'Las campañas de marketing las **manda un flujo de n8n** (no se envían desde el CRM). Cada envío queda registrado acá: ves cada campaña y **a qué clientes se les envió**. Sirve para no repetirle la misma campaña a la misma persona y para medir resultados.' },
+    ],
+  },
+  {
+    id: 'derivadas', grupo: 'Clientes y marketing', titulo: 'Derivadas', modulo: 'derivadas', resumen: 'Reservas de cena show que toma el bot y administra otra producción.',
+    bloques: [{ t: 'p', x: 'Lista las reservas que el bot toma pero que **gestiona otra producción** (por ejemplo, ciertas cenas show). Acá las ves y las buscás por nombre, teléfono u observación, pero no se confirman desde este panel.' }],
+  },
+  {
+    id: 'pausados', grupo: 'Clientes y marketing', titulo: 'Chats pausados, conversaciones y botón del bot', resumen: 'Cuando el bot le pasa el chat a una persona.',
+    bloques: [
+      { t: 'p', x: '**Chats pausados** (para encargados y administradores): cuando el bot deriva a un cliente a una persona, su chat queda **pausado** para que el bot no se meta. Acá ves quiénes están esperando y podés **reactivar** el chat (uno por uno o todos juntos) cuando terminaste. Pasado un tiempo (que se configura), el bot vuelve a atender solo.' },
+      { t: 'p', x: '**Conversaciones** (si está encendido): muestra los chats del bot de WhatsApp para leerlos.' },
+      { t: 'p', x: 'El botón **Bot encendido / apagado** (arriba a la derecha, si tu negocio lo tiene) apaga al bot por completo: no responde ni registra mensajes. Una barra roja avisa mientras está apagado.' },
+    ],
+  },
+
+  // ───────────────────────── Análisis
+  {
+    id: 'metricas', grupo: 'Análisis', titulo: 'Métricas', modulo: 'metricas', resumen: 'Gráficos de reservas, horarios y clientes recurrentes.',
+    bloques: [{ t: 'p', x: 'Elegís el período y ves: **promedio de personas por reserva**, **horario más reservado**, la **evolución** de reservas (por día, semana o mes), los **días más fuertes**, los **horarios más reservados**, las reservas **por estado** (y por sede si hay varias) y los **clientes recurrentes** (los que más vuelven). Se calculan con las reservas, así que sin Reservas los gráficos quedan vacíos.' }],
+  },
+
+  // ───────────────────────── Administración
+  {
+    id: 'configuracion', grupo: 'Administración', titulo: 'Configuración del negocio', solo: 'admin', resumen: 'Aforo, fechas bloqueadas, ubicaciones, sedes y más.',
+    bloques: [
+      { t: 'p', x: 'Arriba hay un índice para saltar a cada sección. Cada una se guarda por separado.' },
+      { t: 'lista', x: [
+        '**Negocio:** nombre, WhatsApp y datos generales.',
+        '**Sedes:** si el negocio tiene varias, cada una con su aforo, fechas bloqueadas y WhatsApp.',
+        '**Aforo:** cuántas personas entran. Podés poner un máximo general y **reglas por ubicación y franja horaria** (por ejemplo, SALÓN de 20:00 a 23:00: 60 personas). Avisa al llegar al 90 % y al cargar una reserva que lo supera. El sitio de reservas respeta estas reglas.',
+        '**Fechas bloqueadas:** días (o franjas) en los que no se aceptan reservas, por ejemplo un feriado o un evento privado.',
+        '**Sitio de reservas (prueba):** ver la sección “Sitio de reservas”.',
+        '**Ubicaciones:** las zonas del local (SALÓN, PLANTA ALTA, TERRAZA…). Se eligen al cargar una reserva, sirven para el aforo y para el sitio de reservas y el plano.',
+        '**Etiquetas de clientes** y **Pausa automática de chats** (cuánto tiempo queda pausado un chat derivado).',
+        '**Usuarios:** el dueño o el administrador dan de alta a su gente, eligen el rol (el administrador solo puede asignar encargado, staff o solo lectura), las sedes a las que accede cada uno, y pueden desactivarlos.',
+      ] },
+    ],
+  },
+  {
+    id: 'usuarios', grupo: 'Administración', titulo: 'Administración: negocios y usuarios', solo: 'superadmin', resumen: 'Crear negocios y usuarios y asignar módulos (superadmin).',
+    bloques: [
+      { t: 'p', x: 'La pestaña **Administración** (solo superadmin) tiene dos lugares:' },
+      { t: 'lista', x: [
+        '**Negocios:** crear un negocio nuevo (nombre, identificador —es el que va en las direcciones públicas, por ejemplo /carta/club-fellini-bar—, WhatsApp), activarlo o desactivarlo y elegir sus **módulos**.',
+        '**Usuarios:** crear usuarios (usuario, nombre y contraseña), asignarles uno o más negocios con un **rol** en cada uno y, si hace falta, limitarlos a ciertas sedes. También se pueden desactivar.',
+      ] },
+      { t: 'tip', x: 'Un usuario nuevo entra con su usuario y contraseña en la pantalla de ingreso. Si olvidó la contraseña, la cambiás vos desde Administración → Usuarios.' },
+    ],
+  },
+  {
+    id: 'modulos', grupo: 'Administración', titulo: 'Módulos: encender y apagar', solo: 'superadmin', resumen: 'Qué módulos tiene cada negocio y cuáles “conviene” juntar.',
+    bloques: [
+      { t: 'p', x: 'Cada negocio tiene **solo los módulos que vos le enciendas**. Un módulo apagado desaparece del menú y su dirección redirige al inicio. Se maneja desde Administración → Negocios (al crear o editar) y desde Configuración → **Funciones del negocio**.' },
+      { t: 'p', x: 'Hay **atajos** para configurar de un clic (“Solo reservas”, “Reservas con carta”, “Reservas y pedidos”, “Todo”…), y después ajustás casilla por casilla. Cada módulo es independiente, pero algunos **“conviene”** con otros: al encenderlo se tildan también los que lo acompañan, y la pantalla explica por qué. Podés destildarlos.' },
+      { t: 'tabla', cab: ['Módulo', 'Conviene con', 'Por qué'], filas: [
+        ['Salón y mesas', 'Reservas', 'Las mesas se asignan a las reservas.'],
+        ['Pedidos', 'Carta', 'Los pedidos se arman con productos de la carta. Carta sirve sola (menú para mirar) pero Pedidos sin Carta obliga a escribir cada pedido a mano.'],
+        ['Fidelización', 'Reservas, Clientes, Vouchers', 'Las visitas salen de las reservas y el premio es un voucher asociado al cliente.'],
+        ['Cumpleaños, Vouchers, Reseñas, Campañas', 'Clientes', 'Cada dato se asocia a un cliente y se ve en su ficha.'],
+        ['Métricas, Derivadas', 'Reservas', 'Se calculan con las reservas.'],
+      ] },
+    ],
+  },
+  {
+    id: 'funciones', grupo: 'Administración', titulo: 'Funciones del negocio: bot, BotConversa y avisos', solo: 'superadmin', resumen: 'Apagado del bot, conexión con BotConversa y avisos al cliente.',
+    bloques: [
+      { t: 'p', x: 'En Configuración → **Funciones del negocio** (solo superadmin):' },
+      { t: 'lista', x: [
+        '**Botón de apagar el bot:** muestra u oculta el interruptor del encabezado.',
+        '**BotConversa:** activa la sincronización de etiquetas con BotConversa (se guarda la clave de forma segura).',
+        '**Avisos al cliente:** a dónde se manda el aviso cuando alguien cambia el estado de una reserva (BotConversa o un webhook de n8n), con qué estados avisa (por ejemplo confirmada, pendiente de pago y cancelada) y, si hay sedes, un destino propio por sede.',
+        '**Módulos:** las casillas de cada módulo.',
+      ] },
+    ],
+  },
+  {
+    id: 'automatizaciones', grupo: 'Administración', titulo: 'Automatizaciones (n8n y BotConversa)', solo: 'superadmin', resumen: 'Qué hace cada flujo, cómo se corre y qué cuidar.',
+    bloques: [
+      { t: 'p', x: 'El CRM es la base de datos y el panel. Los mensajes de WhatsApp los mandan **BotConversa** (el bot de cada negocio) y **n8n** (los flujos automáticos). Se hablan llamando a **funciones de la base** (`bot_crear_reserva`, `bot_emitir_voucher`, `bot_reserva_web_recibida`…). El detalle técnico de cada una está en el documento **docs/bot-scripts.md** del repositorio de la base.' },
+      { t: 'tabla', cab: ['Flujo', 'Para qué', 'Cómo se dispara'], filas: [
+        ['Origen del cliente / Calificación / Respuesta negativa / Emitir voucher (Fellini)', 'Los cuatro pasos de la encuesta de reseña: registran de dónde vino el cliente, su puntaje, su queja y emiten el voucher si calificó bien.', 'Los llama BotConversa por webhook (automático).'],
+        ['Emitir voucher de retorno (BotConversa)', 'Entrega el voucher de la campaña de retorno al cliente que responde.', 'Webhook (automático).'],
+        ['Campaña de marketing de retorno (Fellini)', 'Manda la difusión a clientes cuya última reserva confirmada fue hace entre 10 y 60 días, con o sin voucher, hasta un límite por corrida.', 'Manual: lo corrés vos desde n8n.'],
+        ['Avisar premios de fidelidad (Fellini)', 'Avisa a los clientes que ganaron un premio de Fidelización.', 'Manual (hoy inactivo, modo de prueba).'],
+        ['Cumpleaños y encuestas (otros negocios)', 'Saludos de cumpleaños y encuestas de reseña.', 'Automático por horario.'],
+      ] },
+      { t: 'p', x: '**Correr la campaña de retorno:**' },
+      { t: 'pasos', x: [
+        'Abrí el flujo en n8n y mirá el nodo **Configuración**: `crear_voucher` (con o sin voucher), `desde_dias` y `hasta_dias`, `vence_fecha` (DD-MM-AAAA), `beneficio`, `limite_envios` (50 por defecto; 0 = sin límite) y las plantillas de WhatsApp.',
+        'Dejá **modo_prueba = true** la primera vez: arma todo pero no manda mensajes reales. Revisá el resultado.',
+        'Cuando esté bien, poné modo_prueba en false y ejecutá. Los que ya recibieron la campaña se saltean solos, así que podés correr de nuevo mañana con otro lote de 50 u 80 sin repetir a nadie.',
+        'Cada envío queda en **Campañas** y cada voucher en **Vouchers**.',
+      ] },
+      { t: 'ojo', x: 'Antes de modificar un flujo por API o desde el editor de n8n, **asegurate de que nadie lo tenga abierto en otra pestaña**: si alguien guarda una copia vieja, pisa tus cambios sin avisar. Después de cada cambio, recargá y verificá.' },
+      { t: 'ojo', x: 'Para que los mensajes de plantilla funcionen, el nombre de cada plantilla tiene que existir y estar aprobado en WhatsApp. Algunos flujos tienen un nombre provisorio (por ejemplo `fellini_retorno` o `fellini_premio`) que hay que reemplazar por el real.' },
+      { t: 'p', x: '**Reserva del sitio web → WhatsApp.** En BotConversa creá una regla por palabra clave **SOLICITUD DE RESERVA** que llame a `bot_reserva_web_recibida` con el negocio, el teléfono de quien escribe y (opcional) el número de reserva. Devuelve los datos de la reserva para que el bot conteste, y saca el chip “Falta su WhatsApp” del panel. Situación 29 de docs/bot-scripts.md.' },
+    ],
+  },
+
+  // ───────────────────────── Ayuda
+  {
+    id: 'problemas', grupo: 'Ayuda', titulo: 'Problemas frecuentes', resumen: 'Qué mirar cuando algo no aparece o no anda.',
+    bloques: [
+      { t: 'tabla', cab: ['Me pasa…', 'Qué hacer'], filas: [
+        ['No veo un módulo en el menú', 'Está apagado en tu negocio. Pedile al superadmin que lo encienda (Configuración → Funciones del negocio).'],
+        ['No veo los botones de acción', 'Tu usuario es de “solo lectura”, o no tiene permiso para esa pantalla.'],
+        ['Cargué algo y no aparece', 'Mirá los filtros de arriba (período, estado, ubicación): puede estar filtrado. Probá recargar.'],
+        ['El sitio de reservas dice “no encontrado”', 'Está apagado (Configuración → Sitio de reservas → Activo) o el negocio no tiene el módulo Reservas.'],
+        ['El sitio no ofrece un horario', 'Puede estar completo (aforo), bloqueado (Fechas bloqueadas), en el pasado o dentro de la anticipación mínima.'],
+        ['El cliente dice que no puede elegir una mesa', 'Está reservada (confirmada, pendiente de pago o revisar pago) a esa hora, o no sirve para esa cantidad de personas (capacidad mínima/máxima), o es fija y quiso juntarla.'],
+        ['Una reserva web dice “Falta su WhatsApp”', 'El cliente todavía no mandó el mensaje. Escribile vos si querés, y tocá “Ya escribió” cuando responda; si no escribe, cancelala.'],
+        ['Dos clientes pidieron la misma mesa', 'Es posible mientras ninguna esté confirmada. Al asignar la segunda te avisa del choque; hablá con el cliente y cambiá una de las dos.'],
+        ['El voucher no llegó', 'Buscá el teléfono en Vouchers. Si no existe, el bot no lo emitió: revisá que el cliente tenga una reseña de 4 o 5 estrellas (campaña de reseña) y que no haya recibido ya uno.'],
+        ['La pantalla se ve “congelada” después de guardar', 'Recargá la página. Si se repite, avisá al soporte.'],
+      ] },
+    ],
+  },
+  {
+    id: 'glosario', grupo: 'Ayuda', titulo: 'Glosario', resumen: 'Las palabras que usa el sistema.',
+    bloques: [
+      { t: 'tabla', cab: ['Término', 'Significado'], filas: [
+        ['Aforo', 'Cantidad máxima de personas que el local acepta, en total o por ubicación y franja horaria.'],
+        ['Ubicación', 'Zona del local (SALÓN, PLANTA ALTA, TERRAZA…).'],
+        ['Mesa fija / móvil', 'La fija no se junta con otras; las móviles se pueden juntar entre sí.'],
+        ['Capacidad mínima / máxima', 'Rango de personas para el que sirve una mesa o un grupo de mesas.'],
+        ['Seña', 'Pago adelantado para asegurar la reserva (estado “Pendiente de pago”).'],
+        ['Voucher', 'Código de beneficio con vencimiento, asociado a un cliente y a una campaña.'],
+        ['Campaña', 'Una acción de marketing o un motivo de voucher (reseña, cumpleaños, retorno, fidelidad…).'],
+        ['Derivada', 'Reserva que toma el bot pero administra otra producción.'],
+        ['Superadmin', 'Usuario de Risto Suite que administra todos los negocios y sus módulos.'],
+        ['Sede', 'Cada local de un negocio que tiene varios.'],
+        ['Módulo', 'Cada parte del CRM que se enciende o apaga por negocio.'],
+        ['Webhook', 'Dirección a la que un sistema le avisa a otro que pasó algo (así hablan BotConversa y n8n con el CRM).'],
+      ] },
+    ],
+  },
+]

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { Check, Minus, Plus, Users } from 'lucide-react'
+import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 
 interface Props {
@@ -87,29 +87,44 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
     e.preventDefault(); setError(null)
     start(async () => {
       const r = await crearReservaPublica(slug, { fecha, hora, personas, ubicacion, tipo, ...form, mesas: modo === 'elegir' ? sel : [] })
-      if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+      if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); if (whatsapp) window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     })
   }
   const campo = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const fechaTxt = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+  // La reserva se termina de confirmar por WhatsApp: se guarda al apretar "Reservar" y se abre el chat con el mensaje ya armado.
+  // El texto es editable por el cliente, así que no es fuente de verdad: el local cruza la solicitud por el teléfono real que escribe.
+  const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
+    const tipoTxt = tipos.find((t) => t.value === tipo)?.label
+    const detalle = [
+      `Nombre: ${form.nombre.trim()}`, `Teléfono: ${form.telefono.trim()}`,
+      `Día: ${fechaTxt(r.fecha)}`, `Hora: ${r.hora}`, `Personas: ${r.personas}`,
+      r.ubicacion ? `Ubicación: ${r.ubicacion}` : '', tipoTxt ? `Tipo: ${tipoTxt}` : '',
+      `Mesa: ${r.mesas ? r.mesas : 'que la elija el local'}`,
+      form.observaciones.trim() ? `Comentarios: ${form.observaciones.trim()}` : '',
+    ].filter(Boolean)
+    const texto = [`SOLICITUD DE RESERVA - ${nombre}`, `Reserva web #${r.numero}`, '', ...detalle].join('\n')
+    return `https://wa.me/${(whatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
+  }
 
   if (resultado) {
-    const textoWA = `Hola, soy ${form.nombre}. Hice la reserva #${resultado.numero} para el ${fechaTxt(resultado.fecha)} a las ${resultado.hora} (${resultado.personas} personas).`
     return (
       <div className="min-h-screen">
         <Banner nombre={nombre} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-ok/15 text-rs-ok"><Check size={28} /></div>
-          <h1 className="text-xl font-bold">¡Recibimos tu reserva!</h1>
+          <h1 className="text-xl font-bold">{whatsapp ? '¡Último paso: confirmala por WhatsApp!' : '¡Recibimos tu reserva!'}</h1>
           <p className="text-4xl font-bold tabular-nums text-rs-lime">#{resultado.numero}</p>
           <div className="card space-y-1 p-4 text-left text-sm">
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
             <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion}</b></> : null}</p>
             <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>
           </div>
-          <p className="text-sm text-rs-muted">Tu reserva queda <b className="text-rs-text">pendiente de confirmación</b>: un asesor la revisa y te escribe por WhatsApp al {form.telefono}.</p>
+          {whatsapp
+            ? <p className="text-sm text-rs-muted">Se abre WhatsApp con tu solicitud ya escrita: <b className="text-rs-text">enviá el mensaje</b> para dejarla en curso. Hasta que nos escribas no la tomamos como reservada, y después un asesor te la confirma.</p>
+            : <p className="text-sm text-rs-muted">Tu reserva queda <b className="text-rs-text">pendiente de confirmación</b>: un asesor la revisa y te escribe por WhatsApp al {form.telefono}.</p>}
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
-          {whatsapp && <a href={`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(textoWA)}`} target="_blank" rel="noopener noreferrer" className="btn btn-primary w-full">Escribir por WhatsApp</a>}
+          {whatsapp && <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>}
           <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', telefono: '', observaciones: '', web: '' }); setModo(cfg.elegir_mesa ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
         </main>
       </div>
@@ -200,7 +215,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
               <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{ubicacion ? ` · ${ubicacion}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
-              <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : 'Reservar'}</button>
+              <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : whatsapp ? 'Reservar y enviar por WhatsApp' : 'Reservar'}</button>
+              {whatsapp && <p className="text-center text-xs text-rs-muted">Se abre WhatsApp con tu solicitud. La reserva queda en curso cuando nos escribís.</p>}
             </form>
           </section>
         )}
