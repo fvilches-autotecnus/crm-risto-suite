@@ -93,7 +93,7 @@ export interface PuntoSerie { x: string; valor: number; etiqueta: string; titulo
 export const agrupacionAuto = (dias: number): Agrupacion => (dias <= 31 ? 'dia' : 'semana')
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-const dm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`
+const dm = (f: string) => `${f.slice(8, 10)}-${f.slice(5, 7)}`
 
 export function serieEvolucion(porDia: { fecha: string; valor: number }[], modo: Agrupacion): PuntoSerie[] {
   if (!porDia.length) return []

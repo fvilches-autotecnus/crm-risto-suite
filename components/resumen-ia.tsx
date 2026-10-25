@@ -1,4 +1,5 @@
 'use client'
+import { fechaHoraCorta } from '@/lib/fechas'
 
 import { useState, useTransition } from 'react'
 import { Check, Copy, RefreshCw, Sparkles } from 'lucide-react'
@@ -6,7 +7,7 @@ import Modal from '@/components/modal'
 import { Spinner } from '@/components/ui'
 import type { ResumenIAResult } from '@/lib/ia'
 
-const hora = (iso: string) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+const hora = (iso: string) => fechaHoraCorta(iso)
 
 function comoTexto(titulo: string, r: Extract<ResumenIAResult, { ok: true }>) {
   return [titulo, '', r.resumen, '', ...r.secciones.flatMap((s) => [s.titulo, ...s.items.map((i) => '• ' + i), '']),

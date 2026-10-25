@@ -1,4 +1,5 @@
 'use client'
+import { diaMes as diaMesFecha } from '@/lib/fechas'
 
 import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
@@ -13,7 +14,7 @@ type Evento = { tipo: 'reserva'; fila: FilaReserva } | { tipo: 'consulta'; fila:
 /** Aviso sonoro corto para un pedido nuevo (si el navegador todavía no permite audio, no pasa nada). */
 const sonar = () => { try { const A = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext; const c = new A(); const o = c.createOscillator(), g = c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.setValueAtTime(0.15, c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.5); o.start(); o.stop(c.currentTime + 0.5); setTimeout(() => void c.close(), 700) } catch { /* sin audio */ } }
 const corto = (t: string | null, n: number) => { const s = (t ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s }
-const diaMes = (f: string | null) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : 'a coordinar')
+const diaMes = (f: string | null) => (f ? diaMesFecha(f) : 'a coordinar')
 
 /** Páginas que se actualizan solas cuando llega algo nuevo (sin recargar). */
 const REFRESCAR = ['/', '/reservas', '/consultas', '/clientes', '/metricas']

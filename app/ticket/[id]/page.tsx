@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { fechaHoraLarga } from '@/lib/fechas'
 import { notFound } from 'next/navigation'
 import { getContexto } from '@/lib/context'
 import { dinero, labelPago, labelTipo } from '@/lib/pedidos'
@@ -17,7 +18,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
     .eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!p) notFound()
   const items = (p.items ?? []) as { id: string; nombre: string; variante: string | null; cantidad: number; observaciones: string | null; subtotal: number }[]
-  const fecha = new Date(p.creado_en).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const fecha = fechaHoraLarga(p.creado_en)
   return (
     <div className="min-h-screen bg-white p-4 text-black print:p-0">
       <BotonImprimir auto={(await searchParams).auto === '1'} />

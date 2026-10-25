@@ -3,9 +3,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
-import { TZ_AR, hoyEn } from '@/lib/fechas'
+import { SEP_FECHA, TZ_AR, hoyEn } from '@/lib/fechas'
 
-// Entradas "estilo LATAM": fecha dd/mm/aaaa con calendario que empieza el lunes, hora de 24 h y teléfono
+// Entradas "estilo LATAM": fecha dd-mm-aaaa con calendario que empieza el lunes, hora de 24 h y teléfono
 // con código de país + código de área + número. Cada una emite un <input type="hidden" name=...> con el
 // valor normalizado (ISO yyyy-mm-dd, HH:MM, solo dígitos), así que las server actions no cambian.
 
@@ -13,26 +13,26 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', '
 const DIAS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do']
 const pad = (n: number) => String(n).padStart(2, '0')
 const aIso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
-const isoATexto = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '')
+const isoATexto = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}${SEP_FECHA}${iso.slice(5, 7)}${SEP_FECHA}${iso.slice(0, 4)}` : '')
 
 function textoAIso(t: string): string | null {
-  const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  const m = t.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/)
   if (!m) return null
   const d = +m[1], mo = +m[2], y = +m[3]
   const dt = new Date(Date.UTC(y, mo - 1, d))
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d ? aIso(y, mo, d) : null
 }
 
-/** Máscara dd/mm/aaaa mientras se escribe. */
+/** Máscara dd-mm-aaaa mientras se escribe (sirve escribir solo los números o pegar con / o -). */
 function mascaraFecha(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 8)
-  return d.length <= 2 ? d : d.length <= 4 ? `${d.slice(0, 2)}/${d.slice(2)}` : `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
+  return d.length <= 2 ? d : d.length <= 4 ? `${d.slice(0, 2)}${SEP_FECHA}${d.slice(2)}` : `${d.slice(0, 2)}${SEP_FECHA}${d.slice(2, 4)}${SEP_FECHA}${d.slice(4)}`
 }
 
 // ---------------------------------------------------------------------------
 // Fecha
 // ---------------------------------------------------------------------------
-export function FechaInput({ name, id, value, defaultValue = '', onChange, required, min, max, placeholder = 'dd/mm/aaaa', className = '' }: {
+export function FechaInput({ name, id, value, defaultValue = '', onChange, required, min, max, placeholder = 'dd-mm-aaaa', className = '' }: {
   name?: string; id?: string; value?: string; defaultValue?: string; onChange?: (iso: string) => void
   required?: boolean; min?: string; max?: string; placeholder?: string; className?: string
 }) {
@@ -99,7 +99,7 @@ export function FechaInput({ name, id, value, defaultValue = '', onChange, requi
           className="input w-full pr-9"
           onChange={(e) => {
             const t = mascaraFecha(e.target.value); setTexto(t)
-            const v = textoAIso(t); campo.current?.setCustomValidity(t && !v ? 'Fecha no válida (dd/mm/aaaa)' : '')
+            const v = textoAIso(t); campo.current?.setCustomValidity(t && !v ? 'Fecha no válida (dd-mm-aaaa)' : '')
             if (v) emitir(v); else if (!t) emitir('')
           }}
           onFocus={() => setAbierto(true)}

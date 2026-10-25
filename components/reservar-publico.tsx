@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
+import { FechaInput } from '@/components/inputs'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 
@@ -138,7 +139,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">1 · ¿Cuándo y cuántos?</h2>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label" htmlFor="rw_fecha">Día</label><input id="rw_fecha" type="date" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(e) => e.target.value && setFecha(e.target.value)} className="input w-full" /></div>
+            <div><label className="label" htmlFor="rw_fecha">Día</label><FechaInput id="rw_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(v) => v && setFecha(v)} /></div>
             <div>
               <span className="label">Personas</span>
               <div className="flex h-9 items-center justify-between rounded-rs border border-rs-control px-1">

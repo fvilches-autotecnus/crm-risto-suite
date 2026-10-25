@@ -1,4 +1,5 @@
 'use client'
+import { diaMesDe } from '@/lib/fechas'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -18,7 +19,7 @@ export interface OpcionCatalogo { clave: string; producto_id: string; variante: 
 
 const hace = (iso: string) => {
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
-  return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.floor(m / 60)} h` : new Date(iso).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit' })
+  return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.floor(m / 60)} h` : diaMesDe(iso)
 }
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })
 
