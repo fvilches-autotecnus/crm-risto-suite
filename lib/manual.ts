@@ -37,6 +37,7 @@ export const MANUAL: SeccionManual[] = [
       { t: 'p', x: 'La barra de pestañas muestra **solo los módulos que tu negocio tiene encendidos**. Si falta algo que esperabas ver, no es un error: ese módulo está apagado y lo enciende el superadmin (ver “Módulos”).' },
       { t: 'p', x: 'Para salir, usá el botón **Salir** (arriba a la derecha). Si dejaste la pantalla abierta mucho tiempo, igual cierra la sesión.' },
       { t: 'tip', x: 'En el celular la barra de pestañas se desliza hacia los costados, y las tablas se convierten en tarjetas.' },
+      { t: 'tip', x: 'Todas las fechas se ven y se escriben **día-mes-año** (por ejemplo 26-10-2026). En los campos de fecha podés escribir solo los números (26102026) o tocar el calendario, que empieza en lunes.' },
       { t: 'tip', x: 'Las pantallas se actualizan solas (reservas nuevas, pedidos, vouchers). Cuando entra una reserva o un pedido nuevo suena un aviso y aparece una notificación. Si algo no cambia, recargá la página.' },
     ],
   },
