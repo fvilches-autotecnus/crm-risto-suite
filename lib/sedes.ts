@@ -2,6 +2,7 @@ import 'server-only'
 import type { Contexto } from '@/lib/context'
 import type { OpcionesSede } from '@/components/reservas-ui'
 import { configuracionAviso } from '@/lib/notify'
+import { cargarConfigReservas, cargarTiposReserva } from '@/lib/config-reservas-servidor'
 
 /** Opciones de sede/ubicación para los formularios y tablas de reservas. */
 export async function cargarOpciones(ctx: Contexto): Promise<OpcionesSede> {
@@ -9,9 +10,13 @@ export async function cargarOpciones(ctx: Contexto): Promise<OpcionesSede> {
   const ubicaciones = (data ?? []).map((u) => ({ nombre: u.nombre, sucursal_id: u.sucursal_id as string | null }))
   // tipos de reserva que ya existen en los datos (se ofrecen en el formulario y en los filtros)
   const { data: ts } = await ctx.supabase.from('reservas').select('tipo_reserva').eq('negocio_id', ctx.negocio.id).limit(10000)
-  const tipos = [...new Set((ts ?? []).map((t) => t.tipo_reserva).filter(Boolean))].sort()
+  const [catalogo, cfg] = await Promise.all([cargarTiposReserva(ctx), cargarConfigReservas(ctx)])
+  const tipos = [...new Set([...catalogo.map((t) => t.clave), ...(ts ?? []).map((t) => t.tipo_reserva as string).filter(Boolean)])]
   return {
     tipos,
+    tiposEtiquetas: Object.fromEntries(catalogo.map((t) => [t.clave, t.etiqueta])),
+    tiposActivos: catalogo.filter((t) => t.activo).map((t) => t.clave),
+    alertaAforo: cfg.alerta_aforo_pct,
     sedes: ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre })),
     nombresSede: Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre])),
     sedeDefault: ctx.sede?.id ?? null,

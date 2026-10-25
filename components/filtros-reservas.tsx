@@ -25,7 +25,7 @@ const RANGOS = [
 ]
 
 // Los filtros viven en la URL (?q=&rango=&desde=&hasta=&estado=&tipo=&ubic=&orden=): la página es un Server Component.
-export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: { conteos: Record<string, number>; tipos: string[]; ubicaciones: string[]; total: number }) {
+export default function FiltrosReservas({ conteos, tipos, etiquetasTipo = {}, ubicaciones, total }: { conteos: Record<string, number>; tipos: string[]; etiquetasTipo?: Record<string, string>; ubicaciones: string[]; total: number }) {
   const router = useRouter()
   const sp = useSearchParams()
   const [q, setQ] = useState(sp.get('q') ?? '')
@@ -66,7 +66,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
   const todosLosEstados = Object.values(conteos).reduce((a, b) => a + b, 0)
   const activos: { clave: string; texto: string }[] = [
     ...(estado ? [{ clave: 'estado', texto: `Estado: ${ESTADOS.find((e) => e.value === estado)?.label ?? estado}` }] : []),
-    ...(tipo ? [{ clave: 'tipo', texto: `Tipo: ${labelTipo(tipo)}` }] : []),
+    ...(tipo ? [{ clave: 'tipo', texto: `Tipo: ${labelTipo(tipo, etiquetasTipo)}` }] : []),
     ...(ubic ? [{ clave: 'ubic', texto: `Ubicación: ${ubic}` }] : []),
     ...(q.trim() ? [{ clave: 'q', texto: `Búsqueda: “${q.trim()}”` }] : []),
   ]
@@ -118,7 +118,7 @@ export default function FiltrosReservas({ conteos, tipos, ubicaciones, total }: 
           {tipos.length > 0 && (
             <select aria-label="Tipo de reserva" value={tipo} onChange={(e) => set({ tipo: e.target.value })} className="input">
               <option value="">Todos los tipos</option>
-              {tipos.map((t) => <option key={t} value={t}>{labelTipo(t)}</option>)}
+              {tipos.map((t) => <option key={t} value={t}>{labelTipo(t, etiquetasTipo)}</option>)}
             </select>
           )}
           {ubicaciones.length > 0 && (

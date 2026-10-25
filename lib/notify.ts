@@ -101,6 +101,7 @@ export interface DatosAviso {
   motivoCancelacion?: string | null
   monto?: number | null
   tipoReserva?: string | null
+  tipoEtiqueta?: string | null    // nombre del tipo según el catálogo del negocio
   ubicacion?: string | null
   observaciones?: string | null
   sede?: string | null
@@ -131,7 +132,7 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
       dia_semana: diaSemana(d.fecha),
       hora_reserva: horaHM(d.hora),
       cantidad_reserva: d.cantidadPersonas ?? '',
-      tipo_reserva: d.tipoReserva ? labelTipo(d.tipoReserva).toUpperCase() : '',
+      tipo_reserva: d.tipoReserva ? (d.tipoEtiqueta || labelTipo(d.tipoReserva)).toUpperCase() : '',
       ubicacion_prefer: d.ubicacion ?? '',
       observaciones: d.observaciones ?? '',
       motivo_cancelacion: d.motivoCancelacion ?? '',

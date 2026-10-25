@@ -9,7 +9,12 @@ import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/compone
 import { integracionBC } from '@/lib/etiquetas'
 import { leerPausaAuto } from '@/lib/pausas'
 import ReservasWebConfig, { type ConfigReservasWeb } from '@/components/reservas-web-config'
-import { TIPOS_RESERVA, labelTipo } from '@/lib/reservas'
+import { labelTipo } from '@/lib/reservas'
+import ConfigTiposReserva, { type FilaTipo } from '@/components/config-tipos-reserva'
+import ConfigParametrosReservas from '@/components/config-parametros-reservas'
+import ConfigMensajesBot from '@/components/config-mensajes-bot'
+import { cargarConfigReservas, cargarTiposReserva } from '@/lib/config-reservas-servidor'
+import { MENSAJES_BOT, type ConfigReservas } from '@/lib/reservas-config'
 import { sumarDias } from '@/lib/fechas'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
@@ -52,15 +57,31 @@ export default async function ConfiguracionPage() {
   let webCfg: ConfigReservasWeb | null = null
   let webTipos: { value: string; label: string }[] = []
   let webHorarios: string[] = []
+  let filasTipos: FilaTipo[] = []
+  let cfgRes: ConfigReservas | null = null
+  let mensajesOriginales: Record<string, string> = {}
+  let mensajesPropios: Record<string, string> = {}
   if (ctx.modulosActivos.reservas && ctx.puedeAdministrar) {
     const [{ data: c }, { data: ts }, { data: hs }] = await Promise.all([
-      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje').eq('negocio_id', negocio.id).maybeSingle(),
+      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas').eq('negocio_id', negocio.id).maybeSingle(),
       supabase.from('reservas').select('tipo_reserva').eq('negocio_id', negocio.id).limit(10000),
       supabase.from('reservas').select('hora').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', sumarDias(hoy, -120)).lte('fecha', hoy).not('hora', 'is', null).limit(10000),
     ])
-    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, ...(c ?? {}) } as ConfigReservasWeb
-    const valores = [...new Set([...TIPOS_RESERVA.map((t) => t.value as string), ...(ts ?? []).map((t) => t.tipo_reserva as string).filter(Boolean)])]
-    webTipos = valores.map((v) => ({ value: v, label: labelTipo(v) }))
+    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, ...(c ?? {}) } as ConfigReservasWeb
+    // catálogo de tipos de reserva (el que configura el dueño) + los que el bot creó y todavía no tienen nombre
+    const [catalogo, cr, { data: bm }, { data: orig }] = await Promise.all([
+      cargarTiposReserva(ctx), cargarConfigReservas(ctx),
+      supabase.from('bot_mensajes').select('clave, texto').eq('negocio_id', negocio.id),
+      supabase.rpc('bot_mensajes_defectos'),
+    ])
+    cfgRes = cr; mensajesOriginales = (orig ?? {}) as Record<string, string>; mensajesPropios = Object.fromEntries((bm ?? []).map((m) => [m.clave as string, m.texto as string]))
+    const usos: Record<string, number> = {}
+    for (const t of ts ?? []) { const k = t.tipo_reserva as string; if (k) usos[k] = (usos[k] ?? 0) + 1 }
+    filasTipos = [
+      ...catalogo.map((t) => ({ clave: t.clave, etiqueta: t.etiqueta, activo: t.activo, usos: usos[t.clave] ?? 0 })),
+      ...Object.keys(usos).filter((k) => !catalogo.some((t) => t.clave === k)).sort().map((k) => ({ clave: k, etiqueta: labelTipo(k), activo: true, usos: usos[k], sinConfigurar: true })),
+    ]
+    webTipos = filasTipos.filter((t) => t.activo).map((t) => ({ value: t.clave, label: t.etiqueta }))
     const cuenta: Record<string, number> = {}
     for (const h of hs ?? []) { const k = String(h.hora).slice(0, 5); cuenta[k] = (cuenta[k] ?? 0) + 1 }
     webHorarios = Object.entries(cuenta).filter(([, c]) => c >= 5).map(([k]) => k).sort()
@@ -80,7 +101,8 @@ export default async function ConfiguracionPage() {
     { id: 'negocio', label: 'Negocio' },
     ...(muestraSedes ? [{ id: 'sedes', label: 'Sedes' }] : []),
     ...(ctx.modulosActivos.reservas ? [{ id: 'aforo', label: 'Aforo' }, { id: 'bloqueos', label: 'Fechas bloqueadas' }] : []),
-    ...(webCfg ? [{ id: 'reservas-web', label: 'Reservas web' }] : []),
+    ...(cfgRes ? [{ id: 'tipos', label: 'Tipos de reserva' }, { id: 'parametros', label: 'Parámetros' }] : []),
+    ...(webCfg ? [{ id: 'reservas-web', label: 'Reservas web' }, { id: 'mensajes-bot', label: 'Mensajes del bot' }] : []),
     ...(ctx.modulosActivos.reservas && ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
     ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
     ...(ctx.puedeAdministrar ? [{ id: 'etiquetas', label: 'Etiquetas' }] : []),
@@ -137,9 +159,27 @@ export default async function ConfiguracionPage() {
         </ul>
       </Seccion>}
 
+      {cfgRes && (
+        <Seccion id="tipos" i={n++} titulo="Tipos de reserva" texto="Los tipos que se ofrecen al cargar una reserva y en el sitio de reservas (Común, Cumpleaños, Cena show…). Cambiás el nombre, el orden y cuáles están activos.">
+          <div className="mt-3"><ConfigTiposReserva inicial={filasTipos} /></div>
+        </Seccion>
+      )}
+
+      {cfgRes && (
+        <Seccion id="parametros" i={n++} titulo="Parámetros de reservas" texto="Cuándo avisar que el aforo se llena, los turnos del plano y qué reservas ocupan una mesa en el sitio.">
+          <div className="mt-3"><ConfigParametrosReservas config={cfgRes} usaMesas={ctx.modulosActivos.mesas} /></div>
+        </Seccion>
+      )}
+
       {webCfg && (
         <Seccion id="reservas-web" i={n++} titulo="Sitio de reservas (prueba)" texto="Una página pública para que los clientes reserven solos, eligiendo su mesa en el plano o dejando que un asesor la elija. Usa tus ubicaciones, aforo, fechas bloqueadas y planos de mesas.">
           <div className="mt-3"><ReservasWebConfig config={webCfg} tieneWhatsapp={!!negocio.whatsapp_nro} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} /></div>
+        </Seccion>
+      )}
+
+      {webCfg && (
+        <Seccion id="mensajes-bot" i={n++} titulo="Mensajes del bot" texto="Lo que el bot le contesta al cliente cuando llega su solicitud de reserva del sitio. Usa el texto original hasta que escribas el tuyo.">
+          <div className="mt-3"><ConfigMensajesBot mensajes={MENSAJES_BOT} originales={mensajesOriginales} propios={mensajesPropios} /></div>
         </Seccion>
       )}
 

@@ -37,7 +37,10 @@ export interface OpcionesSede {
   sedes: { id: string; nombre: string }[]          // sedes a las que el usuario tiene acceso
   nombresSede: Record<string, string>              // id -> nombre de todas las sedes (para la tabla)
   sedeDefault: string | null                        // sede elegida en el selector del encabezado
-  tipos: string[]                                   // tipos de reserva que ya existen en los datos
+  tipos: string[]                                   // tipos de reserva del catálogo + los que ya existen en los datos
+  tiposEtiquetas: Record<string, string>           // clave -> nombre que configuró el negocio
+  tiposActivos: string[]                            // los que se ofrecen al cargar una reserva
+  alertaAforo: number                               // % del aforo a partir del cual se avisa
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
   aviso: { disponible: boolean; estados: string[]; porSede: Record<string, { disponible: boolean; estados: string[] }> }   // aviso al cliente por WhatsApp: del negocio y, si la sede tiene los suyos, por sede
 }
@@ -45,13 +48,13 @@ export interface OpcionesSede {
 // ---------------------------------------------------------------------------
 // Aviso en vivo de aforo dentro del formulario
 // ---------------------------------------------------------------------------
-function HintAforo({ detalle }: { detalle: ChequeoAforo[] }) {
+function HintAforo({ detalle, alerta }: { detalle: ChequeoAforo[]; alerta: number }) {
   if (!detalle.length) return null
   return (
     <ul className="col-span-2 flex animate-fade-in flex-wrap gap-2" aria-label="Aforo">
       {detalle.map((c, i) => {
         const pct = c.maximo ? c.despues / c.maximo : 0
-        const cls = c.excede ? 'border-rs-danger/50 bg-rs-danger/10 text-rs-danger' : pct >= 0.9 ? 'border-rs-warn/50 bg-rs-warn/10 text-rs-warn' : 'border-rs-ok/40 bg-rs-ok/10 text-rs-ok'
+        const cls = c.excede ? 'border-rs-danger/50 bg-rs-danger/10 text-rs-danger' : pct >= alerta / 100 ? 'border-rs-warn/50 bg-rs-warn/10 text-rs-warn' : 'border-rs-ok/40 bg-rs-ok/10 text-rs-ok'
         return (
           <li key={i} className={'rounded-full border px-3 py-1 text-xs transition-colors ' + cls}>
             <span className="font-semibold">{c.etiqueta}</span> · {c.usado}/{c.maximo} → con esta reserva {c.despues}{c.excede ? ' (supera el aforo)' : ''}
@@ -76,7 +79,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
 
   // las ubicaciones de la sede elegida + las que valen para todas las sedes
   // tipos: los de siempre + los que ya existen en los datos (y el de la reserva que se edita)
-  const tiposForm = [...new Set([...TIPOS_RESERVA.map((t) => t.value as string), ...op.tipos, ...(reserva?.tipo_reserva ? [reserva.tipo_reserva] : [])])]
+  const tiposForm = [...new Set([...(op.tiposActivos.length ? op.tiposActivos : TIPOS_RESERVA.map((t) => t.value as string)), ...(reserva?.tipo_reserva ? [reserva.tipo_reserva] : [])])]
   const ubicacionesSede = [...new Set(op.ubicaciones.filter((u) => !u.sucursal_id || u.sucursal_id === sedeElegida).map((u) => u.nombre))]
   useEffect(() => { if (ubic && !ubicacionesSede.includes(ubic)) setUbic('') }, [sedeElegida]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -140,10 +143,10 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       <div>
         <label className="label" htmlFor="tipo_reserva">Tipo</label>
         <select id="tipo_reserva" name="tipo_reserva" defaultValue={reserva?.tipo_reserva ?? 'comun'} className="input w-full">
-          {tiposForm.map((t) => <option key={t} value={t}>{labelTipo(t)}</option>)}
+          {tiposForm.map((t) => <option key={t} value={t}>{labelTipo(t, op.tiposEtiquetas)}</option>)}
         </select>
       </div>
-      <HintAforo detalle={detalle} />
+      <HintAforo detalle={detalle} alerta={op.alertaAforo} />
       <div>
         <label className="label" htmlFor="cumpleanos_dia">Cumpleaños: día</label>
         <input id="cumpleanos_dia" name="cumpleanos_dia" type="number" min={1} max={31} defaultValue={reserva?.cumpleanos_dia ?? ''} className="input w-full" />
@@ -289,7 +292,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <td className="td">{fechaCorta(r.fecha)}</td>
                 <td className="td">{horaCorta(r.hora)}</td>
                 <td className="td">{r.cantidad_personas ?? '—'}{mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="ml-2 whitespace-nowrap rounded-full bg-rs-lav/15 px-2 py-0.5 text-xs font-semibold text-rs-lav" title="Ver en el plano del salón">Mesa {mesas[r.id]}</a>}</td>
-                <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
+                <td className="td text-rs-muted">{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</td>
                 {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
                 <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</td>
@@ -318,7 +321,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
               {r.cliente_telefono && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{r.cliente_telefono}</span>}
               {mostrarSede && r.sucursal_id && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{op.nombresSede[r.sucursal_id] ?? '—'}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</span>}
               {(!mostrarSede || !r.sucursal_id) && r.ubicacion && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{r.ubicacion}</span>}
-              <span>{labelTipo(r.tipo_reserva)}</span>
+              <span>{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</span>
               {mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="font-semibold text-rs-lav">Mesa {mesas[r.id]}</a>}
             </div>
             {nota(r) && <p className="mt-2 text-sm text-rs-muted/90">{nota(r)}</p>}

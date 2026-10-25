@@ -3,6 +3,7 @@ import { Armchair } from 'lucide-react'
 import SalonUI from '@/components/mesas-ui'
 import { getContexto } from '@/lib/context'
 import { hoyEn } from '@/lib/fechas'
+import { cargarConfigReservas } from '@/lib/config-reservas-servidor'
 import type { Mesa, ReservaSalon, Salon } from '@/lib/mesas'
 
 /** Minutos desde la medianoche en Argentina, ahora. */
@@ -32,6 +33,7 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
     supabase.from('mesas_config').select('duracion_min').eq('negocio_id', negocio.id).maybeSingle(),
   ])
   const ubicaciones = (ubs ?? []).map((u) => u.nombre as string)
+  const turnos = (await cargarConfigReservas(ctx)).turnos
   const idsSalon = new Set((salones ?? []).map((s) => s.id))
   const porReserva = new Map<string, string[]>()
   for (const a of asign ?? []) porReserva.set(a.reserva_id, [...(porReserva.get(a.reserva_id) ?? []), a.mesa_id])
@@ -44,7 +46,7 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
         <p className="text-sm text-rs-muted">{modo === 'editar' ? 'Armá el plano del local' : 'Plano del salón: asigná mesas a las reservas y seguí el servicio en vivo'}</p>
       </div>
       <SalonUI salones={(salones ?? []) as Salon[]} mesas={((mesas ?? []) as Mesa[]).filter((m) => idsSalon.has(m.salon_id))} reservas={reservasSalon} duracion={cfg?.duracion_min ?? 120} fecha={fecha} hoy={hoy} modo={modo}
-        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} ubicaciones={ubicaciones} />
+        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} ubicaciones={ubicaciones} turnos={turnos} />
     </div>
   )
 }

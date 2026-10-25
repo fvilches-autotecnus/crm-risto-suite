@@ -10,6 +10,7 @@ import { ESTADOS_OCUPAN, RESERVA_COLS, ocupaLugar, type EstadoReserva, type Rese
 import { cargarOpciones } from '@/lib/sedes'
 import { usaAsistencia } from '@/lib/fidelidad-servidor'
 import { mesasPorReserva } from '@/lib/mesas-servidor'
+import { cargarConfigReservas } from '@/lib/config-reservas-servidor'
 
 const delta = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
@@ -62,13 +63,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const uso = reglas.length ? await usoPorRegla(ctx, dia, reglas) : []
   const filasAforo = uso.map((u) => ({ etiqueta: u.etiqueta, usado: u.usado, maximo: u.maximo })).sort((a, b) => b.usado / b.maximo - a.usado / a.maximo)
 
+  const alertaAforo = (await cargarConfigReservas(ctx)).alerta_aforo_pct
   const alertas: { texto: string; tono: 'warn' | 'danger' }[] = []
   for (const b of bloqueos ?? []) {
     alertas.push({ tono: 'warn', texto: `Fecha bloqueada${b.hora_desde ? ` (${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)})` : ''}${b.motivo ? `: ${b.motivo}` : ''}` })
   }
   for (const f of filasAforo) {
     const pct = Math.round((f.usado / f.maximo) * 100)
-    if (pct >= 90) alertas.push({ tono: 'danger', texto: `Aforo ${f.etiqueta}: ${pct}% (${f.usado} de ${f.maximo} personas)` })
+    if (pct >= alertaAforo) alertas.push({ tono: 'danger', texto: `Aforo ${f.etiqueta}: ${pct}% (${f.usado} de ${f.maximo} personas)` })
   }
   const sinConfirmar = reservasDia.filter((r) => r.estado === 'nueva').length
   if (sinConfirmar) alertas.push({ tono: 'warn', texto: `${sinConfirmar} reserva${sinConfirmar > 1 ? 's' : ''} de este día sin confirmar` })
@@ -99,7 +101,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <Tile i={3} valor={semanaActual.length} etiqueta="Reservas semana" color="text-rs-lav" sub={`${delta(semanaActual.length - semanaPrevia.length)} vs semana ant.`} subColor={semanaActual.length - semanaPrevia.length >= 0 ? 'text-rs-ok' : 'text-rs-danger'} />
       </div>
 
-      {filasAforo.length > 0 && <AforoLista filas={filasAforo} />}
+      {filasAforo.length > 0 && <AforoLista filas={filasAforo} alerta={alertaAforo} />}
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

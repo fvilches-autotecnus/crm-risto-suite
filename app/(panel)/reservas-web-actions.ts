@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
+import { VARIABLES_WA } from '@/lib/reservas-config'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -24,9 +25,24 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const tipos = fd.getAll('tipos').map(String).filter((t) => /^[a-z0-9_]{1,40}$/.test(t))
   const mensaje = text(fd, 'mensaje')
   if (mensaje.length > 400) return fail('El mensaje puede tener hasta 400 letras')
+  const titulo = text(fd, 'titulo'), subtitulo = text(fd, 'subtitulo')
+  if (titulo.length > 80) return fail('El título puede tener hasta 80 letras')
+  if (subtitulo.length > 160) return fail('El subtítulo puede tener hasta 160 letras')
+  const validez = entero(text(fd, 'validez_horas'), 1, 168), maxMesas = entero(text(fd, 'max_mesas'), 1, 12)
+  if (!validez) return fail('La solicitud puede esperar de 1 a 168 horas')
+  if (!maxMesas) return fail('El máximo de mesas por reserva va de 1 a 12')
+  const plantilla = String(fd.get('texto_whatsapp') ?? '').replace(/\r\n/g, '\n').trim()
+  if (plantilla) {
+    if (plantilla.length > 1200) return fail('El mensaje de WhatsApp puede tener hasta 1200 letras')
+    if (!plantilla.includes('{codigo}')) return fail('El mensaje de WhatsApp tiene que llevar {codigo}: sin eso no se puede registrar la reserva cuando el cliente escribe')
+    const permitidas = new Set<string>(VARIABLES_WA.map((v) => v[0]))
+    const rara = [...plantilla.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]).find((v) => !permitidas.has(v))
+    if (rara) return fail(`En el mensaje de WhatsApp no existe la variable {${rara}}`)
+  }
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
+    modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas,
   })
   if (error) return fail('No se pudo guardar la configuración')
   revalidatePath(`/reservar/${ctx.negocio.slug}`)

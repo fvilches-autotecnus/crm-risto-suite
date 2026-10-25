@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { labelTipo } from '@/lib/reservas'
+import { cargarTiposReserva } from '@/lib/config-reservas-servidor'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
@@ -25,6 +26,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound()
 
+  const etiquetasTipo = Object.fromEntries((await cargarTiposReserva(ctx)).map((t) => [t.clave, t.etiqueta]))
   const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes, fecha_nacimiento').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
   if (!cliente) notFound()
 
@@ -157,7 +159,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
                   <td className="td">{fechaCorta(r.fecha)}</td>
                   <td className="td">{horaCorta(r.hora)}</td>
                   <td className="td">{r.cantidad_personas ?? '—'}</td>
-                  <td className="td text-rs-muted">{labelTipo(r.tipo_reserva)}</td>
+                  <td className="td text-rs-muted">{labelTipo(r.tipo_reserva, etiquetasTipo)}</td>
                   <td className="td"><EstadoBadge estado={r.estado} /></td>
                 </tr>
               ))}

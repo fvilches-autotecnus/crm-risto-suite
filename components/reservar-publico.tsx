@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
+import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 
 interface Props {
   slug: string; nombre: string; ubicaciones: string[]; tipos: { value: string; label: string }[]
-  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null }; hoy: string; whatsapp: string
+  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number }; hoy: string; whatsapp: string
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
@@ -77,7 +78,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
     if (m.estado !== 'disponible') return
     if (sel.includes(m.id)) { setSel(sel.filter((i) => i !== m.id)); return }
     const actuales = (plano?.mesas ?? []).filter((x) => sel.includes(x.id))
-    if (m.movil && actuales.length > 0 && actuales.every((x) => x.movil)) { if (actuales.length >= 6) return; setSel([...sel, m.id]); return }
+    if (m.movil && actuales.length > 0 && actuales.every((x) => x.movil)) { if (actuales.length >= cfg.max_mesas) { setAviso(`Se pueden juntar hasta ${cfg.max_mesas} mesas.`); return }; setSel([...sel, m.id]); return }
     if (actuales.length > 0) setAviso(m.movil ? 'Se cambió la mesa elegida: las móviles solo se juntan con otras móviles.' : 'Las mesas fijas no se juntan: elegiste esta en lugar de la anterior.')
     setSel([m.id])
   }
@@ -95,22 +96,18 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   // La reserva se registra recién cuando el cliente manda el mensaje por WhatsApp (como el pedido de Toque): acá solo hay una solicitud en espera.
   // El código del mensaje es lo que une el mensaje con la solicitud; el teléfono es el de quien escribe, por eso no lo pedimos en el formulario.
   const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
-    const tipoTxt = tipos.find((t) => t.value === tipo)?.label
-    const detalle = [
-      `Nombre: ${form.nombre.trim()}`,
-      `Día: ${fechaTxt(r.fecha)}`, `Hora: ${r.hora}`, `Personas: ${r.personas}`,
-      r.ubicacion ? `Ubicación: ${r.ubicacion}` : '', tipoTxt ? `Tipo: ${tipoTxt}` : '',
-      `Mesa: ${r.mesas ? r.mesas : 'que la elija el local'}`,
-      form.observaciones.trim() ? `Comentarios: ${form.observaciones.trim()}` : '',
-    ].filter(Boolean)
-    const texto = [`SOLICITUD DE RESERVA - ${nombre}`, `Código: ${r.codigo}`, '', ...detalle].join('\n')
+    const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
+    const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
+      negocio: cfg.titulo || nombre, codigo: r.codigo, nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
+      ubicacion: r.ubicacion ?? '', tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
+    })
     return `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
   }
 
   if (resultado) {
     return (
       <div className="min-h-screen">
-        <Banner nombre={nombre} />
+        <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><MessageCircle size={28} /></div>
           <h1 className="text-xl font-bold">¡Último paso: mandá el mensaje por WhatsApp!</h1>
@@ -133,7 +130,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const chip = (activo: boolean) => 'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (activo ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text')
   return (
     <div className="min-h-screen pb-16">
-      <Banner nombre={nombre} />
+      <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} />
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
         {cfg.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
 
@@ -221,13 +218,13 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   )
 }
 
-function Banner({ nombre }: { nombre: string }) {
+function Banner({ nombre, subtitulo, prueba }: { nombre: string; subtitulo: string | null; prueba: boolean }) {
   return (
     <header className="border-b border-rs-raised bg-rs-header px-4 pb-4 pt-6 text-center">
-      <span className="mb-2 inline-block rounded-full bg-rs-warn/15 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rs-warn">Sitio de prueba</span>
+      {prueba && <span className="mb-2 inline-block rounded-full bg-rs-warn/15 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rs-warn">Sitio de prueba</span>}
       <h1 className="text-2xl font-bold text-rs-lime">{nombre}</h1>
-      <p className="mt-1 text-sm text-rs-muted">Reservá tu mesa</p>
-      <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>
+      <p className="mt-1 text-sm text-rs-muted">{subtitulo || 'Reservá tu mesa'}</p>
+      {prueba && <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>}
     </header>
   )
 }

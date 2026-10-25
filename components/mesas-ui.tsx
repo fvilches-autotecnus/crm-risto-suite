@@ -20,7 +20,7 @@ import {
 
 interface Props {
   salones: Salon[]; mesas: Mesa[]; reservas: ReservaSalon[]; duracion: number; fecha: string; hoy: string; modo: 'servicio' | 'editar'
-  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]
+  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]; turnos: { nombre: string; hora: string }[]
 }
 
 const Acciones = ({ pending, texto, onCancel }: { pending: boolean; texto: string; onCancel: () => void }) => (
@@ -121,7 +121,7 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
 // ---------------------------------------------------------------------------
 // Pantalla
 // ---------------------------------------------------------------------------
-export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones }: Props) {
+export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones, turnos }: Props) {
   const router = useRouter()
   const toast = useToast()
   const confirmar = useConfirm()
@@ -229,7 +229,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
               <Clock size={14} className="text-rs-muted" />
               {esHoy && <button type="button" onClick={() => setUsarAhora(true)} className={'btn btn-sm ' + (usarAhora ? 'btn-primary' : '')}>Ahora</button>}
               <input type="time" value={usarAhora && esHoy ? deMinutos(t) : horaTxt} onChange={(e) => { setHoraTxt(e.target.value); setUsarAhora(false) }} aria-label="Hora a mostrar" className="input h-8 w-28" />
-              {[['13:00', 'Almuerzo'], ['21:00', 'Cena']].map(([h, l]) => <button key={h} type="button" onClick={() => { setHoraTxt(h); setUsarAhora(false) }} className={'btn btn-sm ' + (!usarAhora && horaTxt === h ? 'btn-primary' : '')}>{l}</button>)}
+              {turnos.map((t) => [t.hora, t.nombre]).map(([h, l]) => <button key={h} type="button" onClick={() => { setHoraTxt(h); setUsarAhora(false) }} className={'btn btn-sm ' + (!usarAhora && horaTxt === h ? 'btn-primary' : '')}>{l}</button>)}
             </div>
             <span className="ml-auto text-xs capitalize text-rs-muted">{fechaTexto}{sinMesa > 0 && <span className="ml-2 font-semibold normal-case text-rs-warn">· {sinMesa} reserva{sinMesa === 1 ? '' : 's'} sin mesa</span>}</span>
           </>

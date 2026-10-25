@@ -267,6 +267,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       motivoCancelacion: r.motivo_cancelacion,
       monto: r.monto_sena,
       tipoReserva: r.tipo_reserva,
+      tipoEtiqueta: (await ctx.supabase.from('reserva_tipos').select('etiqueta').eq('negocio_id', negocio.id).eq('clave', r.tipo_reserva).maybeSingle()).data?.etiqueta as string | undefined,
       ubicacion: r.ubicacion,
       observaciones: r.observaciones,
       sede: ctx.sedesTodas.find((x) => x.id === r.sucursal_id)?.nombre ?? null,

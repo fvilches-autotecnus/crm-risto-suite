@@ -54,9 +54,11 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const pg = paginar(filtradas, numPagina(sp.pagina))
   const mostradas = pg.items
 
+  const { data: cfgWeb } = await supabase.from('reservas_web_config').select('validez_horas').eq('negocio_id', negocio.id).maybeSingle()
+  const validezHoras = (cfgWeb?.validez_horas as number | undefined) ?? 48
   // Solicitudes del sitio web que todavía esperan el mensaje de WhatsApp (no son reservas: no ocupan mesa ni aforo)
   const { data: sols } = await supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, tipo_reserva, observaciones, mesas, creado_en')
-    .eq('negocio_id', negocio.id).is('reserva_id', null).gte('creado_en', new Date(Date.now() - 48 * 3600 * 1000).toISOString()).order('creado_en', { ascending: false }).limit(100)
+    .eq('negocio_id', negocio.id).is('reserva_id', null).gte('creado_en', new Date(Date.now() - validezHoras * 3600 * 1000).toISOString()).order('creado_en', { ascending: false }).limit(100)
   const idsMesas = [...new Set((sols ?? []).flatMap((s) => (s.mesas as string[] | null) ?? []))]
   const numerosMesa: Record<string, string> = {}
   if (idsMesas.length) for (const m of (await supabase.from('mesas').select('id, numero').in('id', idsMesas)).data ?? []) numerosMesa[m.id as string] = m.numero as string
@@ -71,8 +73,8 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         <h1 className="text-xl font-bold sm:text-2xl">Reservas</h1>
         {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
       </div>
-      <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} />
-      <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
+      <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} etiquetasTipo={op.tiposEtiquetas} />
+      <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} etiquetasTipo={op.tiposEtiquetas} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
       <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>

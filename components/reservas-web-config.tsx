@@ -4,16 +4,20 @@ import { guardarReservasWeb } from '@/app/(panel)/reservas-web-actions'
 import { useToast } from '@/components/feedback'
 import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/reservas-config'
 import { Copy, ExternalLink } from 'lucide-react'
 
-export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null }
+export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
+  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
 export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
   const { state, pending, formProps } = useAccionFormulario(guardarReservasWeb)
   const toast = useToast()
   const [origen, setOrigen] = useState('')
+  const [plantilla, setPlantilla] = useState(config.texto_whatsapp ?? '')
+  const vista = useMemo(() => renderPlantillaWA(plantilla.trim() || PLANTILLA_WA_DEFECTO, { negocio: 'Tu local', codigo: '3FA09C', nombre: 'Ana Pérez', dia: 'sábado 31 de octubre', hora: '21:00', personas: '4', ubicacion: 'SALÓN', tipo: 'Cumpleaños', mesa: 'M1 + M2', comentarios: 'Una torta con velita' }), [plantilla])
   useEffect(() => setOrigen(window.location.origin), [])
   useEffect(() => { if (state?.ok) toast({ texto: 'Configuración guardada' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const url = `${origen}/reservar/${slug}`
@@ -40,6 +44,22 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
         <div><label className="label" htmlFor="rw_pmin">Personas: mínimo</label><input id="rw_pmin" name="personas_min" type="number" min={1} max={100} defaultValue={config.personas_min} className="input w-full" /></div>
         <div><label className="label" htmlFor="rw_pmax">Personas: máximo</label><input id="rw_pmax" name="personas_max" type="number" min={1} max={200} defaultValue={config.personas_max} className="input w-full" /></div>
       </div>
+      <fieldset className="space-y-3 rounded-md border border-rs-border/60 p-3">
+        <legend className="label px-1">Textos y reglas del sitio</legend>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="modo_prueba" defaultChecked={config.modo_prueba} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Modo prueba</span><span className="block text-xs text-rs-muted">Muestra el cartel “Sitio de prueba” y marca las reservas como “[Sitio de prueba]”. Apagalo cuando quieras publicarlo de verdad.</span></span></label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><label className="label" htmlFor="rw_titulo">Título de la página</label><input id="rw_titulo" name="titulo" defaultValue={config.titulo ?? ''} maxLength={80} placeholder="Por defecto: el nombre del local" className="input w-full" /></div>
+          <div><label className="label" htmlFor="rw_subtitulo">Subtítulo</label><input id="rw_subtitulo" name="subtitulo" defaultValue={config.subtitulo ?? ''} maxLength={160} placeholder="Por defecto: Reservá tu mesa" className="input w-full" /></div>
+          <div><label className="label" htmlFor="rw_validez">Cuánto espera la solicitud (horas)</label><input id="rw_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Si el cliente no manda el mensaje de WhatsApp en ese tiempo, la solicitud vence.</p></div>
+          <div><label className="label" htmlFor="rw_maxmesas">Máximo de mesas por reserva</label><input id="rw_maxmesas" name="max_mesas" type="number" min={1} max={12} defaultValue={config.max_mesas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Cuántas mesas móviles se pueden juntar para un grupo.</p></div>
+        </div>
+        <div>
+          <label className="label" htmlFor="rw_wa">Mensaje de WhatsApp que se arma para el cliente</label>
+          <textarea id="rw_wa" name="texto_whatsapp" value={plantilla} onChange={(e) => setPlantilla(e.target.value)} rows={9} maxLength={1200} placeholder={PLANTILLA_WA_DEFECTO} className="input w-full font-mono text-xs" />
+          <p className="mt-1 text-xs text-rs-muted">Vacío = el mensaje original. Variables: {VARIABLES_WA.map(([v, d]) => <code key={v} title={d} className="mr-1 rounded bg-rs-raised px-1 font-mono text-rs-lime">{`{${v}}`}</code>)}. Una línea con una variable vacía no se incluye. <b className="text-rs-text">Tiene que llevar {'{codigo}'}</b> y, si cambiás la primera frase, actualizá la palabra clave de la regla del bot.</p>
+          <div className="mt-2 rounded-md bg-rs-raised/50 p-3"><p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-rs-muted">Así lo ve el cliente (ejemplo)</p><pre className="whitespace-pre-wrap font-sans text-sm">{vista}</pre></div>
+        </div>
+      </fieldset>
       <div><label className="label" htmlFor="rw_msg">Mensaje para el cliente</label><textarea id="rw_msg" name="mensaje" rows={2} maxLength={400} defaultValue={config.mensaje ?? ''} placeholder="Ej. Las reservas se confirman por WhatsApp. Tolerancia de 15 minutos." className="input w-full" /></div>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
       <div className="flex justify-end"><button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar'}</button></div>
