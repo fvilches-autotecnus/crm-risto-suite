@@ -59,9 +59,8 @@ export default async function ConfiguracionPage() {
   const indice = [
     { id: 'negocio', label: 'Negocio' },
     ...(muestraSedes ? [{ id: 'sedes', label: 'Sedes' }] : []),
-    { id: 'aforo', label: 'Aforo' },
-    { id: 'bloqueos', label: 'Fechas bloqueadas' },
-    ...(ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
+    ...(ctx.modulosActivos.reservas ? [{ id: 'aforo', label: 'Aforo' }, { id: 'bloqueos', label: 'Fechas bloqueadas' }] : []),
+    ...(ctx.modulosActivos.reservas && ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
     ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
     ...(ctx.puedeAdministrar ? [{ id: 'etiquetas', label: 'Etiquetas' }] : []),
     ...(ctx.tieneApagadoBot && ctx.puedeAdministrar ? [{ id: 'pausas', label: 'Chats pausados' }] : []),
@@ -88,7 +87,7 @@ export default async function ConfiguracionPage() {
         </Seccion>
       )}
 
-      <Seccion id="aforo" i={n++} titulo="Aforo" texto="Se muestra en el dashboard, avisa al llegar al 90% y advierte al cargar una reserva que supera el cupo (se puede guardar igual).">
+      {ctx.modulosActivos.reservas && <Seccion id="aforo" i={n++} titulo="Aforo" texto="Se muestra en el dashboard, avisa al llegar al 90% y advierte al cargar una reserva que supera el cupo (se puede guardar igual).">
         <h3 className="mt-4 text-sm font-semibold">{conSedes ? 'Total por día del negocio' : 'Total por día'}</h3>
         <p className="text-xs text-rs-muted">Máximo de personas con reserva (nueva o confirmada) en un mismo día.{conSedes ? ' Lo usan las sedes que no tienen un total propio.' : ''}</p>
         <AforoForm aforo={negocio.aforo_maximo_reservas} puedeEditar={ctx.puedeAdministrar} />
@@ -99,9 +98,9 @@ export default async function ConfiguracionPage() {
             <ReglasPanel reglas={(reglas ?? []) as any} sedes={sedesAsignables} nombresSede={nombresSede} ubicaciones={nombresUbicacion} puedeTodas={ctx.sinRestriccionSede} />
           </>
         )}
-      </Seccion>
+      </Seccion>}
 
-      <Seccion id="bloqueos" i={n++} titulo="Fechas bloqueadas" texto="Días (o franjas horarias) en los que no se aceptan reservas.">
+      {ctx.modulosActivos.reservas && <Seccion id="bloqueos" i={n++} titulo="Fechas bloqueadas" texto="Días (o franjas horarias) en los que no se aceptan reservas.">
         {puedeBloquear && <BloqueoForm sedes={sedesAsignables} puedeTodas={ctx.sinRestriccionSede} />}
         <ul className="mt-4 divide-y divide-rs-border/60">
           {(bloqueos ?? []).length === 0 && <li className="py-3 text-sm text-rs-muted">No hay fechas bloqueadas próximas.</li>}
@@ -115,9 +114,9 @@ export default async function ConfiguracionPage() {
             </li>
           ))}
         </ul>
-      </Seccion>
+      </Seccion>}
 
-      {ctx.puedeAdministrar && (
+      {ctx.modulosActivos.reservas && ctx.puedeAdministrar && (
         <Seccion id="ubicaciones" i={n++} titulo="Ubicaciones" texto="Zonas del local para elegir al cargar una reserva (ej. interior, exterior). También sirven para las reglas de aforo.">
           <div className="mt-3"><UbicacionesPanel ubicaciones={ubicaciones ?? []} sedes={sedesAsignables} puedeTodas={ctx.sinRestriccionSede} /></div>
         </Seccion>

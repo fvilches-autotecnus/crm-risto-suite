@@ -3,27 +3,30 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BarChart3, Building2, Cake, CalendarCheck, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, Star, Ticket, Users } from 'lucide-react'
+import { BarChart3, BookOpen, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
-  { href: '/reservas', label: 'Reservas', icon: CalendarCheck },
+  { href: '/reservas', label: 'Reservas', icon: CalendarCheck, modulo: 'reservas' },
+  { href: '/shows', label: 'Shows', icon: Clapperboard, modulo: 'shows' },
+  { href: '/pedidos', label: 'Pedidos', icon: ShoppingBag, modulo: 'pedidos' },
+  { href: '/carta', label: 'Carta', icon: BookOpen, modulo: 'carta' },
   { href: '/cumpleanos', label: 'Cumpleaños', icon: Cake, modulo: 'cumpleanos' },
   { href: '/derivadas', label: 'Derivadas', icon: CornerUpRight, modulo: 'derivadas' },
   { href: '/vouchers', label: 'Vouchers', icon: Ticket, modulo: 'vouchers' },
   { href: '/campanas', label: 'Campañas', icon: Megaphone, modulo: 'campanas' },
   { href: '/metricas', label: 'Métricas', icon: BarChart3, modulo: 'metricas' },
   { href: '/resenas', label: 'Reseñas', icon: Star, modulo: 'resenas' },
-  { href: '/clientes', label: 'Clientes', icon: Users },
-  { href: '/consultas', label: 'Consultas y reclamos', icon: MessageCircleQuestion },
+  { href: '/clientes', label: 'Clientes', icon: Users, modulo: 'clientes' },
+  { href: '/consultas', label: 'Consultas y reclamos', icon: MessageCircleQuestion, modulo: 'consultas' },
   { href: '/pausados', label: 'Chats pausados', icon: PauseCircle, modulo: 'pausados' },
   { href: '/conversaciones', label: 'Conversaciones', icon: MessagesSquare, modulo: 'conversaciones' },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
-export default function Nav({ esSuperadmin = false, pausados = 0, modulos = { metricas: true, cumpleanos: true, vouchers: true, resenas: true, conversaciones: false, derivadas: false, campanas: false, pausados: false } }: { esSuperadmin?: boolean; pausados?: number; modulos?: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean; pausados: boolean } }) {
+export default function Nav({ esSuperadmin = false, pausados = 0, modulos = {} }: { esSuperadmin?: boolean; pausados?: number; modulos?: Record<string, boolean> }) {
   const pathname = usePathname()
-  const visibles = TABS.filter((t) => !('modulo' in t) || modulos[t.modulo as keyof typeof modulos])
+  const visibles = TABS.filter((t) => { const m = (t as { modulo?: string }).modulo; return !m || modulos[m] === true })
   const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
   const activo = tabs.find((t) => (t.href === '/' ? pathname === '/' : pathname.startsWith(t.href)))?.href ?? null
   const refs = useRef<Record<string, HTMLAnchorElement | null>>({})

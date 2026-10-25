@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { getContexto } from '@/lib/context'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
@@ -19,6 +19,7 @@ import { edadActual, proximoCumple, textoCumple, textoFaltan } from '@/lib/cumpl
 
 export default async function ClienteDetalle({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getContexto()
+  if (!ctx.modulosActivos.clientes) redirect('/')
   const { supabase, negocio } = ctx
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound()

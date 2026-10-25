@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ArrowDown, ArrowUp, ArrowUpDown, Search, Users } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
@@ -24,6 +25,7 @@ const ORDENES = [
 
 export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string; etiqueta?: string; origen?: string }> }) {
   const ctx = await getContexto()
+  if (!ctx.modulosActivos.clientes) redirect('/')
   const { supabase, negocio } = ctx
   const sp = await searchParams
   const { q, orden: ordenParam } = sp

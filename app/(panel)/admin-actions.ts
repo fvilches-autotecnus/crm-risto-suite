@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { leerModulosForm, resolverModulos } from '@/lib/modulos'
 import { getContexto, type Contexto, type Rol } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import { ROLES, ROLES_BAJOS, SLUG_RE, USUARIO_RE, emailInterno } from '@/lib/roles'
@@ -68,7 +69,7 @@ export async function crearNegocio(_prev: ActionResult | null, fd: FormData): Pr
 
   const { error } = await createAdminClient().from('negocios').insert({
     nombre, slug, whatsapp_nro: whatsapp || null, aforo_maximo_reservas: aforo,
-    modulos: { pedidos: false, reservas: true, crm: true, apagado_bot: fd.get('apagado_bot') === 'on' },
+    modulos: { crm: true, ...(fd.get('__modulos') ? leerModulosForm(fd) : resolverModulos(null)), apagado_bot: fd.get('apagado_bot') === 'on' },
   })
   if (error) return fail(error.code === '23505' ? 'Ya existe un negocio con ese identificador' : 'No se pudo crear el negocio')
   refrescar()
@@ -94,7 +95,7 @@ export async function actualizarNegocio(_prev: ActionResult | null, fd: FormData
     whatsapp_nro: text(fd, 'whatsapp_nro').replace(/\D/g, '') || null,
     aforo_maximo_reservas: aforo,
     activo: fd.get('activo') === 'on',
-    modulos: { ...(actual.modulos as Record<string, unknown>), apagado_bot: fd.get('apagado_bot') === 'on' },
+    modulos: { ...(actual.modulos as Record<string, unknown>), ...(fd.get('__modulos') ? leerModulosForm(fd) : {}), apagado_bot: fd.get('apagado_bot') === 'on' },
   }).eq('id', id)
   if (error) return fail('No se pudo guardar el negocio')
   refrescar()

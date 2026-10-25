@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolverModulos } from '@/lib/modulos'
 import { redirect } from 'next/navigation'
 import { getContexto } from '@/lib/context'
 import GestionNegocios, { type NegocioAdmin } from '@/components/negocios-ui'
@@ -30,7 +31,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
 
   const listaNegocios: NegocioAdmin[] = (negocios ?? []).map((n) => ({
     id: n.id, nombre: n.nombre, slug: n.slug, whatsapp_nro: n.whatsapp_nro, aforo_maximo_reservas: n.aforo_maximo_reservas,
-    activo: n.activo, creado_en: n.creado_en, apagado_bot: (n.modulos as { apagado_bot?: boolean } | null)?.apagado_bot === true, usuarios: conteo.get(n.id) ?? 0, sedes: (sedesPorNegocio[n.id] ?? []).length,
+    activo: n.activo, creado_en: n.creado_en, apagado_bot: (n.modulos as { apagado_bot?: boolean } | null)?.apagado_bot === true, modulos: resolverModulos(n.modulos as Record<string, unknown> | null), usuarios: conteo.get(n.id) ?? 0, sedes: (sedesPorNegocio[n.id] ?? []).length,
   }))
   const usuarios: UsuarioUI[] = (perfiles ?? []).map((p) => ({
     ...p,

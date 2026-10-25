@@ -9,6 +9,8 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookSede, probarWebhookCliente, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
+import ModulosPicker from '@/components/modulos-picker'
+import type { ModulosActivos } from '@/lib/modulos'
 import { guardarPausaAuto } from '../pausados-actions'
 import { UNIDADES_PAUSA, partirMinutos, type PausaAuto } from '@/lib/pausas'
 
@@ -158,25 +160,14 @@ export function BorrarBloqueo({ id }: { id: string }) {
 // ---------------------------------------------------------------------------
 // Funciones del negocio (superadmin)
 // ---------------------------------------------------------------------------
-export function ModulosForm({ modulos }: { modulos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean } }) {
+export function ModulosForm({ modulos }: { modulos: ModulosActivos }) {
   const { state, pending, formProps } = useAccionFormulario(guardarModulos)
   useResultado(state, 'Módulos guardados')
-  const fila = (name: string, titulo: string, texto: string, on: boolean) => (
-    <label className="flex cursor-pointer items-start gap-3 text-sm">
-      <input type="checkbox" name={name} defaultChecked={on} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" />
-      <span><span className="font-medium">{titulo}</span><span className="block text-rs-muted">{texto}</span></span>
-    </label>
-  )
   return (
     <form {...formProps} className="mt-4 space-y-3 border-t border-rs-border pt-4">
-      <h3 className="text-sm font-semibold">Pestañas habilitadas</h3>
-      {fila('cumpleanos', 'Cumpleaños', 'Lista de próximos cumpleaños de clientes y regalo pendiente.', modulos.cumpleanos)}
-      {fila('vouchers', 'Vouchers', 'Códigos de beneficio y su estado de uso.', modulos.vouchers)}
-      {fila('metricas', 'Métricas', 'Gráficos de reservas, horarios y clientes recurrentes.', modulos.metricas)}
-      {fila('resenas', 'Reseñas', 'Reseñas conseguidas, puntaje promedio y filtros.', modulos.resenas)}
-      {fila('derivadas', 'Derivadas', 'Reservas que toma el bot pero administra otra producción (oculto por defecto).', modulos.derivadas)}
-      {fila('campanas', 'Campañas', 'Seguimiento de las campañas automáticas de marketing: mensajes enviados, entregados y respondidos (oculto por defecto).', modulos.campanas)}
-      {fila('conversaciones', 'Conversaciones', 'Chats del bot de WhatsApp (oculto por defecto).', modulos.conversaciones)}
+      <h3 className="text-sm font-semibold">Módulos del negocio</h3>
+      <p className="text-xs text-rs-muted">Elegí qué módulos tiene este negocio. Lo que apagues desaparece del menú para todos sus usuarios (los datos no se borran).</p>
+      <ModulosPicker valores={modulos} />
       <Guardar pending={pending} />
     </form>
   )

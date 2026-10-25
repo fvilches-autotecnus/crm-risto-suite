@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { MessageCircleQuestion, Search } from 'lucide-react'
 import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
@@ -15,6 +16,7 @@ const TIPOS = [{ v: 'todos', l: 'Todos' }, { v: 'consulta', l: 'Consultas' }, { 
 
 export default async function ConsultasYReclamosPage({ searchParams }: { searchParams: Promise<{ pagina?: string; estado?: string; tipo?: string; q?: string; orden?: string }> }) {
   const ctx = await getContexto()
+  if (!ctx.modulosActivos.consultas) redirect('/')
   const { supabase, negocio, sede } = ctx
   const sp = await searchParams
   const estado = ESTADOS.some((e) => e.v === sp.estado) ? sp.estado! : 'pendiente'

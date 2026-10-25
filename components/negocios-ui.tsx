@@ -6,6 +6,8 @@ import { Pencil, Plus } from 'lucide-react'
 import { useToast } from '@/components/feedback'
 import { TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
+import ModulosPicker from '@/components/modulos-picker'
+import { MODULOS, resolverModulos, type ModulosActivos } from '@/lib/modulos'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
@@ -21,6 +23,7 @@ export interface NegocioAdmin {
   aforo_maximo_reservas: number | null
   activo: boolean
   apagado_bot: boolean
+  modulos: ModulosActivos
   usuarios: number
   sedes: number
   creado_en: string
@@ -62,6 +65,10 @@ function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
           <input type="checkbox" name="activo" defaultChecked={n.activo} className="h-4 w-4 accent-[#c8e62b]" /> Negocio activo (si se desmarca, sus usuarios no lo ven)
         </label>
       )}
+      <details open={!n} className="col-span-2 rounded-md border border-rs-border p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Módulos del negocio <span className="font-normal text-rs-muted">· {MODULOS.filter((m) => (n?.modulos ?? resolverModulos(null))[m.clave]).length} de {MODULOS.length} encendidos</span></summary>
+        <div className="mt-3"><ModulosPicker valores={n?.modulos ?? resolverModulos(null)} /></div>
+      </details>
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 mt-1 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
@@ -93,11 +100,12 @@ export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[]
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Negocio</th><th className="th">WhatsApp</th><th className="th">Aforo</th><th className="th">Usuarios</th><th className="th">Sedes</th><th className="th">Botón bot</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><th className="th">Negocio</th><th className="th">Módulos</th><th className="th">WhatsApp</th><th className="th">Aforo</th><th className="th">Usuarios</th><th className="th">Sedes</th><th className="th">Botón bot</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
           <tbody>
             {negocios.map((n) => (
               <tr key={n.id} className="border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/40">
                 <td className="td"><div className="font-medium">{n.nombre}</div><div className="font-mono text-xs text-rs-muted">{n.slug}</div></td>
+                <td className="td"><div className="flex flex-wrap gap-1">{MODULOS.filter((m) => m.grupo === 'Operación' && n.modulos[m.clave]).map((m) => <span key={m.clave} className="badge bg-rs-lime/15 text-rs-lime">{m.titulo}</span>)}<span className="text-xs text-rs-muted">{MODULOS.filter((m) => m.grupo !== 'Operación' && n.modulos[m.clave]).length} más</span></div></td>
                 <td className="td text-rs-muted">{n.whatsapp_nro ?? '—'}</td>
                 <td className="td">{n.aforo_maximo_reservas ?? '—'}</td>
                 <td className="td">{n.usuarios}</td>

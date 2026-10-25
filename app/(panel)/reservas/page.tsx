@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import FiltrosReservas from '@/components/filtros-reservas'
 import { getContexto } from '@/lib/context'
@@ -12,6 +13,7 @@ type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubi
 
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await getContexto()
+  if (!ctx.modulosActivos.reservas) redirect('/')
   const { supabase, negocio, sede } = ctx
   const op = await cargarOpciones(ctx)
   const sp = await searchParams

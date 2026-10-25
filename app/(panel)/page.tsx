@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import InicioModulos from '@/components/inicio-modulos'
 import { CalendarCheck2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { AforoLista, Tile } from '@/components/dashboard-ui'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
@@ -17,6 +18,7 @@ function saludo(): string {
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
   const ctx = await getContexto()
+  if (!ctx.modulosActivos.reservas) return <InicioModulos nombre={ctx.nombreUsuario.split(' ')[0]} negocio={ctx.negocio.nombre} activos={ctx.modulosActivos} />
   const { supabase, negocio, sede } = ctx
   const op = await cargarOpciones(ctx)
   const sp = await searchParams

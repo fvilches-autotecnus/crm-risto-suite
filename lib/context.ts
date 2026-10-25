@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TZ_AR } from '@/lib/fechas'
+import { resolverModulos, type ModulosActivos } from '@/lib/modulos'
 
 export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura'
 
@@ -15,7 +16,7 @@ export interface Negocio {
   zona_horaria: string
   aforo_maximo_reservas: number | null
   bot_activo: boolean
-  modulos: { pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean; campanas?: boolean }
+  modulos: { shows?: boolean; carta?: boolean; clientes?: boolean; consultas?: boolean; pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean; campanas?: boolean }
 }
 
 export interface Sede {
@@ -39,7 +40,7 @@ export interface Contexto {
   puedeEscribir: boolean
   puedeAdministrar: boolean
   /** Módulos de pestañas habilitados (todos por defecto; el superadmin puede apagar alguno por negocio). */
-  modulosActivos: { metricas: boolean; cumpleanos: boolean; vouchers: boolean; resenas: boolean; conversaciones: boolean; derivadas: boolean; campanas: boolean }
+  modulosActivos: ModulosActivos
   tieneApagadoBot: boolean // el negocio tiene habilitado el botón de apagado (lo configura Autotecnus)
   puedeApagarBot: boolean
   /** Sedes del negocio a las que el usuario tiene alcance (todas si no tiene restricción). Vacío = negocio de una sola sede. */
@@ -106,7 +107,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     rol,
     puedeEscribir: rol !== 'solo_lectura',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
-    modulosActivos: { metricas: negocio.modulos?.metricas !== false, cumpleanos: negocio.modulos?.cumpleanos !== false, vouchers: negocio.modulos?.vouchers !== false, resenas: negocio.modulos?.resenas !== false, conversaciones: negocio.modulos?.conversaciones === true, derivadas: negocio.modulos?.derivadas === true, campanas: negocio.modulos?.campanas === true },
+    modulosActivos: resolverModulos(negocio.modulos as Record<string, unknown> | null),
     tieneApagadoBot,
     puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
     sedes,

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { leerModulosForm } from '@/lib/modulos'
 import { getContexto } from '@/lib/context'
 import type { ActionResult } from './actions'
 
@@ -149,16 +150,7 @@ export async function guardarModulos(_prev: ActionResult | null, fd: FormData): 
   const admin = createAdminClient()
   const { data: actual } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
   if (!actual) return fail('No se pudo leer el negocio')
-  const modulos = {
-    ...(actual.modulos as Record<string, unknown>),
-    metricas: fd.get('metricas') === 'on',
-    cumpleanos: fd.get('cumpleanos') === 'on',
-    vouchers: fd.get('vouchers') === 'on',
-    resenas: fd.get('resenas') === 'on',
-    conversaciones: fd.get('conversaciones') === 'on',
-    derivadas: fd.get('derivadas') === 'on',
-    campanas: fd.get('campanas') === 'on',
-  }
+  const modulos = { ...(actual.modulos as Record<string, unknown>), ...leerModulosForm(fd) }
   const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
   refrescar()
