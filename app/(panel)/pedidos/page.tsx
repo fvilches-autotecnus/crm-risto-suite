@@ -12,7 +12,7 @@ export default async function PedidosPage() {
       titulo="Pedidos"
       subtitulo="Pedidos de los clientes"
       vaA={['Pedidos de delivery y retiro armados desde la carta', 'Estados del pedido y aviso al cliente por WhatsApp', 'Resumen de ventas del día']}
-      nota="Los pedidos se arman desde la carta digital, por eso este módulo siempre viene con la Carta encendida."
+      nota="Los pedidos se arman eligiendo productos de la carta digital: por eso conviene tener también el módulo Carta encendido."
     />
   )
 }
