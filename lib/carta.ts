@@ -46,7 +46,7 @@ export function textoPrecio(p: Pick<ProductoCarta, 'precio' | 'variantes'>, mone
 
 /** Dirección pública de una foto del bucket "carta". */
 export const urlImagen = (path: string | null | undefined): string | null =>
-  path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/carta/${path}` : null
+  path ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/^﻿/, '').trim().replace(/\/$/, '')}/storage/v1/object/public/carta/${path}` : null   // la variable en Vercel puede traer un carácter invisible (BOM) al principio
 
 /** Convierte lo guardado en jsonb a variantes válidas (ignora basura). */
 export function leerVariantes(v: unknown): Variante[] {
