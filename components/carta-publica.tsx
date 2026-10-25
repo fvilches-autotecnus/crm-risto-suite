@@ -84,7 +84,7 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
                       {p.variantes.length > 0 ? (
                         <ul className="mt-2 space-y-1 text-sm">{p.variantes.map((v) => (
                           <li key={v.nombre} className="flex items-center justify-between gap-3 border-b border-rs-border/60 py-1.5 last:border-0">
-                            <span>{v.nombre}{config.mostrar_precios && <span className="ml-2 font-semibold text-rs-lime">{formatearPrecio(v.precio, config.moneda)}</span>}</span>
+                            <span>{v.nombre}{config.mostrar_precios && <>{' '}<span className="ml-2 font-semibold text-rs-lime">{formatearPrecio(v.precio, config.moneda)}</span></>}</span>
                             {pedible && stepper(p, v.nombre, v.precio)}
                           </li>))}</ul>
                       ) : (
