@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BarChart3, BookOpen, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
+import { BarChart3, BookOpen, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -14,6 +14,7 @@ const TABS = [
   { href: '/cumpleanos', label: 'Cumpleaños', icon: Cake, modulo: 'cumpleanos' },
   { href: '/derivadas', label: 'Derivadas', icon: CornerUpRight, modulo: 'derivadas' },
   { href: '/vouchers', label: 'Vouchers', icon: Ticket, modulo: 'vouchers' },
+  { href: '/fidelizacion', label: 'Fidelización', icon: Gift, modulo: 'fidelizacion' },
   { href: '/campanas', label: 'Campañas', icon: Megaphone, modulo: 'campanas' },
   { href: '/metricas', label: 'Métricas', icon: BarChart3, modulo: 'metricas' },
   { href: '/resenas', label: 'Reseñas', icon: Star, modulo: 'resenas' },

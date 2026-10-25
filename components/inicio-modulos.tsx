@@ -1,9 +1,9 @@
 import Link from 'next/link'
-import { BookOpen, Cake, CalendarCheck, Clapperboard, CornerUpRight, Megaphone, MessageCircleQuestion, MessagesSquare, ShoppingBag, Star, Ticket, Users, BarChart3 } from 'lucide-react'
+import { BookOpen, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, MessageCircleQuestion, MessagesSquare, ShoppingBag, Star, Ticket, Users, BarChart3 } from 'lucide-react'
 import { MODULOS, type ModulosActivos } from '@/lib/modulos'
 
-const ICONOS = { reservas: CalendarCheck, shows: Clapperboard, carta: BookOpen, pedidos: ShoppingBag, clientes: Users, consultas: MessageCircleQuestion, cumpleanos: Cake, vouchers: Ticket, resenas: Star, campanas: Megaphone, metricas: BarChart3, derivadas: CornerUpRight, conversaciones: MessagesSquare }
-const RUTAS: Record<string, string> = { reservas: '/reservas', shows: '/shows', carta: '/carta', pedidos: '/pedidos', clientes: '/clientes', consultas: '/consultas', cumpleanos: '/cumpleanos', vouchers: '/vouchers', resenas: '/resenas', campanas: '/campanas', metricas: '/metricas', derivadas: '/derivadas', conversaciones: '/conversaciones' }
+const ICONOS = { reservas: CalendarCheck, shows: Clapperboard, carta: BookOpen, pedidos: ShoppingBag, clientes: Users, consultas: MessageCircleQuestion, cumpleanos: Cake, vouchers: Ticket, resenas: Star, fidelizacion: Gift, campanas: Megaphone, metricas: BarChart3, derivadas: CornerUpRight, conversaciones: MessagesSquare }
+const RUTAS: Record<string, string> = { reservas: '/reservas', shows: '/shows', carta: '/carta', pedidos: '/pedidos', clientes: '/clientes', consultas: '/consultas', cumpleanos: '/cumpleanos', vouchers: '/vouchers', resenas: '/resenas', fidelizacion: '/fidelizacion', campanas: '/campanas', metricas: '/metricas', derivadas: '/derivadas', conversaciones: '/conversaciones' }
 
 function saludo(): string {
   const h = Number(new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false }).format(new Date()))

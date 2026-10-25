@@ -8,6 +8,7 @@ import { RESERVA_COLS, type Reserva } from '@/lib/reservas'
 import Paginacion from '@/components/paginacion'
 import { numPagina, paginar } from '@/lib/paginacion'
 import { cargarOpciones } from '@/lib/sedes'
+import { usaAsistencia } from '@/lib/fidelidad-servidor'
 
 type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
 
@@ -16,6 +17,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   if (!ctx.modulosActivos.reservas) redirect('/')
   const { supabase, negocio, sede } = ctx
   const op = await cargarOpciones(ctx)
+  const asistencia = await usaAsistencia(ctx)
   const sp = await searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const rango = sp.rango ?? 'hoy'
@@ -60,7 +62,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
       </div>
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
-      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} />
+      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>
   )

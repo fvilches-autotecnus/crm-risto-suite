@@ -6,7 +6,7 @@
 
 export type ModuloClave =
   | 'reservas' | 'shows' | 'carta' | 'pedidos'
-  | 'clientes' | 'consultas' | 'cumpleanos' | 'vouchers' | 'resenas' | 'campanas' | 'metricas' | 'derivadas' | 'conversaciones'
+  | 'clientes' | 'consultas' | 'cumpleanos' | 'vouchers' | 'resenas' | 'fidelizacion' | 'campanas' | 'metricas' | 'derivadas' | 'conversaciones'
 
 export interface ModuloDef {
   clave: ModuloClave
@@ -30,6 +30,7 @@ export const MODULOS: ModuloDef[] = [
   { clave: 'cumpleanos', titulo: 'Cumpleaños', texto: 'Próximos cumpleaños de clientes y su distribución por mes.', grupo: 'Clientes y marketing', porDefecto: true, conviene: { con: ['clientes'], porque: 'el cumpleaños se guarda en la ficha de cada cliente.' } },
   { clave: 'vouchers', titulo: 'Vouchers', texto: 'Códigos de beneficio y su estado de uso.', grupo: 'Clientes y marketing', porDefecto: true, conviene: { con: ['clientes'], porque: 'cada voucher se asocia a un cliente y se ve en su ficha.' } },
   { clave: 'resenas', titulo: 'Reseñas', texto: 'Reseñas conseguidas, puntaje promedio y resumen con IA.', grupo: 'Clientes y marketing', porDefecto: true, conviene: { con: ['clientes'], porque: 'cada reseña se asocia a un cliente y se ve en su ficha.' } },
+  { clave: 'fidelizacion', titulo: 'Fidelización', texto: 'Premia a los clientes que vuelven: un voucher automático al llegar a cierta cantidad de visitas.', grupo: 'Clientes y marketing', porDefecto: false, conviene: { con: ['reservas', 'clientes', 'vouchers'], porque: 'las visitas salen de las reservas, los premios se asignan a la ficha del cliente y se entregan como vouchers.' } },
   { clave: 'campanas', titulo: 'Campañas', texto: 'Seguimiento de las campañas de marketing: a quién se mandó cada mensaje (oculto por defecto).', grupo: 'Clientes y marketing', porDefecto: false, conviene: { con: ['clientes'], porque: 'las campañas registran a qué clientes se les mandó cada mensaje.' } },
   { clave: 'metricas', titulo: 'Métricas', texto: 'Gráficos de reservas, horarios y clientes recurrentes.', grupo: 'Análisis y bot', porDefecto: true, conviene: { con: ['reservas'], porque: 'las métricas se calculan con las reservas: sin ellas los gráficos quedan vacíos.' } },
   { clave: 'derivadas', titulo: 'Derivadas', texto: 'Reservas que toma el bot pero administra otra producción (oculto por defecto).', grupo: 'Análisis y bot', porDefecto: false, conviene: { con: ['reservas'], porque: 'son reservas que toma el bot: sin el módulo de Reservas no hay con qué relacionarlas.' } },

@@ -16,6 +16,7 @@ import { BadgeVoucher, NuevoVoucherBtn } from '@/components/vouchers-ui'
 import { labelCampana } from '@/lib/vouchers'
 import { hoyEn } from '@/lib/fechas'
 import { edadActual, proximoCumple, textoCumple, textoFaltan } from '@/lib/cumples'
+import { proximoPremio, textoRegla, textoVisitas, type ReglaFidelidad } from '@/lib/fidelidad'
 
 export default async function ClienteDetalle({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getContexto()
@@ -35,6 +36,15 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
     .order('fecha', { ascending: false, nullsFirst: true })
 
   const hoy = hoyEn(negocio.zona_horaria)
+  // Fidelización: visitas del cliente, próxima meta y premios recibidos
+  const fid = ctx.modulosActivos.fidelizacion
+    ? await Promise.all([
+        supabase.from('fidelidad_config').select('activo').eq('negocio_id', negocio.id).maybeSingle(),
+        supabase.rpc('fidelidad_resumen', { p_negocio: negocio.id, p_cliente: id }),
+        supabase.from('fidelidad_reglas').select('id, nombre, visitas, repetir, beneficio, vence_dias, activa').eq('negocio_id', negocio.id).order('visitas'),
+        supabase.from('fidelidad_premios').select('id, hito, creado_en, regla:fidelidad_reglas(nombre, beneficio), voucher:vouchers(codigo, estado)').eq('cliente_id', id).order('creado_en', { ascending: false }),
+      ])
+    : null
   const { data: vouchersCliente } = ctx.modulosActivos.vouchers
     ? await supabase.from('vouchers').select('id, codigo, beneficio, campana, estado, vence_el').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(20)
     : { data: [] as { id: string; codigo: string; beneficio: string | null; campana: string | null; estado: 'vigente' | 'usado' | 'anulado'; vence_el: string | null }[] }
@@ -79,6 +89,30 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           {ctx.puedeEscribir && <EditarCumple cliente={{ id: cliente.id, nombre: cliente.nombre, dia: cliente.cumple_dia, mes: cliente.cumple_mes, anio: cliente.fecha_nacimiento ? Number(cliente.fecha_nacimiento.slice(0, 4)) : null }} />}
         </section>
       )}
+
+      {fid && (() => {
+        const activo = fid[0].data?.activo === true
+        const resumen = (fid[1].data ?? [])[0] as { visitas: number; total: number; ultima: string | null } | undefined
+        const reglas = (fid[2].data ?? []) as ReglaFidelidad[]
+        const prox = proximoPremio(resumen?.visitas ?? 0, reglas)
+        const premios = (fid[3].data ?? []) as unknown as { id: string; hito: number; creado_en: string; regla: { nombre: string; beneficio: string } | null; voucher: { codigo: string; estado: string } | null }[]
+        const meta = prox ? (prox.regla.repetir ? Math.ceil(((resumen?.visitas ?? 0) + 1) / prox.regla.visitas) * prox.regla.visitas : prox.regla.visitas) : 0
+        return (
+          <section className="card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="card-title">Fidelidad</h2><Link href="/fidelizacion" className="text-xs text-rs-lime hover:underline">Ver programa</Link></div>
+            {!activo ? <p className="mt-2 text-sm text-rs-muted">El programa de fidelización está apagado.</p> : (
+              <>
+                <p className="mt-2 text-sm"><span className="text-2xl font-bold tabular-nums text-rs-lime">{resumen?.visitas ?? 0}</span> <span className="text-rs-muted">{(resumen?.visitas ?? 0) === 1 ? 'visita' : 'visitas'} en el programa{resumen && resumen.total !== resumen.visitas ? ` · ${textoVisitas(resumen.total)} en total` : ''}{resumen?.ultima ? ` · última el ${fechaCorta(resumen.ultima)}` : ''}</span></p>
+                {prox && <div className="mt-3"><div className="flex items-center justify-between text-xs text-rs-muted"><span>{prox.faltan === 1 ? 'Le falta 1 visita' : `Le faltan ${prox.faltan} visitas`} para: <span className="text-rs-text">{prox.regla.beneficio}</span></span><span>{resumen?.visitas ?? 0}/{meta}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-rs-raised"><div className="h-full rounded-full bg-rs-lime" style={{ width: `${Math.min(100, ((resumen?.visitas ?? 0) / Math.max(meta, 1)) * 100)}%` }} /></div><p className="mt-1 text-xs text-rs-muted">{textoRegla(prox.regla)}</p></div>}
+                <ul className="mt-3 divide-y divide-rs-border/60">
+                  {premios.length === 0 && <li className="py-2 text-sm text-rs-muted">Todavía no recibió premios.</li>}
+                  {premios.map((p) => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span>{p.regla?.beneficio ?? '—'} <span className="text-rs-muted">· visita {p.hito} · {fechaCorta(p.creado_en.slice(0, 10))}</span></span><span className="font-mono font-semibold text-rs-lime">{p.voucher?.codigo ?? '—'}</span></li>)}
+                </ul>
+              </>
+            )}
+          </section>
+        )
+      })()}
 
       {ctx.modulosActivos.vouchers && (
         <section className="card p-5">

@@ -8,6 +8,7 @@ import { getContexto } from '@/lib/context'
 import { fechaLarga, hoyEn, inicioSemana, sumarDias } from '@/lib/fechas'
 import { ESTADOS_OCUPAN, RESERVA_COLS, ocupaLugar, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import { cargarOpciones } from '@/lib/sedes'
+import { usaAsistencia } from '@/lib/fidelidad-servidor'
 
 const delta = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
@@ -107,7 +108,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={dia} op={op} />}
           </div>
         </div>
-        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} op={op} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
+        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={await usaAsistencia(ctx)} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
       </section>
 
       <section>

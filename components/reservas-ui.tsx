@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X } from 'lucide-react'
+import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
+import { marcarLlego } from '@/app/(panel)/fidelidad-actions'
 import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
@@ -200,7 +201,7 @@ export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; o
   )
 }
 
-export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; op: OpcionesSede }) {
+export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; op: OpcionesSede }) {
   const toast = useToast()
   const [editando, setEditando] = useState<Reserva | null>(null)
   const [cambio, setCambio] = useState<{ r: Reserva; estado: EstadoReserva } | null>(null)
@@ -241,8 +242,11 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
     correr(r.id, () => eliminarReserva(r.id), () =>
       toast({ texto: `Reserva #${r.numero} eliminada`, accion: { label: 'Deshacer', onClick: () => { void restaurarReserva(r.id) } } }))
 
+  const llego = (r: Reserva) => correr(r.id, () => marcarLlego(r.id, !r.asistio_en), () => toast({ texto: r.asistio_en ? `Reserva #${r.numero}: se quitó “Llegó”` : `Reserva #${r.numero}: llegó` }))
+
   const acciones = (r: Reserva) => (
     <div className="flex justify-end gap-1.5">
+      {asistencia && r.estado === 'confirmada' && <button disabled={pending} onClick={() => llego(r)} title={r.asistio_en ? 'Llegó (tocá para quitarlo)' : 'Marcar que llegó'} aria-pressed={!!r.asistio_en} className={'btn btn-sm ' + (r.asistio_en ? 'border-rs-ok/50 bg-rs-ok/10 text-rs-ok' : '')}><UserCheck size={14} />{r.asistio_en ? 'Llegó' : 'Llegó'}</button>}
       {r.estado !== 'confirmada' && <button disabled={pending} onClick={() => pedirCambio(r, 'confirmada')} title="Confirmar" aria-label="Confirmar" className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={14} /></button>}
       {r.estado !== 'cancelada' && <button disabled={pending} onClick={() => pedirCambio(r, 'cancelada')} title="Cancelar" aria-label="Cancelar" className="btn btn-sm btn-danger"><X size={14} /></button>}
       <MenuEstado actual={r.estado} deshabilitado={pending} onElegir={(e) => pedirCambio(r, e)} />
