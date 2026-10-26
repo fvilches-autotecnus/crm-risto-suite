@@ -247,7 +247,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
     .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
-    .select('numero, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones, sucursal_id')
+    .select('numero, numero_sede, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones, sucursal_id')
     .maybeSingle()
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
@@ -258,7 +258,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       negocioId: negocio.id,
       sedeId: r.sucursal_id,
       telefono: r.cliente_telefono,
-      numero: r.numero,
+      numero: r.numero_sede ?? r.numero,
       estado,
       clienteNombre: r.cliente_nombre,
       cantidadPersonas: r.cantidad_personas,
@@ -398,7 +398,7 @@ export async function guardarSede(_prev: ActionResult | null, fd: FormData): Pro
   if (!nombre) return fail('Falta el nombre de la sede')
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un entero mayor a 0')
   if (!id && !ctx.sinRestriccionSede) return fail('Solo quien ve todas las sedes puede crear una nueva')
-  const fila = { nombre, whatsapp_nro: wa || null, aforo_maximo_reservas: aforo, direccion: text(fd, 'direccion') || null, telefono: text(fd, 'telefono') || null, maps_url: maps || null }
+  const fila = { nombre, whatsapp_nro: wa || null, aforo_maximo_reservas: aforo, direccion: text(fd, 'direccion') || null, telefono: text(fd, 'telefono') || null, maps_url: maps || null, numeracion_propia: fd.get('numeracion_propia') === 'on' }
   const { error } = id
     ? await ctx.supabase.from('sucursales').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('sucursales').insert({ ...fila, negocio_id: ctx.negocio.id, orden: ctx.sedesTodas.length + 1 })

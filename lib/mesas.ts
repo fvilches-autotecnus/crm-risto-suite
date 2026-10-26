@@ -6,7 +6,7 @@ export interface Mesa {
   x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; activa: boolean; ocupada_desde: string | null; ocupada_pax: number | null
 }
 export interface ReservaSalon {
-  id: string; numero: number; cliente_nombre: string | null; cliente_telefono: string | null; hora: string | null; cantidad_personas: number | null; estado: string
+  id: string; numero: number; numero_sede?: number | null; cliente_nombre: string | null; cliente_telefono: string | null; hora: string | null; cantidad_personas: number | null; estado: string
   ubicacion: string | null; observaciones: string | null; asistio_en: string | null; sentada_en: string | null; liberada_en: string | null; mesas: string[]
 }
 export type EstadoMesa = 'libre' | 'reservada' | 'llego' | 'ocupada' | 'inactiva'

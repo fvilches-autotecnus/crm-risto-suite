@@ -12,7 +12,7 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
-import { TIPOS_RESERVA, esEstadoAviso, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
+import { TIPOS_RESERVA, esEstadoAviso, numeroVisible, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
 
 const ESTADO_CLS: Record<string, string> = {
@@ -96,7 +96,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
   }, [sedeElegida, ubic, fecha, hora, personas, reserva?.id])
 
   useEffect(() => {
-    if (state?.ok) { toast({ texto: reserva ? `Reserva #${reserva.numero} actualizada` : 'Reserva creada' }); onDone() }
+    if (state?.ok) { toast({ texto: reserva ? `Reserva #${numeroVisible(reserva)} actualizada` : 'Reserva creada' }); onDone() }
   }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -224,10 +224,10 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
   const cambiarEstado = (r: Reserva, estado: EstadoReserva, d: Partial<DatosCambio> = {}) =>
     correr(r.id, () => cambiarEstadoReserva(r.id, estado, d.motivo, d.monto, d.notificar), (res) => {
       toast({
-        texto: `Reserva #${r.numero}: ${labelEstado(estado).toLowerCase()}${estado === 'pendiente_pago' && d.monto ? ` · ${formatoMonto(d.monto)}` : ''}${res.aviso === 'enviado' ? ' · cliente avisado' : ''}`,
+        texto: `Reserva #${numeroVisible(r)}: ${labelEstado(estado).toLowerCase()}${estado === 'pendiente_pago' && d.monto ? ` · ${formatoMonto(d.monto)}` : ''}${res.aviso === 'enviado' ? ' · cliente avisado' : ''}`,
         accion: { label: 'Deshacer', onClick: () => { void restaurarEstadoReserva(r.id, r.estado, r.monto_sena) } },
       })
-      if (res.aviso === 'fallo') toast({ tipo: 'error', texto: `El estado se cambió, pero no se pudo avisar al cliente de la reserva #${r.numero}.` })
+      if (res.aviso === 'fallo') toast({ tipo: 'error', texto: `El estado se cambió, pero no se pudo avisar al cliente de la reserva #${numeroVisible(r)}.` })
       if (res.aviso === 'no_disponible') toast({ tipo: 'info', texto: 'El estado se cambió. Este negocio no tiene el aviso por WhatsApp habilitado para este estado.' })
     })
 
@@ -243,9 +243,9 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
 
   const eliminar = (r: Reserva) =>
     correr(r.id, () => eliminarReserva(r.id), () =>
-      toast({ texto: `Reserva #${r.numero} eliminada`, accion: { label: 'Deshacer', onClick: () => { void restaurarReserva(r.id) } } }))
+      toast({ texto: `Reserva #${numeroVisible(r)} eliminada`, accion: { label: 'Deshacer', onClick: () => { void restaurarReserva(r.id) } } }))
 
-  const llego = (r: Reserva) => correr(r.id, () => marcarLlego(r.id, !r.asistio_en), () => toast({ texto: r.asistio_en ? `Reserva #${r.numero}: se quitó “Llegó”` : `Reserva #${r.numero}: llegó` }))
+  const llego = (r: Reserva) => correr(r.id, () => marcarLlego(r.id, !r.asistio_en), () => toast({ texto: r.asistio_en ? `Reserva #${numeroVisible(r)}: se quitó “Llegó”` : `Reserva #${numeroVisible(r)}: llegó` }))
 
   const acciones = (r: Reserva) => (
     <div className="flex justify-end gap-1.5">
@@ -285,7 +285,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <tbody>
             {reservas.map((r, i) => (
               <tr key={r.id} className={'reveal group border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
-                <td className="td font-semibold text-rs-lime">#{r.numero}</td>
+                <td className="td font-semibold text-rs-lime">#{numeroVisible(r)}</td>
                 <td className="td font-medium">{r.cliente_nombre ?? '—'}</td>
                 <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>
                 {mostrarSede && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
@@ -310,7 +310,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <li key={r.id} className={'reveal card p-4 transition-opacity ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 8) }}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold"><span className="text-rs-lime">#{r.numero}</span> {r.cliente_nombre ?? '—'}</p>
+                <p className="font-semibold"><span className="text-rs-lime">#{numeroVisible(r)}</span> {r.cliente_nombre ?? '—'}</p>
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
                 <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>
@@ -331,7 +331,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
       </ul>
 
       {editando && (
-        <Modal titulo={`Editar reserva #${editando.numero}`} onClose={() => setEditando(null)}>
+        <Modal titulo={`Editar reserva #${numeroVisible(editando)}`} onClose={() => setEditando(null)}>
           <ReservaForm reserva={editando} onDone={() => setEditando(null)} op={op} />
         </Modal>
       )}

@@ -49,7 +49,7 @@ export default function AvisosEnVivo({ negocioId, sedes, pedidos = false }: { ne
         for (const e of lote) {
           if (e.tipo === 'reserva') {
             const r = e.fila
-            toast({ tipo: 'info', ms: 12000, texto: `Nueva reserva #${r.numero} · ${r.cliente_nombre ?? 'Sin nombre'}${r.cantidad_personas ? ` · ${r.cantidad_personas} personas` : ''} · ${diaMes(r.fecha)}${r.hora ? ' ' + r.hora.slice(0, 5) : ''}${nombreSede(r.sucursal_id)}`, accion: { label: 'Ver', onClick: () => router.push('/reservas?rango=todas') } })
+            toast({ tipo: 'info', ms: 12000, texto: `Nueva reserva #${(r as { numero_sede?: number | null }).numero_sede ?? r.numero} · ${r.cliente_nombre ?? 'Sin nombre'}${r.cantidad_personas ? ` · ${r.cantidad_personas} personas` : ''} · ${diaMes(r.fecha)}${r.hora ? ' ' + r.hora.slice(0, 5) : ''}${nombreSede(r.sucursal_id)}`, accion: { label: 'Ver', onClick: () => router.push('/reservas?rango=todas') } })
           } else if (e.tipo === 'pedido') {
             const p = e.fila
             toast({ tipo: 'info', ms: 15000, texto: `Nuevo pedido #${p.numero} · ${p.tipo === 'delivery' ? 'Delivery' : p.tipo === 'mesa' ? 'Mesa' : 'Retiro'} · ${p.nombre} · $ ${Number(p.total).toLocaleString('es-AR')}`, accion: { label: 'Ver', onClick: () => router.push('/pedidos') } })

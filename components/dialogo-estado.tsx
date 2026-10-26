@@ -1,5 +1,6 @@
 'use client'
 
+import { numeroVisible } from '@/lib/reservas'
 import { useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import Modal from '@/components/modal'
@@ -42,7 +43,7 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
   }
 
   return (
-    <Modal titulo={t.titulo(r.numero)} onClose={onClose}>
+    <Modal titulo={t.titulo(numeroVisible(r))} onClose={onClose}>
       <form onSubmit={(e) => { e.preventDefault(); if (!avisable) enviar(false) }} noValidate>
         <div className="rounded-rs border border-rs-border bg-rs-raised/40 px-3.5 py-2.5 text-sm">
           <p className="font-semibold">{r.cliente_nombre ?? 'Sin nombre'}</p>

@@ -29,6 +29,7 @@ export const labelEstado = (v: string) => ESTADOS.find((e) => e.value === v)?.la
 export interface Reserva {
   id: string
   numero: number
+  numero_sede?: number | null   // número propio de la sede (si la sede numera por su cuenta)
   cliente_id: string | null
   sucursal_id: string | null
   ubicacion: string | null
@@ -50,8 +51,11 @@ export interface Reserva {
   creado_en: string
 }
 
+/** El código de reserva que se muestra: el de la sede si numera aparte, si no el del negocio. */
+export const numeroVisible = (r: { numero: number; numero_sede?: number | null }) => r.numero_sede ?? r.numero
+
 export const RESERVA_COLS =
-  'id, numero, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, creado_en'
+  'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, creado_en'
 
 /** Reservas que ocupan lugar (cuentan para aforo y para "hoy"). */
 export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => ESTADOS_OCUPAN.includes(r.estado)

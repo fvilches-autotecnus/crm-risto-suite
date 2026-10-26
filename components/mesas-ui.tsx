@@ -266,7 +266,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
 
       {asignando && (
         <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-rs-lime/40 bg-rs-lime/10 px-3 py-2 text-sm">
-          <span>Asignando mesa a la reserva <b>#{asignando.reserva.numero}</b> · {asignando.reserva.cliente_nombre ?? 'Sin nombre'} · {asignando.reserva.cantidad_personas ?? '?'} pers. · {asignando.reserva.hora?.slice(0, 5) ?? 'a coordinar'}.</span>
+          <span>Asignando mesa a la reserva <b>#{(asignando.reserva.numero_sede ?? asignando.reserva.numero)}</b> · {asignando.reserva.cliente_nombre ?? 'Sin nombre'} · {asignando.reserva.cantidad_personas ?? '?'} pers. · {asignando.reserva.hora?.slice(0, 5) ?? 'a coordinar'}.</span>
           <span className="text-rs-muted">Tocá las mesas (podés elegir varias para juntarlas): <b className="text-rs-text">{asignando.ids.length ? asignando.ids.map((i) => nombreMesa.get(i)).join(' + ') : 'ninguna'}</b>{asignando.ids.length ? ` · ${mesas.filter((m) => asignando.ids.includes(m.id)).reduce((s, m) => s + (m.capacidad ?? 0), 0)} lugares` : ''}</span>
           <span className="ml-auto flex gap-1.5">
             <button type="button" onClick={sugerir} className="btn btn-sm"><Sparkles size={13} />Sugerir</button>
@@ -344,7 +344,7 @@ function PanelMesa({ mesa, reservas, t, duracion, esHoy, puedeEscribir, pend, pa
       </div>
       {rs.map((r) => (
         <div key={r.id} className="space-y-2 rounded-md bg-rs-raised/50 p-3 text-sm">
-          <p className="font-semibold">#{r.numero} · {r.cliente_nombre ?? 'Sin nombre'}</p>
+          <p className="font-semibold">#{(r.numero_sede ?? r.numero)} · {r.cliente_nombre ?? 'Sin nombre'}</p>
           <p className="text-rs-muted">{r.hora?.slice(0, 5) ?? 'A coordinar'} · {r.cantidad_personas ?? '?'} personas{r.mesas.length > 1 ? ` · mesas ${r.mesas.map((i) => nombreMesa.get(i)).join(' + ')}` : ''}</p>
           {r.observaciones && <p className="text-xs text-rs-warn">📝 {r.observaciones}</p>}
           <BotonesServicio r={r} esHoy={esHoy} puedeEscribir={puedeEscribir} pend={pend} onServicio={onServicio} />
@@ -375,7 +375,7 @@ function ListaReservas({ reservas, nombreMesa, esHoy, puedeEscribir, pend, asign
             return (
               <li key={r.id} className={'space-y-1.5 py-2.5 text-sm ' + (asignandoId === r.id ? 'rounded-md bg-rs-lime/10 px-2' : '')}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold tabular-nums">{r.hora?.slice(0, 5) ?? '—'} <span className="font-normal text-rs-muted">#{r.numero}</span></span>
+                  <span className="font-semibold tabular-nums">{r.hora?.slice(0, 5) ?? '—'} <span className="font-normal text-rs-muted">#{(r.numero_sede ?? r.numero)}</span></span>
                   <span className="flex items-center gap-1.5">{e && <span className={'badge ' + e.c}>{e.t}</span>}<span className="text-xs text-rs-muted"><Users size={11} className="mr-0.5 inline" />{r.cantidad_personas ?? '?'}</span></span>
                 </div>
                 <p className="truncate">{r.cliente_nombre ?? 'Sin nombre'}{r.ubicacion ? <span className="text-xs text-rs-muted"> · {r.ubicacion}</span> : null}</p>

@@ -124,6 +124,9 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
     return {
       evento: 'reserva_estado',
       id_bot: d.numero,
+      id_reserva: d.numero,                                   // código de reserva (el de la sede si numera aparte)
+      titular_reserva: d.clienteNombre ?? '',
+      fecha_hora_reserva: [fechaDMA(d.fecha), horaHM(d.hora)].filter(Boolean).join(' '),   // dd-mm-aaaa hh:mm
       nombre: d.clienteNombre ?? '',
       telefono,
       estado_reserva: d.estado,

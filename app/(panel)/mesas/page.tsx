@@ -21,7 +21,7 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
 
   let qSalones = supabase.from('salones').select('id, nombre, orden, ancho, alto, sucursal_id, ubicacion').eq('negocio_id', negocio.id).order('orden').order('creado_en')
   if (sede) qSalones = qSalones.or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`)
-  let qReservas = supabase.from('reservas').select('id, numero, cliente_nombre, cliente_telefono, hora, cantidad_personas, estado, ubicacion, observaciones, asistio_en, sentada_en, liberada_en, sucursal_id')
+  let qReservas = supabase.from('reservas').select('id, numero, numero_sede, cliente_nombre, cliente_telefono, hora, cantidad_personas, estado, ubicacion, observaciones, asistio_en, sentada_en, liberada_en, sucursal_id')
     .eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', fecha).not('estado', 'in', '(cancelada,no_show)').order('hora')
   if (sede) qReservas = qReservas.eq('sucursal_id', sede.id)
   const [{ data: ubs }, { data: salones }, { data: mesas }, { data: reservas }, { data: asign }, { data: cfg }] = await Promise.all([

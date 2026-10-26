@@ -32,7 +32,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
 
   const { data: reservas } = await supabase
     .from('reservas')
-    .select('id, numero, fecha, hora, cantidad_personas, tipo_reserva, estado, observaciones')
+    .select('id, numero, numero_sede, fecha, hora, cantidad_personas, tipo_reserva, estado, observaciones')
     .eq('cliente_id', id)
     .is('eliminado_en', null)
     .order('fecha', { ascending: false, nullsFirst: true })
@@ -155,7 +155,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               {(reservas ?? []).length === 0 && <tr><td colSpan={6} className="td py-8 text-center text-rs-muted">Sin reservas.</td></tr>}
               {(reservas ?? []).map((r) => (
                 <tr key={r.id} className="border-b border-rs-border/60 last:border-0">
-                  <td className="td font-semibold text-rs-lime">#{r.numero}</td>
+                  <td className="td font-semibold text-rs-lime">#{r.numero_sede ?? r.numero}</td>
                   <td className="td">{fechaCorta(r.fecha)}</td>
                   <td className="td">{horaCorta(r.hora)}</td>
                   <td className="td">{r.cantidad_personas ?? '—'}</td>

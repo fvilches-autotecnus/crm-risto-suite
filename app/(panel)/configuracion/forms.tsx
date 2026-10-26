@@ -352,7 +352,7 @@ export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
 // ---------------------------------------------------------------------------
 // Sedes y ubicaciones
 // ---------------------------------------------------------------------------
-export interface SedeEditable { id: string; nombre: string; whatsapp_nro: string | null; aforo_maximo_reservas: number | null; activa: boolean; direccion: string | null; telefono: string | null; maps_url: string | null }
+export interface SedeEditable { id: string; nombre: string; whatsapp_nro: string | null; aforo_maximo_reservas: number | null; activa: boolean; direccion: string | null; telefono: string | null; maps_url: string | null; numeracion_propia?: boolean }
 
 function SedeForm({ sede, onDone }: { sede?: SedeEditable; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarSede)
@@ -369,6 +369,7 @@ function SedeForm({ sede, onDone }: { sede?: SedeEditable; onDone: () => void })
       <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono de contacto" defaultValue={sede?.telefono ?? ''} /></div>
       <div className="col-span-2"><label className="label" htmlFor="s_maps">Link de Google Maps</label><input id="s_maps" name="maps_url" type="url" placeholder="https://maps.app.goo.gl/…" defaultValue={sede?.maps_url ?? ''} className="input w-full" /></div>
       <p className="col-span-2 -mt-1 text-xs text-rs-muted">La dirección, el teléfono y el link quedan guardados; por ahora el bot no los usa.</p>
+      <label className="col-span-2 flex items-start gap-2 text-sm"><input type="checkbox" name="numeracion_propia" defaultChecked={sede?.numeracion_propia ?? false} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Numerar las reservas de esta sede desde #1</span><span className="block text-xs text-rs-muted">El código de reserva que ve el cliente y tu equipo cuenta aparte en esta sede (#1, #2, #3…). Las reservas que ya tiene no cambian; las nuevas empiezan desde #1.</span></span></label>
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>
