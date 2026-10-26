@@ -28,8 +28,7 @@ export const claveDeTipo = (nombre: string) =>
 export const PLANTILLA_WA_DEFECTO = `SOLICITUD DE RESERVA - {negocio}
 Código: {codigo}
 
-Nombre: {nombre_pila}
-Apellido: {apellido}
+Nombre: {nombre}
 Sede: {sede}
 Día: {dia}
 Hora: {hora}

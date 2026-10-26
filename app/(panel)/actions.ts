@@ -16,6 +16,22 @@ export interface ActionResult {
   detalle?: ChequeoAforo[]
   aviso?: 'enviado' | 'no_disponible' | 'fallo'   // resultado del aviso al cliente (solo si se pidió avisar)
   cantidad?: number         // cuántos registros afectó una acción masiva (ej. chats reactivados)
+  nota?: string             // aviso para mostrar aunque la acción salió bien (ej. la reserva se creó pero no se pudo asignar la mesa)
+}
+
+export interface SalonPanel { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null }
+export interface MesaPanel { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco'; ocupada_por?: string | null }
+
+/** Plano con el estado de cada mesa a esa fecha y hora, para elegir mesa al cargar una reserva a mano. */
+export async function consultarPlanoReserva(d: { fecha: string; hora: string; personas: number; sede: string | null; ubicacion: string | null; excluirId?: string }): Promise<{ ok: true; salones: SalonPanel[]; mesas: MesaPanel[] } | { ok: false; error: string }> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir || !ctx.modulosActivos.mesas) return { ok: false, error: 'No disponible' }
+  if (!FECHA_RE.test(String(d.fecha)) || !HORA_RE.test(String(d.hora)) || !Number.isInteger(d.personas) || d.personas < 1) return { ok: false, error: 'Completá fecha, hora y personas' }
+  if (d.sede && !ctx.sedes.some((x) => x.id === d.sede)) return { ok: false, error: 'La sede no es válida' }
+  const { data, error } = await ctx.supabase.rpc('plano_para_reserva', { p_negocio: ctx.negocio.id, p_fecha: d.fecha, p_hora: d.hora, p_personas: d.personas, p_sede: d.sede || null, p_ubicacion: d.ubicacion || null, p_excluir: d.excluirId || null })
+  const r = data as { ok?: boolean; salones?: SalonPanel[]; mesas?: MesaPanel[] } | null
+  if (error || !r?.ok) return { ok: false, error: 'No pudimos cargar el plano. Probá de nuevo.' }
+  return { ok: true, salones: r.salones ?? [], mesas: r.mesas ?? [] }
 }
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -225,13 +241,27 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   }
 
   const { supabase, negocio } = ctx
-  const { error } = id
-    ? await supabase.from('reservas').update(fila).eq('id', id).eq('negocio_id', negocio.id)
-    : await supabase.from('reservas').insert({ ...fila, negocio_id: negocio.id, estado: 'nueva', es_manual: true })
-  if (error) return fail('No se pudo guardar la reserva: ' + error.message)
+  // mesas elegidas en el plano (solo al crear): se asignan apenas existe la reserva
+  let mesasIds: string[] = []
+  try { const a = JSON.parse(text(fd, 'mesas') || '[]'); if (Array.isArray(a)) mesasIds = a.map(String).filter((m) => /^[0-9a-f-]{36}$/i.test(m)).slice(0, 6) } catch { /* sin mesas */ }
+  let nota: string | undefined
+  if (id) {
+    const { error } = await supabase.from('reservas').update(fila).eq('id', id).eq('negocio_id', negocio.id)
+    if (error) return fail('No se pudo guardar la reserva: ' + error.message)
+  } else {
+    const { data: nueva, error } = await supabase.from('reservas').insert({ ...fila, negocio_id: negocio.id, estado: 'nueva', es_manual: true }).select('id').single()
+    if (error || !nueva) return fail('No se pudo guardar la reserva: ' + (error?.message ?? ''))
+    if (mesasIds.length) {
+      const { data: a } = await supabase.rpc('asignar_mesas', { p_reserva: nueva.id, p_mesas: mesasIds, p_forzar: false })
+      const r = a as { ok?: boolean; error?: string; capacidad_insuficiente?: boolean; capacidad_minima_no_alcanzada?: boolean } | null
+      if (!r?.ok) nota = 'La reserva se creó, pero no se pudo asignar la mesa' + (r?.error === 'mesa_ocupada' ? ' (ya está ocupada a esa hora)' : r?.error === 'mesas_fijas_no_se_juntan' ? ' (las mesas fijas no se juntan)' : '') + '. Asignala desde Salón y mesas.'
+      else if (r.capacidad_insuficiente) nota = 'Ojo: las mesas elegidas no alcanzan para esa cantidad de personas.'
+      else if (r.capacidad_minima_no_alcanzada) nota = 'Ojo: las mesas elegidas piden más personas que las de la reserva.'
+    }
+  }
 
   revalidatePath('/', 'layout')
-  return { ok: true }
+  return { ok: true, nota }
 }
 
 export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string, monto?: number, notificar?: boolean): Promise<ActionResult> {

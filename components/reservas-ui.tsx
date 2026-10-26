@@ -10,6 +10,7 @@ import DialogoCambioEstado, { type DatosCambio } from '@/components/dialogo-esta
 import MenuEstado, { PUNTO_ESTADO } from '@/components/menu-estado'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
+import PlanoElegir from '@/components/plano-elegir'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
 import { TIPOS_RESERVA, esEstadoAviso, numeroVisible, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
@@ -41,6 +42,7 @@ export interface OpcionesSede {
   tiposEtiquetas: Record<string, string>           // clave -> nombre que configuró el negocio
   tiposActivos: string[]                            // los que se ofrecen al cargar una reserva
   alertaAforo: number                               // % del aforo a partir del cual se avisa
+  conPlano: boolean                                 // el negocio tiene Salón y mesas con al menos un plano: se puede elegir mesa al cargar una reserva
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
   aviso: { disponible: boolean; estados: string[]; porSede: Record<string, { disponible: boolean; estados: string[] }> }   // aviso al cliente por WhatsApp: del negocio y, si la sede tiene los suyos, por sede
 }
@@ -76,6 +78,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
   const [personas, setPersonas] = useState(String(reserva?.cantidad_personas ?? 2))
   const [ubic, setUbic] = useState(reserva?.ubicacion ?? '')
   const [detalle, setDetalle] = useState<ChequeoAforo[]>([])
+  const [mesas, setMesas] = useState<string[]>([])   // mesas elegidas en el plano (solo al crear)
 
   // las ubicaciones de la sede elegida + las que valen para todas las sedes
   // tipos: los de siempre + los que ya existen en los datos (y el de la reserva que se edita)
@@ -96,7 +99,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
   }, [sedeElegida, ubic, fecha, hora, personas, reserva?.id])
 
   useEffect(() => {
-    if (state?.ok) { toast({ texto: reserva ? `Reserva #${numeroVisible(reserva)} actualizada` : 'Reserva creada' }); onDone() }
+    if (state?.ok) { toast({ texto: reserva ? `Reserva #${numeroVisible(reserva)} actualizada` : 'Reserva creada' }); if (state.nota) toast({ tipo: 'info', texto: state.nota, ms: 9000 }); onDone() }
   }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -146,6 +149,12 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
         </select>
       </div>
       <HintAforo detalle={detalle} alerta={op.alertaAforo} />
+      {!reserva && op.conPlano && (
+        <>
+          <input type="hidden" name="mesas" value={JSON.stringify(mesas)} />
+          <PlanoElegir fecha={fecha} hora={hora} personas={Number(personas)} sede={sedeElegida} ubicacion={ubic} value={mesas} onChange={setMesas} />
+        </>
+      )}
       <div>
         <label className="label" htmlFor="cumpleanos_dia">Cumpleaños: día</label>
         <input id="cumpleanos_dia" name="cumpleanos_dia" type="number" min={1} max={31} defaultValue={reserva?.cumpleanos_dia ?? ''} className="input w-full" />
