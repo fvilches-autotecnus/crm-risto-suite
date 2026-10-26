@@ -57,7 +57,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const { data: cfgWeb } = await supabase.from('reservas_web_config').select('validez_horas').eq('negocio_id', negocio.id).maybeSingle()
   const validezHoras = (cfgWeb?.validez_horas as number | undefined) ?? 48
   // Solicitudes del sitio web que todavía esperan el mensaje de WhatsApp (no son reservas: no ocupan mesa ni aforo)
-  const { data: sols } = await supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, tipo_reserva, observaciones, mesas, creado_en')
+  const { data: sols } = await supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, cualquier_ubicacion, tipo_reserva, observaciones, mesas, creado_en')
     .eq('negocio_id', negocio.id).is('reserva_id', null).gte('creado_en', new Date(Date.now() - validezHoras * 3600 * 1000).toISOString()).order('creado_en', { ascending: false }).limit(100)
   const idsMesas = [...new Set((sols ?? []).flatMap((s) => (s.mesas as string[] | null) ?? []))]
   const numerosMesa: Record<string, string> = {}

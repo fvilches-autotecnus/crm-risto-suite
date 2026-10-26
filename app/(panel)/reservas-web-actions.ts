@@ -28,6 +28,8 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const titulo = text(fd, 'titulo'), subtitulo = text(fd, 'subtitulo')
   if (titulo.length > 80) return fail('El título puede tener hasta 80 letras')
   if (subtitulo.length > 160) return fail('El subtítulo puede tener hasta 160 letras')
+  const textoCualquiera = text(fd, 'texto_cualquier_ubicacion')
+  if (textoCualquiera.length > 60) return fail('El texto de “cualquier ubicación” puede tener hasta 60 letras')
   const validez = entero(text(fd, 'validez_horas'), 1, 168), maxMesas = entero(text(fd, 'max_mesas'), 1, 12)
   if (!validez) return fail('La solicitud puede esperar de 1 a 168 horas')
   if (!maxMesas) return fail('El máximo de mesas por reserva va de 1 a 12')
@@ -42,7 +44,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
-    modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas,
+    modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
   })
   if (error) return fail('No se pudo guardar la configuración')
   revalidatePath(`/reservar/${ctx.negocio.slug}`)

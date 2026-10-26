@@ -8,7 +8,7 @@ import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, t
 
 interface Props {
   slug: string; nombre: string; ubicaciones: string[]; tipos: { value: string; label: string }[]
-  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number }; hoy: string; whatsapp: string
+  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null }; hoy: string; whatsapp: string
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
@@ -19,6 +19,11 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfg.personas_min), cfg.personas_max))
   const [ubicacion, setUbicacion] = useState(ubicaciones[0] ?? '')
+  // "Cualquier ubicación disponible": el cliente no elige lugar ni mesa; la disponibilidad respeta el aforo de cada ubicación y el local le asigna una al registrar
+  const ofreceCualquiera = cfg.cualquier_ubicacion && ubicaciones.length >= 2
+  const cualquiera = ofreceCualquiera && ubicacion === '*'
+  const etiquetaCualquiera = cfg.texto_cualquier_ubicacion?.trim() || 'Cualquier ubicación disponible'
+  const ubicTexto = (u: string | null) => (u === '*' ? etiquetaCualquiera : u)
   const [tipo, setTipo] = useState(tipos[0]?.value ?? 'comun')
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
   const [cargandoSlots, setCargandoSlots] = useState(false)
@@ -84,7 +89,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
     setSel([m.id])
   }
 
-  const listoParaDatos = !!hora && (modo === 'asesor' || (modo === 'elegir' && seleccionValida))
+  const listoParaDatos = !!hora && (cualquiera || modo === 'asesor' || (modo === 'elegir' && seleccionValida))
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     start(async () => {
@@ -100,7 +105,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
       negocio: cfg.titulo || nombre, codigo: r.codigo, nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
-      ubicacion: r.ubicacion ?? '', tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
+      ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
   }
@@ -116,7 +121,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
           <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Tu código">{resultado.codigo}</p>
           <div className="card space-y-1 p-4 text-left text-sm">
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
-            <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion}</b></> : null}</p>
+            <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion || cualquiera ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion ?? etiquetaCualquiera}</b></> : null}</p>
             <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>
           </div>
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
@@ -149,14 +154,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
               </div>
             </div>
           </div>
-          {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => setUbicacion(u)} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}</div></div>}
+          {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(cfg.elegir_mesa ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
           {tipos.length > 1 && <div><span className="label">Tipo de reserva</span><div className="flex flex-wrap gap-2">{tipos.map((t) => <button key={t.value} type="button" onClick={() => setTipo(t.value)} aria-pressed={tipo === t.value} className={chip(tipo === t.value)}>{t.label}</button>)}</div></div>}
           <div>
             <span className="label">Horario</span>
             {cargandoSlots && !slots ? <p className="text-sm text-rs-muted">Buscando horarios…</p> : errorSlots ? <p role="alert" className="text-sm text-rs-danger">{errorSlots}</p> : (
               <div className={'flex flex-wrap gap-2 ' + (cargandoSlots ? 'opacity-60' : '')}>
                 {(slots ?? []).map((s) => (
-                  <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cfg.elegir_mesa ? null : 'asesor'); setSel([]) }} aria-pressed={hora === s.hora}
+                  <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cualquiera || !cfg.elegir_mesa ? 'asesor' : null); setSel([]) }} aria-pressed={hora === s.hora}
                     className={chip(hora === s.hora) + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50')} title={s.disponible ? undefined : MOTIVO[s.motivo ?? 'fuera_de_rango']}>
                     {s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
@@ -168,7 +173,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
         </section>
 
         {/* 2. mesa */}
-        {hora && (
+        {hora && !cualquiera && (
           <section className="card space-y-3 p-4">
             <h2 className="font-bold">2 · Tu mesa</h2>
             {cfg.elegir_mesa && (
@@ -202,13 +207,13 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
         {/* 3. datos */}
         {listoParaDatos && (
           <section ref={refDatos} className="card p-4">
-            <h2 className="mb-3 font-bold">3 · Tus datos</h2>
+            <h2 className="mb-3 font-bold">{cualquiera ? '2' : '3'} · Tus datos</h2>
             <form onSubmit={enviar} className="space-y-3">
               {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
               <div><label className="label" htmlFor="rw_nombre">Nombre y apellido *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={80} autoComplete="name" className="input w-full" required /></div>
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
-              <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{ubicacion ? ` · ${ubicacion}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
+              <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
               <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : 'Reservar y enviar por WhatsApp'}</button>
               <p className="text-center text-xs text-rs-muted">No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.</p>
             </form>

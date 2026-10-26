@@ -133,6 +133,7 @@ export const MANUAL: SeccionManual[] = [
         '**Activo:** apagado, el enlace muestra “no encontrado”.',
         '**El cliente puede elegir su mesa:** si lo apagás, siempre decide un asesor.',
         '**Tipos de reserva que se ofrecen:** tildás cuáles (Común, Cumpleaños, Cena show…).',
+        '**Cualquier ubicación disponible:** una opción más junto a tus ubicaciones para que el cliente reserve sin elegir lugar ni mesa. Solo aparece si tenés dos o más ubicaciones. El horario se ofrece si **entra en al menos una ubicación** según el aforo de cada una (y los topes generales y fechas bloqueadas); cuando llega el WhatsApp se le asigna la **primera ubicación con lugar, en el orden en que cargaste las ubicaciones**. Si en el medio se llenaron todas, la reserva igual se crea, sin ubicación y con una nota para que la resuelvas. Podés cambiar el texto de la opción.',
         '**Horarios:** una lista separada por coma (13:00, 21:00). Vacío = usa los horarios que más se usan en tus reservas.',
         '**Días hacia adelante, anticipación mínima y rango de personas.** Y un **mensaje** que ve el cliente (por ejemplo: “Tolerancia de 15 minutos”).',
         '**Modo prueba:** muestra el cartel “Sitio de prueba” y marca las reservas “[Sitio de prueba]”. Apagalo para publicarlo de verdad.',

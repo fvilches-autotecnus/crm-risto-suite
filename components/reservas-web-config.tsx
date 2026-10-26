@@ -9,7 +9,7 @@ import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/res
 import { Copy, ExternalLink } from 'lucide-react'
 
 export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
-  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number }
+  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
 export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
@@ -47,6 +47,8 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
       <fieldset className="space-y-3 rounded-md border border-rs-border/60 p-3">
         <legend className="label px-1">Textos y reglas del sitio</legend>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="modo_prueba" defaultChecked={config.modo_prueba} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Modo prueba</span><span className="block text-xs text-rs-muted">Muestra el cartel “Sitio de prueba” y marca las reservas como “[Sitio de prueba]”. Apagalo cuando quieras publicarlo de verdad.</span></span></label>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="cualquier_ubicacion" defaultChecked={config.cualquier_ubicacion} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Ofrecer “cualquier ubicación disponible”</span><span className="block text-xs text-rs-muted">El cliente puede no elegir lugar ni mesa y reservar directo. Solo se ofrece si hay lugar en al menos una ubicación según el aforo de cada una (y los topes generales), y al registrar la reserva se le asigna la primera ubicación con lugar, en el orden en que cargaste las ubicaciones. Se muestra solo si tenés dos o más ubicaciones.</span></span></label>
+        <div><label className="label" htmlFor="rw_cualq">Texto de esa opción</label><input id="rw_cualq" name="texto_cualquier_ubicacion" defaultValue={config.texto_cualquier_ubicacion ?? ''} maxLength={60} placeholder="Cualquier ubicación disponible" className="input w-full" /></div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label" htmlFor="rw_titulo">Título de la página</label><input id="rw_titulo" name="titulo" defaultValue={config.titulo ?? ''} maxLength={80} placeholder="Por defecto: el nombre del local" className="input w-full" /></div>
           <div><label className="label" htmlFor="rw_subtitulo">Subtítulo</label><input id="rw_subtitulo" name="subtitulo" defaultValue={config.subtitulo ?? ''} maxLength={160} placeholder="Por defecto: Reservá tu mesa" className="input w-full" /></div>
