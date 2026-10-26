@@ -277,7 +277,7 @@ export const MANUAL: SeccionManual[] = [
         '**Tipos de reserva:** los que se ofrecen al cargar una reserva y en el sitio (Común, Cumpleaños, Cena show…). Cambiás el nombre, el orden, agregás los tuyos y desactivás los que no uses. Si el bot crea un tipo nuevo, aparece como “Sin configurar” para que le pongas nombre.',
         '**Parámetros de reservas:** a qué porcentaje del aforo se avisa (por defecto 90 %), los **turnos** del plano de mesas (Almuerzo 13:00, Cena 21:00… los que quieras) y **qué estados bloquean una mesa** en el sitio.',
         '**Sitio de reservas:** ver la sección “Sitio de reservas”.',
-        '**Mensajes del bot:** los textos que el bot le contesta al cliente cuando llega su solicitud (recibida, ya registrada, no encontrada, avisos…). Cada uno trae su original y podés restaurarlo.',
+        '**Mensajes del bot:** los textos que el bot le contesta al cliente cuando llega su solicitud (reserva recibida o confirmada, ya registrada, no encontrada, avisos…). Cada uno trae su original y podés restaurarlo.',
         '**Sedes** (si el negocio tiene varias): nombre, WhatsApp, dirección, link del mapa, aforo propio y, opcionalmente, **“Numerar las reservas de esta sede desde #1”**: el código de reserva de esa sede cuenta aparte (#1, #2, #3…) y es el que ven el cliente y tu equipo (en el panel, en el WhatsApp de la web y en los avisos). Las reservas que ya existían en la sede no cambian; las nuevas empiezan desde #1.',
         '**Ubicaciones:** las zonas del local (SALÓN, PLANTA ALTA, TERRAZA…). Se eligen al cargar una reserva, sirven para el aforo y para el sitio de reservas y el plano.',
         '**Etiquetas de clientes** y **Pausa automática de chats** (cuánto tiempo queda pausado un chat derivado).',
