@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
+import { COLUMNAS_COOKIE, leerColumnas } from '@/lib/columnas-reservas'
 import InicioModulos from '@/components/inicio-modulos'
-import { CalendarCheck2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarCheck2, ChevronLeft, ChevronRight, Printer } from 'lucide-react'
 import { AforoLista, Tile } from '@/components/dashboard-ui'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import { cargarReglas, usoPorRegla } from '@/lib/aforo'
@@ -91,6 +93,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <Link href={`/?fecha=${sumarDias(dia, -1)}`} className="btn h-9 w-9 px-0" aria-label="Día anterior"><ChevronLeft size={16} /></Link>
           <span className="inline-flex h-9 items-center gap-2 rounded-rs border border-rs-control px-4 text-sm font-semibold"><CalendarCheck2 size={15} className="text-rs-lime" />{fechaLarga(dia)}</span>
           <Link href={`/?fecha=${sumarDias(dia, 1)}`} className="btn h-9 w-9 px-0" aria-label="Día siguiente"><ChevronRight size={16} /></Link>
+          <a href={`/imprimir/reservas?fecha=${dia}&auto=1`} target="_blank" rel="noopener noreferrer" className="btn btn-sm" title="Hoja con las reservas de este día para imprimir o guardar como PDF"><Printer size={14} />Imprimir / PDF</a>
         </div>
       </div>
 
@@ -111,7 +114,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={dia} op={op} />}
           </div>
         </div>
-        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={await usaAsistencia(ctx)} mesas={await mesasPorReserva(ctx, reservasDia.map((r) => r.id))} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
+        <ReservasTabla reservas={reservasDia} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={await usaAsistencia(ctx)} columnas={leerColumnas((await cookies()).get(COLUMNAS_COOKIE)?.value)} mesas={await mesasPorReserva(ctx, reservasDia.map((r) => r.id))} vacio={dia === hoy ? 'No hay reservas para hoy' : 'No hay reservas para este día'} />
       </section>
 
       <section>

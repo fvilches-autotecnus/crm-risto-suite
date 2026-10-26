@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
+import { CalendarPlus, Check, Columns3, MapPin, MessageSquareText, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
 import { marcarLlego } from '@/app/(panel)/fidelidad-actions'
-import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
+import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, mesasDeReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import DialogoCambioEstado, { type DatosCambio } from '@/components/dialogo-estado'
@@ -15,6 +15,7 @@ import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
 import { TIPOS_RESERVA, esEstadoAviso, numeroVisible, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
+import { COLUMNAS_COOKIE, COLUMNAS_DEFECTO, COLUMNAS_OPCIONALES, type ColumnaClave } from '@/lib/columnas-reservas'
 
 const ESTADO_CLS: Record<string, string> = {
   nueva: 'bg-rs-lav/15 text-rs-lav',
@@ -78,7 +79,10 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
   const [personas, setPersonas] = useState(String(reserva?.cantidad_personas ?? 2))
   const [ubic, setUbic] = useState(reserva?.ubicacion ?? '')
   const [detalle, setDetalle] = useState<ChequeoAforo[]>([])
-  const [mesas, setMesas] = useState<string[]>([])   // mesas elegidas en el plano (solo al crear)
+  const [mesas, setMesas] = useState<string[]>([])   // mesas elegidas en el plano
+  const [mesasIniciales, setMesasIniciales] = useState<string[]>([])   // las que ya tenía la reserva (al editar)
+  useEffect(() => { if (reserva?.id && op.conPlano) void mesasDeReserva(reserva.id).then((ids) => { setMesasIniciales(ids); setMesas(ids) }) }, [reserva?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const mesasCambiaron = [...mesas].sort().join() !== [...mesasIniciales].sort().join()
 
   // las ubicaciones de la sede elegida + las que valen para todas las sedes
   // tipos: los de siempre + los que ya existen en los datos (y el de la reserva que se edita)
@@ -149,10 +153,11 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
         </select>
       </div>
       <HintAforo detalle={detalle} alerta={op.alertaAforo} />
-      {!reserva && op.conPlano && (
+      {op.conPlano && (
         <>
           <input type="hidden" name="mesas" value={JSON.stringify(mesas)} />
-          <PlanoElegir fecha={fecha} hora={hora} personas={Number(personas)} sede={sedeElegida} ubicacion={ubic} value={mesas} onChange={setMesas} />
+          {reserva && <input type="hidden" name="mesas_cambiaron" value={mesasCambiaron ? '1' : ''} />}
+          <PlanoElegir fecha={fecha} hora={hora} personas={Number(personas)} sede={sedeElegida} ubicacion={ubic} value={mesas} onChange={setMesas} excluirReserva={reserva?.id} />
         </>
       )}
       <div>
@@ -212,8 +217,37 @@ export function NuevaReservaBtn({ fechaDefault, op }: { fechaDefault?: string; o
   )
 }
 
-export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false, mesas = {} }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; mesas?: Record<string, string>; op: OpcionesSede }) {
+/** Elegir qué columnas se ven en la tabla (el número, el cliente, el estado y las acciones son fijas). Se recuerda en una cookie. */
+function SelectorColumnas({ activas, onChange, hayUbicacion, haySede }: { activas: ColumnaClave[]; onChange: (c: ColumnaClave[]) => void; hayUbicacion: boolean; haySede: boolean }) {
+  const [abierto, setAbierto] = useState(false)
+  const disponibles = COLUMNAS_OPCIONALES.filter((c) => (c.clave !== 'ubicacion' || hayUbicacion) && (c.clave !== 'sede' || haySede))
+  const alternar = (c: ColumnaClave) => {
+    const nuevas = activas.includes(c) ? activas.filter((x) => x !== c) : COLUMNAS_OPCIONALES.map((x) => x.clave).filter((x) => x === c || activas.includes(x))
+    onChange(nuevas)
+    document.cookie = `${COLUMNAS_COOKIE}=${nuevas.join(',')}; path=/; max-age=31536000; samesite=lax`
+  }
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setAbierto((a) => !a)} aria-expanded={abierto} className="btn btn-sm"><Columns3 size={14} />Columnas</button>
+      {abierto && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setAbierto(false)} aria-hidden />
+          <div role="dialog" aria-label="Columnas de la tabla" className="absolute right-0 top-9 z-40 w-64 rounded-rs-lg border border-rs-control bg-rs-header p-3 shadow-2xl shadow-black/60">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-rs-muted">Columnas que se ven</p>
+            <p className="mb-2 text-xs text-rs-muted">Siempre se ven el número, el cliente, el estado y las acciones.</p>
+            <ul className="space-y-1">{disponibles.map((c) => <li key={c.clave}><label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-rs-raised"><input type="checkbox" checked={activas.includes(c.clave)} onChange={() => alternar(c.clave)} className="h-4 w-4 accent-[#c8e62b]" />{c.etiqueta}</label></li>)}</ul>
+            <button type="button" onClick={() => { onChange(COLUMNAS_DEFECTO); document.cookie = `${COLUMNAS_COOKIE}=; path=/; max-age=0` }} className="mt-2 text-xs text-rs-muted underline-offset-2 hover:text-rs-lime hover:underline">Volver a las de siempre</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false, mesas = {}, columnas = COLUMNAS_DEFECTO }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; mesas?: Record<string, string>; op: OpcionesSede; columnas?: ColumnaClave[] }) {
   const toast = useToast()
+  const [cols, setCols] = useState<ColumnaClave[]>(columnas)
+  const ver = (c: ColumnaClave) => cols.includes(c)
   const [editando, setEditando] = useState<Reserva | null>(null)
   const [cambio, setCambio] = useState<{ r: Reserva; estado: EstadoReserva } | null>(null)
   const [pending, start] = useTransition()
@@ -281,12 +315,13 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
   return (
     <>
       {/* Escritorio: tabla */}
+      <div className="hidden justify-end md:flex"><SelectorColumnas activas={cols} onChange={setCols} hayUbicacion={mostrarUbicacion} haySede={mostrarSede} /></div>
       <div className="card hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[980px]">
+        <table className="w-full">
           <thead className="sticky top-0 border-b border-rs-border bg-rs-card">
             <tr>
-              <th className="th">#</th><th className="th">Nombre</th><th className="th">Tel</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Fecha</th><th className="th">Hora</th>
-              <th className="th">Personas</th><th className="th">Tipo</th>{mostrarUbicacion && <th className="th">Ubicación</th>}<th className="th">Observaciones</th><th className="th">Estado</th><th className="th">Alta</th>
+              <th className="th">#</th><th className="th">Nombre</th>{ver('telefono') && <th className="th">Tel</th>}{mostrarSede && ver('sede') && <th className="th">Sede</th>}{ver('fecha') && <th className="th">Fecha</th>}{ver('hora') && <th className="th">Hora</th>}
+              {ver('personas') && <th className="th">Personas</th>}{ver('tipo') && <th className="th">Tipo</th>}{mostrarUbicacion && ver('ubicacion') && <th className="th">Ubicación</th>}{ver('observaciones') && <th className="th">Observaciones</th>}<th className="th">Estado</th>{ver('alta') && <th className="th">Alta</th>}
               {puedeEscribir && <th className="th text-right">Acciones</th>}
             </tr>
           </thead>
@@ -294,17 +329,17 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
             {reservas.map((r, i) => (
               <tr key={r.id} className={'reveal group border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <td className="td font-semibold text-rs-lime">#{numeroVisible(r)}</td>
-                <td className="td font-medium">{r.cliente_nombre ?? '—'}</td>
-                <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>
-                {mostrarSede && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
-                <td className="td">{fechaCorta(r.fecha)}</td>
-                <td className="td">{horaCorta(r.hora)}</td>
-                <td className="td">{r.cantidad_personas ?? '—'}{mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="ml-2 whitespace-nowrap rounded-full bg-rs-lav/15 px-2 py-0.5 text-xs font-semibold text-rs-lav" title="Ver en el plano del salón">Mesa {mesas[r.id]}</a>}</td>
-                <td className="td text-rs-muted">{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</td>
-                {mostrarUbicacion && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
-                <td className="td max-w-[150px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>
+                <td className="td"><span className="font-medium">{r.cliente_nombre ?? '—'}</span>{!ver('observaciones') && nota(r) && <span className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[11px] italic leading-tight text-rs-muted/70" title={nota(r) ?? ''}><MessageSquareText size={10} className="shrink-0" /><span className="truncate">{nota(r)}</span></span>}</td>
+                {ver('telefono') && <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>}
+                {mostrarSede && ver('sede') && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
+                {ver('fecha') && <td className="td">{fechaCorta(r.fecha)}</td>}
+                {ver('hora') && <td className="td">{horaCorta(r.hora)}</td>}
+                {ver('personas') && <td className="td">{r.cantidad_personas ?? '—'}{mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="ml-2 whitespace-nowrap rounded-full bg-rs-lav/15 px-2 py-0.5 text-xs font-semibold text-rs-lav" title="Ver en el plano del salón">Mesa {mesas[r.id]}</a>}</td>}
+                {ver('tipo') && <td className="td text-rs-muted">{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</td>}
+                {mostrarUbicacion && ver('ubicacion') && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
+                {ver('observaciones') && <td className="td max-w-[200px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>}
                 <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}</td>
-                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>
+                {ver('alta') && <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>}
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
             ))}
@@ -332,7 +367,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
               <span>{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</span>
               {mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="font-semibold text-rs-lav">Mesa {mesas[r.id]}</a>}
             </div>
-            {nota(r) && <p className="mt-2 text-sm text-rs-muted/90">{nota(r)}</p>}
+            {nota(r) && <p className="mt-2 flex items-start gap-1 text-xs italic text-rs-muted/70"><MessageSquareText size={11} className="mt-0.5 shrink-0" />{nota(r)}</p>}
             {puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(r)}</div>}
           </li>
         ))}

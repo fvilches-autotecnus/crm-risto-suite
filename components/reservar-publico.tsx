@@ -294,7 +294,7 @@ function Banner({ nombre, subtitulo, prueba }: { nombre: string; subtitulo: stri
 }
 const Leyenda = ({ clase, t }: { clase: string; t: string }) => <span className="inline-flex items-center gap-1.5"><span className={'h-3 w-3 rounded border-2 ' + clase} />{t}</span>
 
-function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesas: MesaWeb[]; sel: string[]; onTocar: (m: MesaWeb) => void }) {
+export function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesas: MesaWeb[]; sel: string[]; onTocar: (m: MesaWeb) => void }) {
   return (
     <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60">
       <div className="relative" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: Math.max(salon.ancho * 24, 320), containerType: 'inline-size' }}>

@@ -79,7 +79,7 @@ export default function FiltrosReservas({ conteos, tipos, etiquetasTipo = {}, ub
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
-          <input ref={buscador} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o teléfono   ( / )" className="input w-full pl-9" />
+          <input ref={buscador} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, teléfono o número   ( / )" className="input w-full pl-9" />
         </div>
         <label className="relative">
           <ArrowDownUp size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />

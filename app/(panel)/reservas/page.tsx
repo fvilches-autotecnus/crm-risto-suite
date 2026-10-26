@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { COLUMNAS_COOKIE, leerColumnas } from '@/lib/columnas-reservas'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import FiltrosReservas from '@/components/filtros-reservas'
 import { getContexto } from '@/lib/context'
@@ -38,8 +40,10 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   }
   if (sp.tipo) q = q.eq('tipo_reserva', sp.tipo)
   if (sp.ubic) q = q.eq('ubicacion', sp.ubic)
-  const busqueda = sp.q?.trim().replace(/[,()%*]/g, ' ')
-  if (busqueda) q = q.or(`cliente_nombre.ilike.%${busqueda}%,cliente_telefono.ilike.%${busqueda}%`)
+  const busqueda = sp.q?.trim().replace(/[,()%*#]/g, ' ').trim()
+  // también se busca por número de reserva ("12" o "#12"): el de la sede si numera aparte, si no el del negocio
+  const nroBuscado = /^\d{1,9}$/.test(busqueda ?? '') ? Number(busqueda) : null
+  if (busqueda) q = q.or(`cliente_nombre.ilike.%${busqueda}%,cliente_telefono.ilike.%${busqueda}%${nroBuscado !== null ? `,numero_sede.eq.${nroBuscado},and(numero_sede.is.null,numero.eq.${nroBuscado})` : ''}`)
 
   const ordenado = orden === 'alta_desc' ? q.order('creado_en', { ascending: false })
     : orden === 'alta_asc' ? q.order('creado_en', { ascending: true })
@@ -77,7 +81,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
       </div>
       <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} etiquetasTipo={op.tiposEtiquetas} sedes={op.nombresSede} />
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} etiquetasTipo={op.tiposEtiquetas} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
-      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} />
+      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} columnas={leerColumnas((await cookies()).get(COLUMNAS_COOKIE)?.value)} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>
   )

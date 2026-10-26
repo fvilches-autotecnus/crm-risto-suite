@@ -3,13 +3,14 @@
 import { useEffect, useState, useTransition } from 'react'
 import { CalendarClock, Check, MessageCircle, Minus, Plus, ShieldCheck, Users, X } from 'lucide-react'
 import { FechaInput } from '@/components/inputs'
-import { consultarHorarios, pedirAccionReserva, type ResultadoAccion, type SlotWeb } from '@/app/reservar/[slug]/actions'
+import { consultarHorarios, consultarPlano, pedirAccionReserva, type MesaWeb, type ResultadoAccion, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
+import { PlanoWeb } from '@/components/reservar-publico'
 import { fechaCorta } from '@/lib/fechas'
 
 export interface InfoReserva {
   negocio: string
   reserva: { numero: number; nombre: string; fecha: string; hora: string | null; personas: number | null; ubicacion: string | null; sede: string | null; sede_id: string | null; estado: string }
-  puede_cancelar: boolean; puede_modificar: boolean; whatsapp: string
+  puede_cancelar: boolean; puede_modificar: boolean; whatsapp: string; elegir_mesa?: boolean; mesas?: string | null
   config: { personas_min: number; personas_max: number; dias_adelante: number } | null
 }
 
@@ -28,6 +29,12 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
   const [listo, setListo] = useState<Extract<ResultadoAccion, { ok: true }> | null>(null)
+  // elegir mesa al modificar (solo si el negocio / la sede lo permite y tiene plano)
+  const [modoMesa, setModoMesa] = useState<'elegir' | 'asesor'>('asesor')
+  const [plano, setPlano] = useState<{ salones: SalonWeb[]; mesas: MesaWeb[] } | null>(null)
+  const [salonId, setSalonId] = useState('')
+  const [sel, setSel] = useState<string[]>([])
+  const [aviso, setAviso] = useState<string | null>(null)
   const cfg = info.config
   const fechaTxt = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -46,16 +53,42 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
     return () => { vivo = false; clearTimeout(t) }
   }, [modo, slug, fecha, personas, r.ubicacion, r.sede_id, r.fecha, r.hora])
 
+  useEffect(() => { setSel([]); setPlano(null) }, [fecha, hora, personas])
+  useEffect(() => {
+    if (modo !== 'modificar' || !info.elegir_mesa || modoMesa !== 'elegir' || !hora) return
+    let vivo = true
+    void (async () => {
+      const x = await consultarPlano(slug, fecha, hora, personas, r.ubicacion ?? '', r.sede_id ?? '', codigo)
+      if (!vivo) return
+      if (!x.ok) { setPlano(null); setError(x.error); return }
+      setPlano({ salones: x.salones, mesas: x.mesas }); setSalonId(x.salones[0]?.id ?? '')
+    })()
+    return () => { vivo = false }
+  }, [modo, modoMesa, fecha, hora, personas, slug, codigo, r.ubicacion, r.sede_id, info.elegir_mesa])
+  const mesasSel = (plano?.mesas ?? []).filter((m) => sel.includes(m.id))
+  const totalMesas = mesasSel.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
+  const seleccionValida = mesasSel.length > 0 && personas >= totalMesas.min && personas <= totalMesas.max && (mesasSel.length === 1 || mesasSel.every((m) => m.movil))
+  const tocarMesa = (m: MesaWeb) => {
+    setAviso(null)
+    if (m.estado === 'ocupada') { setAviso(`La mesa ${m.numero} ya está reservada a esa hora.`); return }
+    if (m.estado === 'no_apta') { setAviso(`La mesa ${m.numero} no es para ${personas} personas.`); return }
+    if (m.estado !== 'disponible') return
+    if (sel.includes(m.id)) { setSel(sel.filter((i) => i !== m.id)); return }
+    const actuales = (plano?.mesas ?? []).filter((x) => sel.includes(x.id))
+    if (m.movil && actuales.length > 0 && actuales.every((x) => x.movil)) { setSel([...sel, m.id]); return }
+    setSel([m.id])
+  }
+
   const mensaje = (a: Extract<ResultadoAccion, { ok: true }>) => {
     const sede = a.sede ? ` (${a.sede})` : ''
-    if (a.tipo === 'cancelar') return [`SOLICITUD DE RESERVA - CANCELACIÓN - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero cancelar mi reserva #${a.numero}${sede}: ${fechaCorta(r.fecha)} ${r.hora ?? ''}, ${r.personas ?? ''} personas.`].join('\n')
-    return [`SOLICITUD DE RESERVA - MODIFICACIÓN - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero modificar mi reserva #${a.numero}${sede}.`, `Nuevo día: ${fechaTxt(fecha)}`, `Nueva hora: ${hora}`, `Personas: ${personas}`].join('\n')
+    if (a.tipo === 'cancelar') return [`CANCELACIÓN DE RESERVA - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero cancelar mi reserva #${a.numero}${sede}: ${fechaCorta(r.fecha)} ${r.hora ?? ''}, ${r.personas ?? ''} personas.`].join('\n')
+    return [`MODIFICACIÓN DE RESERVA - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero modificar mi reserva #${a.numero}${sede}.`, `Nuevo día: ${fechaTxt(fecha)}`, `Nueva hora: ${hora}`, `Personas: ${personas}`, ...(modoMesa === 'elegir' && mesasSel.length ? [`Mesa: ${mesasSel.map((m) => m.numero).join(' + ')}`] : [])].join('\n')
   }
   const urlWA = (a: Extract<ResultadoAccion, { ok: true }>) => `https://wa.me/${(a.whatsapp || info.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(mensaje(a))}`
   const enviar = () => {
     setError(null)
     start(async () => {
-      const x = await pedirAccionReserva(slug, codigo, modo === 'cancelar' ? { tipo: 'cancelar' } : { tipo: 'modificar', fecha, hora, personas })
+      const x = await pedirAccionReserva(slug, codigo, modo === 'cancelar' ? { tipo: 'cancelar' } : { tipo: 'modificar', fecha, hora, personas, mesas: modoMesa === 'elegir' ? sel : [] })
       if (!x.ok) { setError(x.error); return }
       setListo(x); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(x)
     })
@@ -136,8 +169,26 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
                 {!slots && !error && <p className="text-sm text-rs-muted">Buscando horarios…</p>}
               </div>
             </div>
+            {info.elegir_mesa && hora && (
+              <div className="space-y-2">
+                <span className="label">Tu mesa</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button type="button" onClick={() => setModoMesa('elegir')} aria-pressed={modoMesa === 'elegir'} className={'rounded-rs-lg border p-3 text-left transition ' + (modoMesa === 'elegir' ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}><span className="block font-semibold">Elegir mi mesa</span><span className="text-xs text-rs-muted">La ves en el plano del salón</span></button>
+                  <button type="button" onClick={() => { setModoMesa('asesor'); setSel([]) }} aria-pressed={modoMesa === 'asesor'} className={'rounded-rs-lg border p-3 text-left transition ' + (modoMesa === 'asesor' ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}><span className="block font-semibold">Que la elija el local</span><span className="text-xs text-rs-muted">{r.sede ? 'Te asignamos la mejor mesa disponible' : 'Te asignamos la mejor mesa disponible'}</span></button>
+                </div>
+                {modoMesa === 'elegir' && plano && plano.salones.length > 0 && (
+                  <div className="space-y-2">
+                    {plano.salones.length > 1 && <div className="flex flex-wrap gap-2">{plano.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} className={'btn btn-sm ' + (salonId === s.id ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>}
+                    {(() => { const salon = plano.salones.find((s) => s.id === salonId); return salon ? <PlanoWeb salon={salon} mesas={plano.mesas.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} /> : null })()}
+                    {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
+                    <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')}>{mesasSel.length === 0 ? 'Tocá una mesa disponible.' : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} ✓` : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran de ${totalMesas.min} a ${totalMesas.max} personas y son ${personas}.`}</p>
+                  </div>
+                )}
+                {modoMesa === 'elegir' && plano && plano.salones.length === 0 && <p className="text-sm text-rs-muted">No hay un plano para esta sede: el local te asigna la mesa.</p>}
+              </div>
+            )}
             {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
-            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (fecha === r.fecha && hora === r.hora && personas === r.personas)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
+            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
             <p className="text-xs text-rs-muted">El cambio se aplica cuando envíes el mensaje de WhatsApp desde tu número. Si el horario se completa mientras tanto, te avisamos.</p>
           </section>
         )}

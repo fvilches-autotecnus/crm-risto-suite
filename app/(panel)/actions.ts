@@ -23,6 +23,14 @@ export interface ActionResult {
 export interface SalonPanel { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null }
 export interface MesaPanel { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco'; ocupada_por?: string | null }
 
+/** Mesas que tiene asignadas una reserva (para mostrarlas elegidas al editarla). */
+export async function mesasDeReserva(reservaId: string): Promise<string[]> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir || !/^[0-9a-f-]{36}$/i.test(reservaId)) return []
+  const { data } = await ctx.supabase.from('reserva_mesas').select('mesa_id').eq('reserva_id', reservaId).eq('negocio_id', ctx.negocio.id)
+  return (data ?? []).map((m) => m.mesa_id as string)
+}
+
 /** Plano con el estado de cada mesa a esa fecha y hora, para elegir mesa al cargar una reserva a mano. */
 export async function consultarPlanoReserva(d: { fecha: string; hora: string; personas: number; sede: string | null; ubicacion: string | null; excluirId?: string }): Promise<{ ok: true; salones: SalonPanel[]; mesas: MesaPanel[] } | { ok: false; error: string }> {
   const ctx = await getContexto()
@@ -249,6 +257,13 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   if (id) {
     const { error } = await supabase.from('reservas').update(fila).eq('id', id).eq('negocio_id', negocio.id)
     if (error) return fail('No se pudo guardar la reserva: ' + error.message)
+    // cambió la mesa en el plano (también vale dejarla sin mesa): se reasigna
+    if (text(fd, 'mesas_cambiaron') === '1') {
+      const { data: a } = await supabase.rpc('asignar_mesas', { p_reserva: id, p_mesas: mesasIds, p_forzar: false })
+      const r = a as { ok?: boolean; error?: string; capacidad_insuficiente?: boolean } | null
+      if (!r?.ok) nota = 'Se guardaron los cambios, pero no se pudo asignar la mesa' + (r?.error === 'mesa_ocupada' ? ' (ya está ocupada a esa hora)' : r?.error === 'mesas_fijas_no_se_juntan' ? ' (las mesas fijas no se juntan)' : '') + '.'
+      else if (r.capacidad_insuficiente) nota = 'Ojo: las mesas elegidas no alcanzan para esa cantidad de personas.'
+    }
   } else {
     const { data: nueva, error } = await supabase.from('reservas').insert({ ...fila, negocio_id: negocio.id, estado: 'nueva', es_manual: true }).select('id').single()
     if (error || !nueva) return fail('No se pudo guardar la reserva: ' + (error?.message ?? ''))

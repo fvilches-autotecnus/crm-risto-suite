@@ -25,9 +25,9 @@ export async function consultarHorarios(slug: string, fecha: string, personas: n
 }
 
 /** Plano con el estado de cada mesa a esa fecha y hora (solo confirmadas, pendientes de pago o en revisión de pago bloquean una mesa). */
-export async function consultarPlano(slug: string, fecha: string, hora: string, personas: number, ubicacion: string, sede = ''): Promise<{ ok: true; salones: SalonWeb[]; mesas: MesaWeb[] } | { ok: false; error: string }> {
+export async function consultarPlano(slug: string, fecha: string, hora: string, personas: number, ubicacion: string, sede = '', reserva = ''): Promise<{ ok: true; salones: SalonWeb[]; mesas: MesaWeb[] } | { ok: false; error: string }> {
   if (!SLUG.test(slug) || !FECHA.test(fecha) || !HORA.test(hora) || !Number.isInteger(personas)) return { ok: false, error: 'Datos no válidos' }
-  const r = await rpc('web_plano', { negocio: slug, fecha, hora, personas, ubicacion, sede })
+  const r = await rpc('web_plano', { negocio: slug, fecha, hora, personas, ubicacion, sede, reserva: /^[a-z0-9]{6,20}$/i.test(reserva) ? reserva : '' })
   if (!r || r.ok !== true) return { ok: false, error: 'No pudimos cargar el plano. Podés pedir que un asesor elija tu mesa.' }
   return { ok: true, salones: r.salones as SalonWeb[], mesas: r.mesas as MesaWeb[] }
 }
@@ -65,16 +65,17 @@ const MENSAJES_ACCION: Record<string, string> = {
   reserva_no_encontrada: 'No encontramos esa reserva. Revisá el link.', reserva_no_modificable: 'Esta reserva ya no se puede cambiar por acá (está cancelada o ya pasó).',
   sin_cambios: 'Elegí algo distinto a lo que ya tenés para modificar.', personas_invalidas: 'Esa cantidad de personas no está permitida.', horario_invalido: 'Ese horario no está disponible.',
   sin_lugar: 'Ya no hay lugar en ese horario. Elegí otro.', modificacion_no_disponible: 'Por ahora esta reserva solo se puede cancelar por acá.', datos_invalidos: 'Revisá los datos.',
+  eleccion_no_permitida: 'En esta sede no se puede elegir mesa: la asigna el local.', mesa_invalida: 'Alguna mesa ya no está disponible. Volvé a elegir.', mesas_fijas_no_se_juntan: 'Las mesas fijas no se juntan.', mesa_no_apta: 'Las mesas elegidas no son para esa cantidad de personas.', mesa_ocupada: 'Alguna mesa ya fue reservada. Elegí otra.',
   demasiados_pedidos: 'Hiciste varios pedidos seguidos. Esperá un rato o escribinos por WhatsApp.', sin_whatsapp: 'No pudimos armar el mensaje. Escribinos por WhatsApp.',
 }
 export type ResultadoAccion = { ok: true; codigo: string; tipo: 'cancelar' | 'modificar'; whatsapp: string; sede: string | null; numero: number } | { ok: false; error: string }
 
 /** Guarda el pedido (todavía no cambia nada) y devuelve el código para el mensaje de WhatsApp con el que se confirma. */
-export async function pedirAccionReserva(slug: string, codigo: string, d: { tipo: 'cancelar' | 'modificar'; fecha?: string; hora?: string; personas?: number; web?: string }): Promise<ResultadoAccion> {
+export async function pedirAccionReserva(slug: string, codigo: string, d: { tipo: 'cancelar' | 'modificar'; fecha?: string; hora?: string; personas?: number; mesas?: string[]; web?: string }): Promise<ResultadoAccion> {
   if (!SLUG.test(slug) || !CODIGO_G.test(codigo)) return { ok: false, error: MENSAJES_ACCION.reserva_no_encontrada }
   if (d?.web) return { ok: false, error: 'No pudimos procesar el pedido. Probá de nuevo.' }
   if (d.tipo !== 'cancelar' && d.tipo !== 'modificar') return { ok: false, error: MENSAJES_ACCION.datos_invalidos }
-  const r = await rpc('web_reserva_accion_crear', { negocio: slug, codigo, tipo: d.tipo, fecha: d.fecha ?? null, hora: d.hora ?? null, personas: d.personas ?? null })
+  const r = await rpc('web_reserva_accion_crear', { negocio: slug, codigo, tipo: d.tipo, fecha: d.fecha ?? null, hora: d.hora ?? null, personas: d.personas ?? null, mesas: Array.isArray(d.mesas) ? d.mesas.slice(0, 6) : [] })
   if (!r) return { ok: false, error: 'No pudimos procesar el pedido. Probá de nuevo.' }
   if (r.ok !== true) return { ok: false, error: MENSAJES_ACCION[String(r.error)] ?? 'No pudimos procesar el pedido. Probá de nuevo.' }
   return { ok: true, codigo: String(r.codigo), tipo: d.tipo, whatsapp: String(r.whatsapp ?? ''), sede: (r.sede as string | null) ?? null, numero: Number(r.numero) }
