@@ -1,0 +1,148 @@
+'use client'
+
+import { useEffect, useState, useTransition } from 'react'
+import { CalendarClock, Check, MessageCircle, Minus, Plus, ShieldCheck, Users, X } from 'lucide-react'
+import { FechaInput } from '@/components/inputs'
+import { consultarHorarios, pedirAccionReserva, type ResultadoAccion, type SlotWeb } from '@/app/reservar/[slug]/actions'
+import { fechaCorta } from '@/lib/fechas'
+
+export interface InfoReserva {
+  negocio: string
+  reserva: { numero: number; nombre: string; fecha: string; hora: string | null; personas: number | null; ubicacion: string | null; sede: string | null; sede_id: string | null; estado: string }
+  puede_cancelar: boolean; puede_modificar: boolean; whatsapp: string
+  config: { personas_min: number; personas_max: number; dias_adelante: number } | null
+}
+
+const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
+const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible' }
+const ESTADO: Record<string, string> = { nueva: 'Pendiente de confirmación', confirmada: 'Confirmada', pendiente_pago: 'Pendiente de pago', revisar_pago: 'Pago en revisión', cancelada: 'Cancelada', no_show: 'No asistió' }
+
+/** Ver, cancelar o modificar una reserva desde su link. Pedirlo NO cambia nada: se arma un mensaje de WhatsApp y el cambio se aplica cuando llega desde el teléfono de la reserva. */
+export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: string; codigo: string; info: InfoReserva; hoy: string }) {
+  const r = info.reserva
+  const [modo, setModo] = useState<'cancelar' | 'modificar' | null>(null)
+  const [fecha, setFecha] = useState(r.fecha)
+  const [personas, setPersonas] = useState(r.personas ?? 2)
+  const [hora, setHora] = useState(r.hora ?? '')
+  const [slots, setSlots] = useState<SlotWeb[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pend, start] = useTransition()
+  const [listo, setListo] = useState<Extract<ResultadoAccion, { ok: true }> | null>(null)
+  const cfg = info.config
+  const fechaTxt = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  useEffect(() => {
+    if (modo !== 'modificar') return
+    let vivo = true
+    const t = setTimeout(async () => {
+      const x = await consultarHorarios(slug, fecha, personas, r.ubicacion ?? '', r.sede_id ?? '')
+      if (!vivo) return
+      if (!x.ok) { setSlots(null); setError(x.error); return }
+      setError(null)
+      // el horario que ya tiene se puede conservar aunque figure completo (la reserva ya está contada ahí)
+      setSlots(x.slots.map((s) => (fecha === r.fecha && s.hora === r.hora ? { ...s, disponible: true, motivo: undefined } : s)))
+      setHora((h) => (x.slots.some((s) => s.hora === h && (s.disponible || (fecha === r.fecha && s.hora === r.hora))) ? h : ''))
+    }, 250)
+    return () => { vivo = false; clearTimeout(t) }
+  }, [modo, slug, fecha, personas, r.ubicacion, r.sede_id, r.fecha, r.hora])
+
+  const mensaje = (a: Extract<ResultadoAccion, { ok: true }>) => {
+    const sede = a.sede ? ` (${a.sede})` : ''
+    if (a.tipo === 'cancelar') return [`SOLICITUD DE RESERVA - CANCELACIÓN - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero cancelar mi reserva #${a.numero}${sede}: ${fechaCorta(r.fecha)} ${r.hora ?? ''}, ${r.personas ?? ''} personas.`].join('\n')
+    return [`SOLICITUD DE RESERVA - MODIFICACIÓN - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero modificar mi reserva #${a.numero}${sede}.`, `Nuevo día: ${fechaTxt(fecha)}`, `Nueva hora: ${hora}`, `Personas: ${personas}`].join('\n')
+  }
+  const urlWA = (a: Extract<ResultadoAccion, { ok: true }>) => `https://wa.me/${(a.whatsapp || info.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(mensaje(a))}`
+  const enviar = () => {
+    setError(null)
+    start(async () => {
+      const x = await pedirAccionReserva(slug, codigo, modo === 'cancelar' ? { tipo: 'cancelar' } : { tipo: 'modificar', fecha, hora, personas })
+      if (!x.ok) { setError(x.error); return }
+      setListo(x); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(x)
+    })
+  }
+
+  const cabecera = (
+    <header className="border-b border-rs-raised bg-rs-header px-4 pb-4 pt-6 text-center">
+      <h1 className="text-2xl font-bold text-rs-lime">{info.negocio}</h1>
+      <p className="mt-1 text-sm text-rs-muted">Tu reserva</p>
+    </header>
+  )
+
+  if (listo) {
+    return (
+      <div className="min-h-screen">{cabecera}
+        <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><ShieldCheck size={28} /></div>
+          <h2 className="text-xl font-bold">Último paso: confirmalo por WhatsApp</h2>
+          <p className="text-sm text-rs-muted">Todavía <b className="text-rs-text">no cambiamos nada</b>. Se abre WhatsApp con tu pedido ya escrito: <b className="text-rs-text">enviálo desde el mismo número con el que reservaste</b>. Así nos aseguramos de que nadie toque tu reserva por vos.</p>
+          <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Código del pedido">{listo.codigo}</p>
+          <a href={urlWA(listo)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
+          <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. El pedido espera 48 horas.</p>
+        </main>
+      </div>
+    )
+  }
+
+  const activa = info.puede_cancelar || info.puede_modificar
+  return (
+    <div className="min-h-screen pb-16">{cabecera}
+      <main className="mx-auto max-w-lg space-y-4 px-4 py-6">
+        <section className="card space-y-1 p-4 text-sm">
+          <p className="text-lg font-bold"><span className="text-rs-lime">#{r.numero}</span> · {r.nombre}</p>
+          <p><CalendarClock size={14} className="mr-1 inline text-rs-muted" /><b className="capitalize">{fechaTxt(r.fecha)}</b>{r.hora ? ` · ${r.hora}` : ''}</p>
+          <p><Users size={14} className="mr-1 inline text-rs-muted" />{r.personas ?? '—'} personas{r.sede ? ` · ${r.sede}` : ''}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</p>
+          <p className="text-xs text-rs-muted">Estado: <b className="text-rs-text">{ESTADO[r.estado] ?? r.estado}</b></p>
+        </section>
+
+        {!activa && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">Esta reserva ya no se puede cambiar por acá (está cancelada o ya pasó). Si necesitás algo, escribinos por WhatsApp.</p>}
+
+        {activa && !modo && (
+          <section className="grid gap-2 sm:grid-cols-2">
+            {info.puede_modificar && <button type="button" onClick={() => setModo('modificar')} className="btn h-12 text-base"><CalendarClock size={18} />Modificar</button>}
+            {info.puede_cancelar && <button type="button" onClick={() => setModo('cancelar')} className="btn btn-danger h-12 text-base"><X size={18} />Cancelar</button>}
+            <p className="col-span-full text-xs text-rs-muted">Para proteger tu reserva, cualquier cambio se confirma con un mensaje de WhatsApp desde el teléfono con el que reservaste.</p>
+          </section>
+        )}
+
+        {modo === 'cancelar' && (
+          <section className="card space-y-3 p-4">
+            <h2 className="font-bold">¿Cancelar tu reserva?</h2>
+            <p className="text-sm text-rs-muted">Vamos a armar un mensaje de WhatsApp para que lo envíes desde tu número. Recién entonces se cancela.</p>
+            {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
+            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend} onClick={enviar} className="btn btn-danger flex-1">{pend ? 'Preparando…' : 'Sí, cancelar por WhatsApp'}</button></div>
+          </section>
+        )}
+
+        {modo === 'modificar' && cfg && (
+          <section className="card space-y-4 p-4">
+            <h2 className="font-bold">Modificar tu reserva</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="label" htmlFor="gr_fecha">Día</label><FechaInput id="gr_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(v) => v && setFecha(v)} /></div>
+              <div><span className="label">Personas</span>
+                <div className="flex h-9 items-center justify-between rounded-rs border border-rs-control px-1">
+                  <button type="button" onClick={() => setPersonas((p) => Math.max(cfg.personas_min, p - 1))} aria-label="Una persona menos" className="grid h-7 w-7 place-items-center rounded-full hover:bg-rs-raised"><Minus size={14} /></button>
+                  <span className="font-bold tabular-nums" aria-live="polite"><Users size={13} className="mr-1 inline text-rs-muted" />{personas}</span>
+                  <button type="button" onClick={() => setPersonas((p) => Math.min(cfg.personas_max, p + 1))} aria-label="Una persona más" className="grid h-7 w-7 place-items-center rounded-full hover:bg-rs-raised"><Plus size={14} /></button>
+                </div></div>
+            </div>
+            <div><span className="label">Horario</span>
+              <div className="flex flex-wrap gap-2">
+                {(slots ?? []).map((s) => (
+                  <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => setHora(s.hora)} aria-pressed={hora === s.hora}
+                    className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (hora === s.hora ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text') + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50')}>
+                    {s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
+                  </button>
+                ))}
+                {!slots && !error && <p className="text-sm text-rs-muted">Buscando horarios…</p>}
+              </div>
+            </div>
+            {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
+            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (fecha === r.fecha && hora === r.hora && personas === r.personas)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
+            <p className="text-xs text-rs-muted">El cambio se aplica cuando envíes el mensaje de WhatsApp desde tu número. Si el horario se completa mientras tanto, te avisamos.</p>
+          </section>
+        )}
+        {modo === 'modificar' && !cfg && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">Por ahora esta reserva solo se puede cancelar por acá. Para cambiarla, escribinos por WhatsApp.</p>}
+      </main>
+    </div>
+  )
+}

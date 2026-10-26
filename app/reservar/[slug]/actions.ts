@@ -58,3 +58,24 @@ export async function crearReservaPublica(slug: string, d: DatosReservaWeb): Pro
   }
   return { ok: true, codigo: String(r.codigo), whatsapp: String(r.whatsapp ?? ''), sede: (r.sede as string | null) ?? null, mesas: (r.mesas as string | null) ?? null, fecha: String(r.fecha), hora: String(r.hora), personas: Number(r.personas), ubicacion: (r.ubicacion as string | null) ?? null, mensaje: (r.mensaje as string | null) ?? null }
 }
+
+// ───────── cancelar o modificar una reserva desde su link (se confirma por WhatsApp; el teléfono de quien escribe tiene que coincidir con el de la reserva)
+const CODIGO_G = /^[a-z0-9]{6,20}$/i
+const MENSAJES_ACCION: Record<string, string> = {
+  reserva_no_encontrada: 'No encontramos esa reserva. Revisá el link.', reserva_no_modificable: 'Esta reserva ya no se puede cambiar por acá (está cancelada o ya pasó).',
+  sin_cambios: 'Elegí algo distinto a lo que ya tenés para modificar.', personas_invalidas: 'Esa cantidad de personas no está permitida.', horario_invalido: 'Ese horario no está disponible.',
+  sin_lugar: 'Ya no hay lugar en ese horario. Elegí otro.', modificacion_no_disponible: 'Por ahora esta reserva solo se puede cancelar por acá.', datos_invalidos: 'Revisá los datos.',
+  demasiados_pedidos: 'Hiciste varios pedidos seguidos. Esperá un rato o escribinos por WhatsApp.', sin_whatsapp: 'No pudimos armar el mensaje. Escribinos por WhatsApp.',
+}
+export type ResultadoAccion = { ok: true; codigo: string; tipo: 'cancelar' | 'modificar'; whatsapp: string; sede: string | null; numero: number } | { ok: false; error: string }
+
+/** Guarda el pedido (todavía no cambia nada) y devuelve el código para el mensaje de WhatsApp con el que se confirma. */
+export async function pedirAccionReserva(slug: string, codigo: string, d: { tipo: 'cancelar' | 'modificar'; fecha?: string; hora?: string; personas?: number; web?: string }): Promise<ResultadoAccion> {
+  if (!SLUG.test(slug) || !CODIGO_G.test(codigo)) return { ok: false, error: MENSAJES_ACCION.reserva_no_encontrada }
+  if (d?.web) return { ok: false, error: 'No pudimos procesar el pedido. Probá de nuevo.' }
+  if (d.tipo !== 'cancelar' && d.tipo !== 'modificar') return { ok: false, error: MENSAJES_ACCION.datos_invalidos }
+  const r = await rpc('web_reserva_accion_crear', { negocio: slug, codigo, tipo: d.tipo, fecha: d.fecha ?? null, hora: d.hora ?? null, personas: d.personas ?? null })
+  if (!r) return { ok: false, error: 'No pudimos procesar el pedido. Probá de nuevo.' }
+  if (r.ok !== true) return { ok: false, error: MENSAJES_ACCION[String(r.error)] ?? 'No pudimos procesar el pedido. Probá de nuevo.' }
+  return { ok: true, codigo: String(r.codigo), tipo: d.tipo, whatsapp: String(r.whatsapp ?? ''), sede: (r.sede as string | null) ?? null, numero: Number(r.numero) }
+}

@@ -102,6 +102,7 @@ export interface DatosAviso {
   monto?: number | null
   tipoReserva?: string | null
   tipoEtiqueta?: string | null    // nombre del tipo según el catálogo del negocio
+  linkGestion?: string | null     // link para que el cliente modifique o cancele su reserva
   ubicacion?: string | null
   observaciones?: string | null
   sede?: string | null
@@ -124,6 +125,7 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
     return {
       evento: 'reserva_estado',
       id_bot: d.numero,
+      link_gestion: d.linkGestion ?? '',
       id_reserva: d.numero,                                   // código de reserva (el de la sede si numera aparte)
       titular_reserva: d.clienteNombre ?? '',
       fecha_hora_reserva: [fechaDMA(d.fecha), horaHM(d.hora)].filter(Boolean).join(' '),   // dd-mm-aaaa hh:mm

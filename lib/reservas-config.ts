@@ -58,10 +58,15 @@ export function renderPlantillaWA(plantilla: string, vars: Record<string, string
 
 export interface MensajeBotDef { clave: string; titulo: string; cuando: string; variables: string[] }
 export const MENSAJES_BOT: MensajeBotDef[] = [
-  { clave: 'reserva_web_confirmada', titulo: 'Reserva confirmada', cuando: 'La reserva del sitio se registró ya confirmada (negocios cuyo estado inicial de reservas es “Confirmada”).', variables: ['nombre', 'numero', 'resumen', 'extra'] },
-  { clave: 'reserva_web_ya_confirmada', titulo: 'Reserva ya confirmada', cuando: 'El cliente reenvía el mismo mensaje y su reserva ya estaba registrada y confirmada.', variables: ['numero', 'resumen'] },
-  { clave: 'reserva_web_recibida', titulo: 'Reserva recibida', cuando: 'El cliente mandó su solicitud de reserva desde el sitio y se registró.', variables: ['nombre', 'numero', 'resumen', 'extra'] },
-  { clave: 'reserva_web_ya_registrada', titulo: 'Reserva ya registrada', cuando: 'El cliente reenvía el mismo mensaje y su reserva ya estaba registrada.', variables: ['numero', 'resumen'] },
+  { clave: 'reserva_cancelada', titulo: 'Reserva cancelada por el cliente', cuando: 'El cliente canceló su reserva desde el link y envió el mensaje de WhatsApp desde el teléfono de la reserva.', variables: ['nombre', 'numero', 'resumen'] },
+  { clave: 'reserva_modificada', titulo: 'Reserva modificada por el cliente', cuando: 'El cliente cambió fecha, hora o personas desde el link y confirmó por WhatsApp.', variables: ['nombre', 'numero', 'resumen', 'extra'] },
+  { clave: 'reserva_accion_telefono', titulo: 'El teléfono no coincide', cuando: 'Alguien intentó cancelar o modificar una reserva escribiendo desde otro número: no se cambia nada y el chat se deriva.', variables: [] },
+  { clave: 'reserva_accion_sin_lugar', titulo: 'Ya no hay lugar para el cambio', cuando: 'El horario nuevo se completó entre el pedido y el mensaje de WhatsApp.', variables: [] },
+  { clave: 'reserva_accion_no_modificable', titulo: 'La reserva ya no se puede cambiar', cuando: 'La reserva está cancelada o ya pasó.', variables: [] },
+  { clave: 'reserva_web_confirmada', titulo: 'Reserva confirmada', cuando: 'La reserva del sitio se registró ya confirmada (negocios cuyo estado inicial de reservas es “Confirmada”).', variables: ['nombre', 'numero', 'resumen', 'extra', 'link'] },
+  { clave: 'reserva_web_ya_confirmada', titulo: 'Reserva ya confirmada', cuando: 'El cliente reenvía el mismo mensaje y su reserva ya estaba registrada y confirmada.', variables: ['numero', 'resumen', 'link'] },
+  { clave: 'reserva_web_recibida', titulo: 'Reserva recibida', cuando: 'El cliente mandó su solicitud de reserva desde el sitio y se registró.', variables: ['nombre', 'numero', 'resumen', 'extra', 'link'] },
+  { clave: 'reserva_web_ya_registrada', titulo: 'Reserva ya registrada', cuando: 'El cliente reenvía el mismo mensaje y su reserva ya estaba registrada.', variables: ['numero', 'resumen', 'link'] },
   { clave: 'reserva_web_no_encontrada', titulo: 'No se encontró la solicitud', cuando: 'El código no existe, venció o el mensaje no lo trae. El chat se deriva a una persona.', variables: ['validez', 'validez_horas'] },
   { clave: 'reserva_web_aviso_mesa', titulo: 'Aviso: la mesa se ocupó', cuando: 'Se agrega al mensaje de “reserva recibida” si la mesa elegida se ocupó mientras el cliente escribía.', variables: [] },
   { clave: 'reserva_web_aviso_horario', titulo: 'Aviso: el horario se completó', cuando: 'Se agrega al mensaje de “reserva recibida” si el horario se completó mientras el cliente escribía.', variables: [] },

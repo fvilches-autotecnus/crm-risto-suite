@@ -1,5 +1,6 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -264,6 +265,15 @@ export async function guardarReserva(_prev: ActionResult | null, fd: FormData): 
   return { ok: true, nota }
 }
 
+/** Link para que el cliente cancele o modifique su reserva (genera el código si la reserva es anterior a esta función). */
+async function linkDeGestion(ctx: Awaited<ReturnType<typeof getContexto>>, reservaId: string): Promise<string | null> {
+  const { data: cg } = await ctx.supabase.rpc('codigo_gestion_reserva', { p_reserva: reservaId })
+  if (!cg) return null
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  return host ? `${h.get('x-forwarded-proto') ?? 'https'}://${host}/reservar/${ctx.negocio.slug}/r/${cg}` : null
+}
+
 export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, motivo?: string, monto?: number, notificar?: boolean): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
@@ -297,6 +307,7 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
       motivoCancelacion: r.motivo_cancelacion,
       monto: r.monto_sena,
       tipoReserva: r.tipo_reserva,
+      linkGestion: await linkDeGestion(ctx, id),
       tipoEtiqueta: (await ctx.supabase.from('reserva_tipos').select('etiqueta').eq('negocio_id', negocio.id).eq('clave', r.tipo_reserva).maybeSingle()).data?.etiqueta as string | undefined,
       ubicacion: r.ubicacion,
       observaciones: r.observaciones,
