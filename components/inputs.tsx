@@ -33,9 +33,9 @@ function mascaraFecha(raw: string): string {
 // ---------------------------------------------------------------------------
 // Fecha
 // ---------------------------------------------------------------------------
-export function FechaInput({ name, id, value, defaultValue = '', onChange, required, min, max, placeholder = 'dd-mm-aaaa', className = '' }: {
+export function FechaInput({ name, id, value, defaultValue = '', onChange, required, min, max, deshabilitado, placeholder = 'dd-mm-aaaa', className = '' }: {
   name?: string; id?: string; value?: string; defaultValue?: string; onChange?: (iso: string) => void
-  required?: boolean; min?: string; max?: string; placeholder?: string; className?: string
+  required?: boolean; min?: string; max?: string; deshabilitado?: (iso: string) => boolean; placeholder?: string; className?: string
 }) {
   const auto = useId()
   const controlado = value !== undefined
@@ -78,7 +78,7 @@ export function FechaInput({ name, id, value, defaultValue = '', onChange, requi
     return [...Array(primero).fill(null), ...Array.from({ length: dias }, (_, i) => i + 1)]
   }, [vista])
 
-  const fueraDeRango = (d: string) => (min && d < min) || (max && d > max)
+  const fueraDeRango = (d: string) => (min && d < min) || (max && d > max) || deshabilitado?.(d)
   const elegir = (d: number) => { const n = aIso(vista.y, vista.m, d); if (fueraDeRango(n)) return; setTexto(isoATexto(n)); emitir(n); setAbierto(false); campo.current?.focus() }
   const mover = (delta: number) => setVista((v) => { const t = v.y * 12 + (v.m - 1) + delta; return { y: Math.floor(t / 12), m: (t % 12) + 1 } })
 

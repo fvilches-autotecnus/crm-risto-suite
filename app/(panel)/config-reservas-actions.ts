@@ -9,7 +9,7 @@ const fail = (error: string): ActionResult => ({ ok: false, error })
 const refrescar = (slug: string) => { revalidatePath('/configuracion'); revalidatePath('/reservas'); revalidatePath('/'); revalidatePath('/mesas'); revalidatePath(`/reservar/${slug}`) }
 
 /** Guarda el catálogo de tipos de reserva. `tipos` viene en el orden elegido. Un tipo que ya tiene reservas no se borra: se desactiva. */
-export async function guardarTiposReserva(tipos: { clave: string; etiqueta: string; activo: boolean }[]): Promise<ActionResult> {
+export async function guardarTiposReserva(tipos: { clave: string; etiqueta: string; activo: boolean; modo?: string; dias_semana?: number[]; fechas?: string[] }[]): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los tipos de reserva')
   if (!Array.isArray(tipos) || tipos.length === 0 || tipos.length > 40) return fail('Tiene que haber entre 1 y 40 tipos de reserva')
@@ -20,9 +20,21 @@ export async function guardarTiposReserva(tipos: { clave: string; etiqueta: stri
     claves.add(t.clave)
     const e = String(t.etiqueta ?? '').trim()
     if (e.length < 1 || e.length > 40) return fail('El nombre de cada tipo va de 1 a 40 letras')
+    const modo = t.modo ?? 'siempre'
+    if (!['siempre', 'semana', 'fechas'].includes(modo)) return fail(`El tipo “${e}” tiene una disponibilidad no válida`)
+    if (modo === 'semana' && !(t.dias_semana ?? []).some((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return fail(`Elegí los días de la semana del tipo “${e}”`)
+    if (modo === 'fechas' && !(t.fechas ?? []).some((f) => /^\d{4}-\d{2}-\d{2}$/.test(f))) return fail(`Agregá al menos una fecha al tipo “${e}”`)
+    if ((t.fechas ?? []).length > 120) return fail(`El tipo “${e}” tiene demasiadas fechas (máximo 120)`)
   }
   if (!tipos.some((t) => t.activo)) return fail('Dejá al menos un tipo activo')
-  const filas = tipos.map((t, i) => ({ negocio_id: ctx.negocio.id, clave: t.clave, etiqueta: t.etiqueta.trim(), activo: !!t.activo, orden: i }))
+  const filas = tipos.map((t, i) => {
+    const modo = t.modo ?? 'siempre'
+    return {
+      negocio_id: ctx.negocio.id, clave: t.clave, etiqueta: t.etiqueta.trim(), activo: !!t.activo, orden: i, modo,
+      dias_semana: modo === 'semana' ? [...new Set((t.dias_semana ?? []).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() : null,
+      fechas: modo === 'fechas' ? [...new Set((t.fechas ?? []).filter((f) => /^\d{4}-\d{2}-\d{2}$/.test(f)))].sort() : null,
+    }
+  })
   const { error } = await ctx.supabase.from('reserva_tipos').upsert(filas, { onConflict: 'negocio_id,clave' })
   if (error) return fail('No se pudieron guardar los tipos')
   // los que ya no están en la lista: se borran si nadie los usa; si tienen reservas, quedan desactivados

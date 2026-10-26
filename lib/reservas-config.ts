@@ -2,7 +2,7 @@
 
 export interface Turno { nombre: string; hora: string }
 export interface ConfigReservas { alerta_aforo_pct: number; turnos: Turno[]; estados_bloquean: string[] }
-export interface TipoReservaCfg { clave: string; etiqueta: string; activo: boolean; orden: number }
+export interface TipoReservaCfg { clave: string; etiqueta: string; activo: boolean; orden: number; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[] | null; fechas: string[] | null }
 
 export const CONFIG_RESERVAS_DEFECTO: ConfigReservas = {
   alerta_aforo_pct: 90,

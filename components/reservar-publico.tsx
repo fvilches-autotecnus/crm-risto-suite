@@ -6,10 +6,10 @@ import { FechaInput } from '@/components/inputs'
 import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
-import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
+import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 interface Props {
-  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: { value: string; label: string }[]
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>
   cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
 }
 
@@ -19,7 +19,7 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos, cfg, hoy, whatsapp }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposTodos, cerrados, cfg, hoy, whatsapp }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfg.personas_min), cfg.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
@@ -27,6 +27,13 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const [sedeId, setSedeId] = useState(sedes.length === 1 ? sedes[0].id : '')
   const sede = sedes.find((s) => s.id === sedeId) ?? null
   const listo = !conSedes || !!sede
+  const diasCerrados = useMemo(() => new Set(cerrados[conSedes ? sedeId : '*'] ?? []), [cerrados, conSedes, sedeId])
+  // tipos de reserva que se ofrecen ese día (algunos son solo de ciertos días de la semana o de fechas puntuales)
+  const tipos = useMemo(() => {
+    const dow = new Date(fecha + 'T12:00:00Z').getUTCDay()
+    return tiposTodos.filter((t) => t.modo === 'semana' ? t.dias_semana.includes(dow) : t.modo === 'fechas' ? t.fechas.includes(fecha) : true)
+  }, [tiposTodos, fecha])
+  useEffect(() => { if (tipos.length > 0 && !tipos.some((t) => t.value === tipo)) setTipo(tipos[0].value) }, [tipos]) // eslint-disable-line react-hooks/exhaustive-deps
   const ubicacionesDe = (id: string) => ubicacionesTodas.filter((u) => !conSedes || !u.sucursal_id || u.sucursal_id === id).map((u) => u.nombre)
   const ubicaciones = ubicacionesDe(sedeId)
   const puedeElegirDe = (id: string) => (conSedes ? !!sedes.find((s) => s.id === id && s.elegir_mesa && s.tiene_plano) : cfg.elegir_mesa)
@@ -37,7 +44,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const cualquiera = ofreceCualquiera && ubicacion === '*'
   const etiquetaCualquiera = cfg.texto_cualquier_ubicacion?.trim() || 'Cualquier ubicación disponible'
   const ubicTexto = (u: string | null) => (u === '*' ? etiquetaCualquiera : u)
-  const [tipo, setTipo] = useState(tipos[0]?.value ?? 'comun')
+  const [tipo, setTipo] = useState(tiposTodos[0]?.value ?? 'comun')
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
   const [cargandoSlots, setCargandoSlots] = useState(false)
   const [errorSlots, setErrorSlots] = useState<string | null>(null)
@@ -188,7 +195,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">{conSedes && sedes.length > 1 ? 2 : 1} · ¿Cuándo y cuántos?</h2>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label" htmlFor="rw_fecha">Día</label><FechaInput id="rw_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(v) => v && setFecha(v)} /></div>
+            <div><label className="label" htmlFor="rw_fecha">Día</label><FechaInput id="rw_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} deshabilitado={(d) => diasCerrados.has(d)} onChange={(v) => v && setFecha(v)} /></div>
             <div>
               <span className="label">Personas</span>
               <div className="flex h-9 items-center justify-between rounded-rs border border-rs-control px-1">
@@ -199,6 +206,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             </div>
           </div>
           {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(puedeElegir ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
+          {tipos.length === 0 && <p role="status" className="rounded-md bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Ese día no hay reservas disponibles por acá. Probá con otro día.</p>}
           {tipos.length > 1 && <div><span className="label">Tipo de reserva</span><div className="flex flex-wrap gap-2">{tipos.map((t) => <button key={t.value} type="button" onClick={() => setTipo(t.value)} aria-pressed={tipo === t.value} className={chip(tipo === t.value)}>{t.label}</button>)}</div></div>}
           <div>
             <span className="label">Horario</span>

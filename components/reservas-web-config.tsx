@@ -7,9 +7,10 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { useEffect, useMemo, useState } from 'react'
 import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/reservas-config'
 import { Copy, ExternalLink } from 'lucide-react'
+import { DIAS_SEMANA } from '@/components/config-calendario'
 
 export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
-  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }
+  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]> }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
 export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean }
@@ -65,6 +66,13 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
         <label className="label" htmlFor="rw_horarios">Horarios</label>
         <input id="rw_horarios" name="horarios" defaultValue={config.horarios.join(', ')} placeholder={horariosSugeridos.join(', ') || '13:00, 21:00'} className="input w-full" />
         <p className="mt-1 text-xs text-rs-muted">Separados por coma. Si lo dejás vacío se usan los horarios que más se usan en tus reservas{horariosSugeridos.length ? <>: <b className="text-rs-text">{horariosSugeridos.join(', ')}</b></> : ''}. La disponibilidad de cada horario sale de tus reglas de aforo y fechas bloqueadas.</p>
+        <details className="mt-2 rounded-md border border-rs-border/60 bg-rs-raised/30 px-3 py-2" open={Object.values(config.horarios_dias ?? {}).some((h) => h.length > 0)}>
+          <summary className="cursor-pointer text-sm font-medium">Horarios distintos según el día de la semana (opcional)</summary>
+          <p className="mt-1 text-xs text-rs-muted">Por ejemplo, los sábados abrís al mediodía y el resto de la semana solo de noche. El día que dejes vacío usa los horarios de arriba.</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`rw_hd_${d.n}`}>{d.l}</label><input id={`rw_hd_${d.n}`} name={`horarios_dia_${d.n}`} defaultValue={(config.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de arriba" className="input w-full" /></div>)}
+          </div>
+        </details>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><label className="label" htmlFor="rw_dias">Días hacia adelante</label><input id="rw_dias" name="dias_adelante" type="number" min={1} max={365} defaultValue={config.dias_adelante} className="input w-full" /></div>

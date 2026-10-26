@@ -11,6 +11,7 @@ export interface InfoReserva {
   negocio: string
   reserva: { numero: number; nombre: string; fecha: string; hora: string | null; personas: number | null; ubicacion: string | null; sede: string | null; sede_id: string | null; estado: string }
   puede_cancelar: boolean; puede_modificar: boolean; whatsapp: string; elegir_mesa?: boolean; mesas?: string | null
+  ubicaciones?: string[]; permite_cualquiera?: boolean; texto_cualquiera?: string | null
   config: { personas_min: number; personas_max: number; dias_adelante: number } | null
 }
 
@@ -19,12 +20,17 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 const ESTADO: Record<string, string> = { nueva: 'Pendiente de confirmación', confirmada: 'Confirmada', pendiente_pago: 'Pendiente de pago', revisar_pago: 'Pago en revisión', cancelada: 'Cancelada', no_show: 'No asistió' }
 
 /** Ver, cancelar o modificar una reserva desde su link. Pedirlo NO cambia nada: se arma un mensaje de WhatsApp y el cambio se aplica cuando llega desde el teléfono de la reserva. */
-export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: string; codigo: string; info: InfoReserva; hoy: string }) {
+export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [] }: { slug: string; codigo: string; info: InfoReserva; hoy: string; cerrados?: string[] }) {
   const r = info.reserva
   const [modo, setModo] = useState<'cancelar' | 'modificar' | null>(null)
   const [fecha, setFecha] = useState(r.fecha)
   const [personas, setPersonas] = useState(r.personas ?? 2)
   const [hora, setHora] = useState(r.hora ?? '')
+  const [ubic, setUbic] = useState(r.ubicacion ?? '')   // '' = la que tiene · '*' = cualquier ubicación disponible
+  const ubicaciones = info.ubicaciones ?? []
+  const etiquetaCualquiera = info.texto_cualquiera?.trim() || 'Cualquier ubicación disponible'
+  const ubicTexto = (u: string) => (u === '*' ? etiquetaCualquiera : u)
+  const igualUbic = (ubic || '') === (r.ubicacion ?? '')
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
@@ -42,29 +48,29 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
     if (modo !== 'modificar') return
     let vivo = true
     const t = setTimeout(async () => {
-      const x = await consultarHorarios(slug, fecha, personas, r.ubicacion ?? '', r.sede_id ?? '')
+      const x = await consultarHorarios(slug, fecha, personas, ubic, r.sede_id ?? '')
       if (!vivo) return
       if (!x.ok) { setSlots(null); setError(x.error); return }
       setError(null)
       // el horario que ya tiene se puede conservar aunque figure completo (la reserva ya está contada ahí)
-      setSlots(x.slots.map((s) => (fecha === r.fecha && s.hora === r.hora ? { ...s, disponible: true, motivo: undefined } : s)))
-      setHora((h) => (x.slots.some((s) => s.hora === h && (s.disponible || (fecha === r.fecha && s.hora === r.hora))) ? h : ''))
+      setSlots(x.slots.map((s) => (fecha === r.fecha && s.hora === r.hora && igualUbic ? { ...s, disponible: true, motivo: undefined } : s)))
+      setHora((h) => (x.slots.some((s) => s.hora === h && (s.disponible || (fecha === r.fecha && s.hora === r.hora && igualUbic))) ? h : ''))
     }, 250)
     return () => { vivo = false; clearTimeout(t) }
-  }, [modo, slug, fecha, personas, r.ubicacion, r.sede_id, r.fecha, r.hora])
+  }, [modo, slug, fecha, personas, ubic, r.sede_id, r.fecha, r.hora]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setSel([]); setPlano(null) }, [fecha, hora, personas])
+  useEffect(() => { setSel([]); setPlano(null) }, [fecha, hora, personas, ubic])
   useEffect(() => {
-    if (modo !== 'modificar' || !info.elegir_mesa || modoMesa !== 'elegir' || !hora) return
+    if (modo !== 'modificar' || !info.elegir_mesa || modoMesa !== 'elegir' || !hora || ubic === '*') return
     let vivo = true
     void (async () => {
-      const x = await consultarPlano(slug, fecha, hora, personas, r.ubicacion ?? '', r.sede_id ?? '', codigo)
+      const x = await consultarPlano(slug, fecha, hora, personas, ubic, r.sede_id ?? '', codigo)
       if (!vivo) return
       if (!x.ok) { setPlano(null); setError(x.error); return }
       setPlano({ salones: x.salones, mesas: x.mesas }); setSalonId(x.salones[0]?.id ?? '')
     })()
     return () => { vivo = false }
-  }, [modo, modoMesa, fecha, hora, personas, slug, codigo, r.ubicacion, r.sede_id, info.elegir_mesa])
+  }, [modo, modoMesa, fecha, hora, personas, ubic, slug, codigo, r.sede_id, info.elegir_mesa])
   const mesasSel = (plano?.mesas ?? []).filter((m) => sel.includes(m.id))
   const totalMesas = mesasSel.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
   const seleccionValida = mesasSel.length > 0 && personas >= totalMesas.min && personas <= totalMesas.max && (mesasSel.length === 1 || mesasSel.every((m) => m.movil))
@@ -82,13 +88,13 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
   const mensaje = (a: Extract<ResultadoAccion, { ok: true }>) => {
     const sede = a.sede ? ` (${a.sede})` : ''
     if (a.tipo === 'cancelar') return [`CANCELACIÓN DE RESERVA - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero cancelar mi reserva #${a.numero}${sede}: ${fechaCorta(r.fecha)} ${r.hora ?? ''}, ${r.personas ?? ''} personas.`].join('\n')
-    return [`MODIFICACIÓN DE RESERVA - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero modificar mi reserva #${a.numero}${sede}.`, `Nuevo día: ${fechaTxt(fecha)}`, `Nueva hora: ${hora}`, `Personas: ${personas}`, ...(modoMesa === 'elegir' && mesasSel.length ? [`Mesa: ${mesasSel.map((m) => m.numero).join(' + ')}`] : [])].join('\n')
+    return [`MODIFICACIÓN DE RESERVA - ${info.negocio}`, `Código: ${a.codigo}`, '', `Quiero modificar mi reserva #${a.numero}${sede}.`, `Nuevo día: ${fechaTxt(fecha)}`, `Nueva hora: ${hora}`, `Personas: ${personas}`, ...(ubic && !igualUbic ? [`Ubicación: ${ubicTexto(ubic)}`] : []), ...(modoMesa === 'elegir' && mesasSel.length ? [`Mesa: ${mesasSel.map((m) => m.numero).join(' + ')}`] : [])].join('\n')
   }
   const urlWA = (a: Extract<ResultadoAccion, { ok: true }>) => `https://wa.me/${(a.whatsapp || info.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(mensaje(a))}`
   const enviar = () => {
     setError(null)
     start(async () => {
-      const x = await pedirAccionReserva(slug, codigo, modo === 'cancelar' ? { tipo: 'cancelar' } : { tipo: 'modificar', fecha, hora, personas, mesas: modoMesa === 'elegir' ? sel : [] })
+      const x = await pedirAccionReserva(slug, codigo, modo === 'cancelar' ? { tipo: 'cancelar' } : { tipo: 'modificar', fecha, hora, personas, ubicacion: igualUbic ? '' : ubic, mesas: modoMesa === 'elegir' ? sel : [] })
       if (!x.ok) { setError(x.error); return }
       setListo(x); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(x)
     })
@@ -150,7 +156,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
           <section className="card space-y-4 p-4">
             <h2 className="font-bold">Modificar tu reserva</h2>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="label" htmlFor="gr_fecha">Día</label><FechaInput id="gr_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(v) => v && setFecha(v)} /></div>
+              <div><label className="label" htmlFor="gr_fecha">Día</label><FechaInput id="gr_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} deshabilitado={(d) => cerrados.includes(d) && d !== r.fecha} onChange={(v) => v && setFecha(v)} /></div>
               <div><span className="label">Personas</span>
                 <div className="flex h-9 items-center justify-between rounded-rs border border-rs-control px-1">
                   <button type="button" onClick={() => setPersonas((p) => Math.max(cfg.personas_min, p - 1))} aria-label="Una persona menos" className="grid h-7 w-7 place-items-center rounded-full hover:bg-rs-raised"><Minus size={14} /></button>
@@ -158,6 +164,14 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
                   <button type="button" onClick={() => setPersonas((p) => Math.min(cfg.personas_max, p + 1))} aria-label="Una persona más" className="grid h-7 w-7 place-items-center rounded-full hover:bg-rs-raised"><Plus size={14} /></button>
                 </div></div>
             </div>
+            {(ubicaciones.length > 1 || info.permite_cualquiera) && (
+              <div><span className="label">Ubicación</span>
+                <div className="flex flex-wrap gap-2">
+                  {ubicaciones.map((u) => <button key={u} type="button" onClick={() => setUbic(u)} aria-pressed={ubic === u} className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (ubic === u ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text')}>{u}</button>)}
+                  {info.permite_cualquiera && <button type="button" onClick={() => setUbic('*')} aria-pressed={ubic === '*'} className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (ubic === '*' ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text')}>{etiquetaCualquiera}</button>}
+                </div>
+              </div>
+            )}
             <div><span className="label">Horario</span>
               <div className="flex flex-wrap gap-2">
                 {(slots ?? []).map((s) => (
@@ -169,7 +183,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
                 {!slots && !error && <p className="text-sm text-rs-muted">Buscando horarios…</p>}
               </div>
             </div>
-            {info.elegir_mesa && hora && (
+            {info.elegir_mesa && hora && ubic !== '*' && (
               <div className="space-y-2">
                 <span className="label">Tu mesa</span>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -188,7 +202,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy }: { slug: st
               </div>
             )}
             {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
-            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
+            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas && igualUbic)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
             <p className="text-xs text-rs-muted">El cambio se aplica cuando envíes el mensaje de WhatsApp desde tu número. Si el horario se completa mientras tanto, te avisamos.</p>
           </section>
         )}

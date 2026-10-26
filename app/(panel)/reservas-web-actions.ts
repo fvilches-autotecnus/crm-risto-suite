@@ -22,6 +22,15 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const horarios = [...new Set(text(fd, 'horarios').split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
   if (horarios.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h))) return fail('Los horarios van como 13:00, 21:30 (separados por coma)')
   if (horarios.length > 24) return fail('Hasta 24 horarios')
+  // horarios propios de ciertos días de la semana (0 = domingo … 6 = sábado); el día vacío usa los generales
+  const horariosDias: Record<string, string[]> = {}
+  for (let d = 0; d <= 6; d++) {
+    const hs = [...new Set(text(fd, `horarios_dia_${d}`).split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
+    if (hs.length === 0) continue
+    if (hs.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h))) return fail('Los horarios de cada día van como 13:00, 21:30 (separados por coma)')
+    if (hs.length > 24) return fail('Hasta 24 horarios por día')
+    horariosDias[String(d)] = hs.sort()
+  }
   const tipos = fd.getAll('tipos').map(String).filter((t) => /^[a-z0-9_]{1,40}$/.test(t))
   const mensaje = text(fd, 'mensaje')
   if (mensaje.length > 400) return fail('El mensaje puede tener hasta 400 letras')
@@ -58,7 +67,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     }
   }
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
-    negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(),
+    negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(), horarios_dias: horariosDias,
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
     modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', pedir_cumple: fd.get('pedir_cumple') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
   })

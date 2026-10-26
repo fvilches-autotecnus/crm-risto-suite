@@ -20,6 +20,7 @@ export default async function ReservaPage({ params }: { params: Promise<{ slug: 
   const { data } = await admin.rpc('web_reserva_info', { p: { negocio: slug, codigo } })
   const info = data as (InfoReserva & { ok: boolean }) | null
   if (!info?.ok) return noEncontrada
-  const { data: neg } = await admin.from('negocios').select('zona_horaria').eq('slug', slug).maybeSingle()
-  return <GestionarReserva slug={slug} codigo={codigo} info={info} hoy={hoyEn((neg?.zona_horaria as string | undefined) ?? undefined)} />
+  const [{ data: neg }, { data: cal }] = await Promise.all([admin.from('negocios').select('zona_horaria').eq('slug', slug).maybeSingle(), admin.rpc('web_calendario', { p: { negocio: slug } })])
+  const cerr = ((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}
+  return <GestionarReserva slug={slug} codigo={codigo} info={info} cerrados={cerr[info.reserva.sede_id ?? '*'] ?? cerr['*'] ?? []} hoy={hoyEn((neg?.zona_horaria as string | undefined) ?? undefined)} />
 }

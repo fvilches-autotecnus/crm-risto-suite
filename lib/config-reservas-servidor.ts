@@ -15,6 +15,6 @@ export async function cargarConfigReservas(ctx: Contexto): Promise<ConfigReserva
 
 /** Catálogo de tipos de reserva del negocio, en el orden elegido. */
 export async function cargarTiposReserva(ctx: Contexto): Promise<TipoReservaCfg[]> {
-  const { data } = await ctx.supabase.from('reserva_tipos').select('clave, etiqueta, activo, orden').eq('negocio_id', ctx.negocio.id).order('orden').order('clave')
+  const { data } = await ctx.supabase.from('reserva_tipos').select('clave, etiqueta, activo, orden, modo, dias_semana, fechas').eq('negocio_id', ctx.negocio.id).order('orden').order('clave')
   return (data ?? []) as TipoReservaCfg[]
 }
