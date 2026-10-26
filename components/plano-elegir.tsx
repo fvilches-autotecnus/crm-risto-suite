@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Users } from 'lucide-react'
 import { consultarPlanoReserva, type MesaPanel, type SalonPanel } from '@/app/(panel)/actions'
 
@@ -52,6 +52,8 @@ export default function PlanoElegir({ fecha, hora, personas, sede, ubicacion, va
   const [salonId, setSalonId] = useState('')
   const [aviso, setAviso] = useState<string | null>(null)
   const listo = !!fecha && !!hora && personas > 0
+  const valorRef = useRef(value)   // lo último elegido (al editar, las mesas de la reserva pueden llegar mientras se carga el plano)
+  valorRef.current = value
 
   useEffect(() => {
     if (!abierto || !listo) return
@@ -63,7 +65,7 @@ export default function PlanoElegir({ fecha, hora, personas, sede, ubicacion, va
       setCargando(false)
       if (!r.ok) { setDatos(null); setError(r.error); return }
       setDatos({ salones: r.salones, mesas: r.mesas }); setSalonId((s) => (r.salones.some((x) => x.id === s) ? s : r.salones[0]?.id ?? ''))
-      onChange(value.filter((id) => r.mesas.some((m) => m.id === id && m.estado === 'disponible')))   // si algo se ocupó, se saca de la selección
+      onChange(valorRef.current.filter((id) => r.mesas.some((m) => m.id === id && m.estado === 'disponible')))   // si algo se ocupó, se saca de la selección
     })()
     return () => { vivo = false }
   }, [abierto, listo, fecha, hora, personas, sede, ubicacion]) // eslint-disable-line react-hooks/exhaustive-deps
