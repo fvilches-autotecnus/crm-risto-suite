@@ -138,6 +138,7 @@ export const MANUAL: SeccionManual[] = [
         '**Cualquier ubicación disponible:** una opción más junto a tus ubicaciones para que el cliente reserve sin elegir lugar ni mesa. Solo aparece si tenés dos o más ubicaciones. El horario se ofrece si **entra en al menos una ubicación** según el aforo de cada una (y los topes generales y fechas bloqueadas); cuando llega el WhatsApp se le asigna la **primera ubicación con lugar, en el orden en que cargaste las ubicaciones**. Si en el medio se llenaron todas, la reserva igual se crea, sin ubicación y con una nota para que la resuelvas. Podés cambiar el texto de la opción.',
         '**Horarios:** una lista separada por coma (13:00, 21:00). Vacío = usa los horarios que más se usan en tus reservas.',
         '**Días hacia adelante, anticipación mínima y rango de personas.** Y un **mensaje** que ve el cliente (por ejemplo: “Tolerancia de 15 minutos”).',
+        '**Preguntar el cumpleaños:** agrega al formulario el día y el mes de cumpleaños, siempre **opcional** para el cliente (los dos o ninguno). Si lo completa, se guarda en la reserva y en su ficha para el módulo Cumpleaños, y va en el mensaje de WhatsApp.',
         '**Modo prueba:** muestra el cartel “Sitio de prueba” y marca las reservas “[Sitio de prueba]”. Apagalo para publicarlo de verdad.',
         '**Título y subtítulo** de la página (por defecto, el nombre del local y “Reservá tu mesa”).',
         '**Cuánto espera la solicitud** (horas) y **máximo de mesas por reserva** (cuántas móviles se pueden juntar).',

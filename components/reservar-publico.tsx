@@ -9,7 +9,7 @@ import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, t
 
 interface Props {
   slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: { value: string; label: string }[]
-  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null }; hoy: string; whatsapp: string
+  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
@@ -48,7 +48,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const [salonId, setSalonId] = useState('')
   const [sel, setSel] = useState<string[]>([])
   const [aviso, setAviso] = useState<string | null>(null)
-  const [form, setForm] = useState({ nombre: '', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<Extract<ResultadoReserva, { ok: true }> | null>(null)
   const [pend, start] = useTransition()
@@ -113,6 +113,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const listoParaDatos = !!hora && (cualquiera || modo === 'asesor' || (modo === 'elegir' && seleccionValida))
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
+    if (!!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); return }
     start(async () => {
       const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, mesas: modo === 'elegir' ? sel : [] })
       if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
@@ -125,7 +126,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
-      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
+      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
       ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
@@ -149,7 +150,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
-          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
         </main>
       </div>
     )
@@ -254,6 +255,16 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             <form onSubmit={enviar} className="space-y-3">
               {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
               <div><label className="label" htmlFor="rw_nombre">Nombre y apellido *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={80} autoComplete="name" className="input w-full" required /></div>
+              {cfg.pedir_cumple && (
+                <div>
+                  <span className="label">Tu cumpleaños (opcional)</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <select aria-label="Día de cumpleaños" value={form.cumple_dia} onChange={(e) => setForm((f) => ({ ...f, cumple_dia: e.target.value }))} className="input w-full"><option value="">Día</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}</select>
+                    <select aria-label="Mes de cumpleaños" value={form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_mes: e.target.value }))} className="input w-full"><option value="">Mes</option>{['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'].map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}</select>
+                  </div>
+                  <p className="mt-1 text-xs text-rs-muted">Solo el día y el mes, para saludarte en tu día. Podés dejarlo vacío.</p>
+                </div>
+              )}
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
               <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{sede && sedes.length > 1 ? ` · ${sede.nombre}` : ''}{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>

@@ -64,11 +64,11 @@ export default async function ConfiguracionPage() {
   let mensajesPropios: Record<string, string> = {}
   if (ctx.modulosActivos.reservas && ctx.puedeAdministrar) {
     const [{ data: c }, { data: ts }, { data: hs }] = await Promise.all([
-      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion').eq('negocio_id', negocio.id).maybeSingle(),
+      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple').eq('negocio_id', negocio.id).maybeSingle(),
       supabase.from('reservas').select('tipo_reserva').eq('negocio_id', negocio.id).limit(10000),
       supabase.from('reservas').select('hora').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', sumarDias(hoy, -120)).lte('fecha', hoy).not('hora', 'is', null).limit(10000),
     ])
-    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, cualquier_ubicacion: true, texto_cualquier_ubicacion: null, ...(c ?? {}) } as ConfigReservasWeb
+    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, cualquier_ubicacion: true, texto_cualquier_ubicacion: null, pedir_cumple: true, ...(c ?? {}) } as ConfigReservasWeb
     // catálogo de tipos de reserva (el que configura el dueño) + los que el bot creó y todavía no tienen nombre
     const [catalogo, cr, { data: bm }, { data: orig }] = await Promise.all([
       cargarTiposReserva(ctx), cargarConfigReservas(ctx),

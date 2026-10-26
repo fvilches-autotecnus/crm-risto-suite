@@ -60,7 +60,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
-    modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
+    modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', pedir_cumple: fd.get('pedir_cumple') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
   })
   if (error) return fail('No se pudo guardar la configuración')
   if (filasSede.length) {
