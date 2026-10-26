@@ -8,11 +8,11 @@ import { Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
 import { labelTipo } from '@/lib/reservas'
 
-export interface SolicitudWebUI { id: string; codigo: string; nombre: string; fecha: string; hora: string; personas: number; ubicacion: string | null; cualquier_ubicacion?: boolean; tipo_reserva: string; observaciones: string | null; mesas: string | null; creado_en: string }
+export interface SolicitudWebUI { id: string; codigo: string; nombre: string; fecha: string; hora: string; personas: number; ubicacion: string | null; cualquier_ubicacion?: boolean; sucursal_id?: string | null; tipo_reserva: string; observaciones: string | null; mesas: string | null; creado_en: string }
 
 /** Solicitudes del sitio de reservas que todavía NO son reservas: el cliente las armó pero no mandó el mensaje de WhatsApp.
  *  No ocupan mesa ni aforo. Si el bot no las registró solo, se registran a mano con el teléfono de quien escribió. */
-export default function SolicitudesWeb({ solicitudes, puedeEscribir, etiquetasTipo = {} }: { solicitudes: SolicitudWebUI[]; puedeEscribir: boolean; etiquetasTipo?: Record<string, string> }) {
+export default function SolicitudesWeb({ solicitudes, puedeEscribir, etiquetasTipo = {}, sedes = {} }: { solicitudes: SolicitudWebUI[]; puedeEscribir: boolean; etiquetasTipo?: Record<string, string>; sedes?: Record<string, string> }) {
   const toast = useToast()
   const [abierta, setAbierta] = useState<string | null>(null)
   const [tel, setTel] = useState('')
@@ -44,7 +44,7 @@ export default function SolicitudesWeb({ solicitudes, puedeEscribir, etiquetasTi
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-semibold">{s.nombre} <span className="ml-1 rounded bg-rs-raised px-1.5 py-0.5 font-mono text-xs tracking-widest text-rs-lime" title="El código que viaja en su mensaje de WhatsApp">{s.codigo}</span></p>
-                <p className="text-rs-muted">{fechaCorta(s.fecha)} · {horaCorta(s.hora)} · {s.personas} personas{s.ubicacion ? ` · ${s.ubicacion}` : s.cualquier_ubicacion ? ' · cualquier ubicación' : ''} · {labelTipo(s.tipo_reserva, etiquetasTipo)}{s.mesas ? ` · pidió mesa ${s.mesas}` : ' · mesa a elección del local'}</p>
+                <p className="text-rs-muted">{fechaCorta(s.fecha)} · {horaCorta(s.hora)} · {s.personas} personas{s.sucursal_id && sedes[s.sucursal_id] ? ` · ${sedes[s.sucursal_id]}` : ''}{s.ubicacion ? ` · ${s.ubicacion}` : s.cualquier_ubicacion ? ' · cualquier ubicación' : ''} · {labelTipo(s.tipo_reserva, etiquetasTipo)}{s.mesas ? ` · pidió mesa ${s.mesas}` : ' · mesa a elección del local'}</p>
                 {s.observaciones && <p className="text-rs-muted/90">{s.observaciones}</p>}
                 <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-rs-muted/70"><Clock size={11} />Armada {fechaHoraLarga(s.creado_en)}</p>
               </div>

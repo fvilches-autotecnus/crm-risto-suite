@@ -8,7 +8,7 @@ import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, Modul
 import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
 import { integracionBC } from '@/lib/etiquetas'
 import { leerPausaAuto } from '@/lib/pausas'
-import ReservasWebConfig, { type ConfigReservasWeb } from '@/components/reservas-web-config'
+import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/components/reservas-web-config'
 import { labelTipo } from '@/lib/reservas'
 import ConfigTiposReserva, { type FilaTipo } from '@/components/config-tipos-reserva'
 import ConfigParametrosReservas from '@/components/config-parametros-reservas'
@@ -58,6 +58,7 @@ export default async function ConfiguracionPage() {
   let webTipos: { value: string; label: string }[] = []
   let webHorarios: string[] = []
   let filasTipos: FilaTipo[] = []
+  let sedesWeb: SedeCfg[] = []
   let cfgRes: ConfigReservas | null = null
   let mensajesOriginales: Record<string, string> = {}
   let mensajesPropios: Record<string, string> = {}
@@ -75,6 +76,25 @@ export default async function ConfiguracionPage() {
       supabase.rpc('bot_mensajes_defectos'),
     ])
     cfgRes = cr; mensajesOriginales = (orig ?? {}) as Record<string, string>; mensajesPropios = Object.fromEntries((bm ?? []).map((m) => [m.clave as string, m.texto as string]))
+    // sedes: las activas con lo que tiene cada una (WhatsApp, ajustes propios del sitio y si tiene plano de mesas)
+    const sedesActivas = ctx.sedesTodas.filter((x) => x.activa)
+    if (sedesActivas.length) {
+      const [{ data: ajustes }, { data: salonesW }, { data: mesasW }] = await Promise.all([
+        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
+        supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id),
+        supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
+      ])
+      const conMesas = new Set((mesasW ?? []).map((m) => m.salon_id as string))
+      sedesWeb = sedesActivas.map((x) => {
+        const a = (ajustes ?? []).find((j) => j.sucursal_id === x.id)
+        const propio = !!(x.whatsapp_nro ?? '').replace(/\D/g, '')
+        return {
+          id: x.id, nombre: x.nombre, whatsapp: ((x.whatsapp_nro ?? '') || (negocio.whatsapp_nro ?? '')).replace(/\D/g, ''), propio,
+          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null,
+          tiene_plano: (salonesW ?? []).some((sl) => (!sl.sucursal_id || sl.sucursal_id === x.id) && conMesas.has(sl.id as string)),
+        }
+      })
+    }
     const usos: Record<string, number> = {}
     for (const t of ts ?? []) { const k = t.tipo_reserva as string; if (k) usos[k] = (usos[k] ?? 0) + 1 }
     filasTipos = [
@@ -173,7 +193,7 @@ export default async function ConfiguracionPage() {
 
       {webCfg && (
         <Seccion id="reservas-web" i={n++} titulo="Sitio de reservas (prueba)" texto="Una página pública para que los clientes reserven solos, eligiendo su mesa en el plano o dejando que un asesor la elija. Usa tus ubicaciones, aforo, fechas bloqueadas y planos de mesas.">
-          <div className="mt-3"><ReservasWebConfig config={webCfg} tieneWhatsapp={!!negocio.whatsapp_nro} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} /></div>
+          <div className="mt-3"><ReservasWebConfig config={webCfg} tieneWhatsapp={!!negocio.whatsapp_nro || sedesWeb.some((x) => !!x.whatsapp)} sedes={sedesWeb} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} /></div>
         </Seccion>
       )}
 

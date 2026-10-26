@@ -12,7 +12,10 @@ export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipo
   modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
-export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
+export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean }
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp, sedes = [] }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; sedes?: SedeCfg[]; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
   const { state, pending, formProps } = useAccionFormulario(guardarReservasWeb)
   const toast = useToast()
   const [origen, setOrigen] = useState('')
@@ -24,11 +27,36 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
   const copiar = async () => { try { await navigator.clipboard.writeText(url); toast({ texto: 'Enlace copiado' }) } catch { toast({ tipo: 'error', texto: url }) } }
   return (
     <form {...formProps} className="space-y-4">
-      {!tieneWhatsapp && <p role="alert" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Este negocio no tiene WhatsApp cargado (Negocio → WhatsApp): sin eso el sitio no se puede usar, porque nadie podría recibir el mensaje que confirma la reserva.</p>}
+      {!tieneWhatsapp && <p role="alert" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Falta un WhatsApp: cargalo en el negocio o en cada sede. Sin eso el sitio no se puede usar, porque nadie podría recibir el mensaje que confirma la reserva.</p>}
       <p className="rounded-md bg-rs-raised/50 px-3 py-2 text-xs text-rs-muted">Cómo funciona: el sitio <b className="text-rs-text">no pide teléfono</b>. Al terminar abre WhatsApp con la solicitud escrita (lleva un código). Cuando el cliente la envía, el bot registra la reserva con el número de quien escribió; si el bot no lo hace solo, la registrás a mano desde <b className="text-rs-text">Reservas → Solicitudes web</b>. Mientras tanto no ocupa mesa ni aforo.</p>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="activo" defaultChecked={config.activo} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Sitio de reservas activo</span><span className="block text-xs text-rs-muted">Apagado, el enlace muestra “no encontrado”. El cliente arma su solicitud en el sitio y la reserva se registra recién cuando manda el mensaje por WhatsApp (queda en estado inicial, normalmente “Nueva”, marcada “[Sitio de prueba]”).</span></span></label>
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><span className="min-w-0 flex-1 truncate font-mono text-xs">{url}</span><button type="button" onClick={copiar} className="btn btn-sm"><Copy size={13} />Copiar</button><a href={`/reservar/${slug}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm"><ExternalLink size={13} />Abrir</a></div>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="elegir_mesa" defaultChecked={config.elegir_mesa} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">El cliente puede elegir su mesa en el plano</span><span className="block text-xs text-rs-muted">Usa el plano de Salón y mesas. Se muestran como no disponibles las mesas con reservas confirmadas, pendientes de pago o en revisión de pago. Sin esto, siempre elige un asesor.</span></span></label>
+      {sedes.length > 0 && (
+        <fieldset className="space-y-3 rounded-md border border-rs-border/60 p-3">
+          <legend className="label px-1">Sedes en el sitio</legend>
+          <p className="text-xs text-rs-muted">El cliente elige primero la sede y de ahí sale todo lo que esa sede tiene: su WhatsApp, sus ubicaciones y aforo, sus fechas bloqueadas y su plano de mesas (una sede puede tener plano y otra no). Lo que dejes vacío acá lo hereda del sitio. Los horarios y el mensaje se pueden cambiar por sede; las ubicaciones, el aforo y el plano se arman en sus propias pantallas.</p>
+          {sedes.map((s) => {
+            const enlace = `${origen}/reservar/${slug}?sede=${sinTildes(s.nombre)}`
+            return (
+              <div key={s.id} className="space-y-2 rounded-md bg-rs-raised/30 p-3">
+                <input type="hidden" name="sede_id" value={s.id} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" name={`sede_activo_${s.id}`} defaultChecked={s.activo} className="h-4 w-4 accent-[#c8e62b]" />{s.nombre}</label>
+                  <span className="text-xs text-rs-muted">{s.whatsapp ? <>WhatsApp: <b className="text-rs-text">{s.whatsapp}</b>{s.propio ? '' : ' (el del negocio)'}</> : <span className="text-rs-warn">Sin WhatsApp: cargalo en Sedes para poder ofrecerla</span>} · {s.tiene_plano ? 'con plano de mesas' : 'sin plano de mesas'}</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div><label className="label" htmlFor={`sh_${s.id}`}>Horarios de esta sede</label><input id={`sh_${s.id}`} name={`sede_horarios_${s.id}`} defaultValue={s.horarios.join(', ')} placeholder="Hereda los del sitio" className="input w-full" /></div>
+                  <div><label className="label" htmlFor={`sm_${s.id}`}>Elegir mesa en el plano</label>
+                    <select id={`sm_${s.id}`} name={`sede_mesa_${s.id}`} defaultValue={s.elegir_mesa === null ? '' : s.elegir_mesa ? 'si' : 'no'} className="input w-full"><option value="">Como el sitio</option><option value="si">Sí</option><option value="no">No (decide un asesor)</option></select></div>
+                  <div><label className="label" htmlFor={`sg_${s.id}`}>Mensaje de esta sede</label><input id={`sg_${s.id}`} name={`sede_mensaje_${s.id}`} defaultValue={s.mensaje ?? ''} maxLength={400} placeholder="Hereda el del sitio" className="input w-full" /></div>
+                </div>
+                <p className="truncate font-mono text-[11px] text-rs-muted" title="Enlace directo a esta sede">{enlace}</p>
+              </div>
+            )
+          })}
+        </fieldset>
+      )}
       <fieldset><legend className="label">Tipos de reserva que se ofrecen</legend>
         <div className="flex flex-wrap gap-2">{tiposDisponibles.map((t) => <label key={t.value} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="checkbox" name="tipos" value={t.value} defaultChecked={config.tipos.includes(t.value)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{t.label}</label>)}</div>
         <p className="mt-1 text-xs text-rs-muted">Son los tipos que ya existen en tus reservas. Si no marcás ninguno se ofrece solo “Común”.</p>

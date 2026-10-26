@@ -41,12 +41,32 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     const rara = [...plantilla.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]).find((v) => !permitidas.has(v))
     if (rara) return fail(`En el mensaje de WhatsApp no existe la variable {${rara}}`)
   }
+  // ajustes por sede (cada sede puede tener sus horarios, su mensaje y si deja elegir mesa; vacío = hereda lo del sitio)
+  const idsSede = fd.getAll('sede_id').map(String).filter((i) => UUID.test(i))
+  const filasSede: { sucursal_id: string; negocio_id: string; activo: boolean; horarios: string[] | null; elegir_mesa: boolean | null; mensaje: string | null }[] = []
+  if (idsSede.length) {
+    const { data: validas } = await ctx.supabase.from('sucursales').select('id, nombre').eq('negocio_id', ctx.negocio.id).in('id', idsSede)
+    for (const v of validas ?? []) {
+      const id = v.id as string
+      const hs = [...new Set(text(fd, `sede_horarios_${id}`).split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
+      if (hs.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h))) return fail(`Los horarios de ${v.nombre} van como 13:00, 21:30 (separados por coma)`)
+      if (hs.length > 24) return fail(`${v.nombre}: hasta 24 horarios`)
+      const msg = text(fd, `sede_mensaje_${id}`)
+      if (msg.length > 400) return fail(`El mensaje de ${v.nombre} puede tener hasta 400 letras`)
+      const mesa = text(fd, `sede_mesa_${id}`)
+      filasSede.push({ sucursal_id: id, negocio_id: ctx.negocio.id, activo: fd.get(`sede_activo_${id}`) === 'on', horarios: hs.length ? hs.sort() : null, elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null })
+    }
+  }
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
     modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
   })
   if (error) return fail('No se pudo guardar la configuración')
+  if (filasSede.length) {
+    const { error: e2 } = await ctx.supabase.from('reservas_web_sedes').upsert(filasSede, { onConflict: 'sucursal_id' })
+    if (e2) return fail('Se guardó el sitio, pero no los ajustes de las sedes')
+  }
   revalidatePath(`/reservar/${ctx.negocio.slug}`)
   revalidatePath('/configuracion')
   return { ok: true }

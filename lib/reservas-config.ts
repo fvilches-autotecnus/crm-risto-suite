@@ -29,6 +29,7 @@ export const PLANTILLA_WA_DEFECTO = `SOLICITUD DE RESERVA - {negocio}
 Código: {codigo}
 
 Nombre: {nombre}
+Sede: {sede}
 Día: {dia}
 Hora: {hora}
 Personas: {personas}
@@ -38,7 +39,7 @@ Mesa: {mesa}
 Comentarios: {comentarios}`
 
 export const VARIABLES_WA = [
-  ['negocio', 'nombre del local'], ['codigo', 'código de la solicitud (obligatorio)'], ['nombre', 'nombre del cliente'], ['dia', 'día elegido'], ['hora', 'horario'],
+  ['negocio', 'nombre del local'], ['codigo', 'código de la solicitud (obligatorio)'], ['nombre', 'nombre del cliente'], ['sede', 'sede elegida (vacío si el negocio no tiene sedes)'], ['dia', 'día elegido'], ['hora', 'horario'],
   ['personas', 'cantidad de personas'], ['ubicacion', 'ubicación'], ['tipo', 'tipo de reserva'], ['mesa', 'mesa elegida o “que la elija el local”'], ['comentarios', 'comentarios del cliente'],
 ] as const
 

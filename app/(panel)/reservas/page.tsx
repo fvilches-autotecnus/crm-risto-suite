@@ -57,8 +57,10 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const { data: cfgWeb } = await supabase.from('reservas_web_config').select('validez_horas').eq('negocio_id', negocio.id).maybeSingle()
   const validezHoras = (cfgWeb?.validez_horas as number | undefined) ?? 48
   // Solicitudes del sitio web que todavía esperan el mensaje de WhatsApp (no son reservas: no ocupan mesa ni aforo)
-  const { data: sols } = await supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, cualquier_ubicacion, tipo_reserva, observaciones, mesas, creado_en')
+  let qSols = supabase.from('reservas_web_solicitudes').select('id, codigo, nombre, fecha, hora, personas, ubicacion, cualquier_ubicacion, tipo_reserva, observaciones, mesas, creado_en, sucursal_id')
     .eq('negocio_id', negocio.id).is('reserva_id', null).gte('creado_en', new Date(Date.now() - validezHoras * 3600 * 1000).toISOString()).order('creado_en', { ascending: false }).limit(100)
+  if (sede) qSols = qSols.eq('sucursal_id', sede.id)   // con una sede elegida en el selector, solo las de esa sede
+  const { data: sols } = await qSols
   const idsMesas = [...new Set((sols ?? []).flatMap((s) => (s.mesas as string[] | null) ?? []))]
   const numerosMesa: Record<string, string> = {}
   if (idsMesas.length) for (const m of (await supabase.from('mesas').select('id, numero').in('id', idsMesas)).data ?? []) numerosMesa[m.id as string] = m.numero as string
@@ -73,7 +75,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
         <h1 className="text-xl font-bold sm:text-2xl">Reservas</h1>
         {ctx.puedeEscribir && <NuevaReservaBtn fechaDefault={hoy} op={op} />}
       </div>
-      <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} etiquetasTipo={op.tiposEtiquetas} />
+      <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} etiquetasTipo={op.tiposEtiquetas} sedes={op.nombresSede} />
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} etiquetasTipo={op.tiposEtiquetas} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
       <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />

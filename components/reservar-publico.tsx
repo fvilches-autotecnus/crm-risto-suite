@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { FechaInput } from '@/components/inputs'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
-import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
+import { MapPin } from 'lucide-react'
+import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 
 interface Props {
-  slug: string; nombre: string; ubicaciones: string[]; tipos: { value: string; label: string }[]
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: { value: string; label: string }[]
   cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null }; hoy: string; whatsapp: string
 }
 
@@ -15,10 +16,21 @@ const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00
 const rango = (m: Pick<MesaWeb, 'capacidad' | 'capacidad_min'>) => (m.capacidad_min > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
 const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible' }
 
-export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg, hoy, whatsapp }: Props) {
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos, cfg, hoy, whatsapp }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfg.personas_min), cfg.personas_max))
-  const [ubicacion, setUbicacion] = useState(ubicaciones[0] ?? '')
+  // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
+  const conSedes = sedes.length > 0
+  const [sedeId, setSedeId] = useState(sedes.length === 1 ? sedes[0].id : '')
+  const sede = sedes.find((s) => s.id === sedeId) ?? null
+  const listo = !conSedes || !!sede
+  const ubicacionesDe = (id: string) => ubicacionesTodas.filter((u) => !conSedes || !u.sucursal_id || u.sucursal_id === id).map((u) => u.nombre)
+  const ubicaciones = ubicacionesDe(sedeId)
+  const puedeElegirDe = (id: string) => (conSedes ? !!sedes.find((s) => s.id === id && s.elegir_mesa && s.tiene_plano) : cfg.elegir_mesa)
+  const puedeElegir = puedeElegirDe(sedeId)
+  const [ubicacion, setUbicacion] = useState(ubicacionesDe(sedeId)[0] ?? '')
   // "Cualquier ubicación disponible": el cliente no elige lugar ni mesa; la disponibilidad respeta el aforo de cada ubicación y el local le asigna una al registrar
   const ofreceCualquiera = cfg.cualquier_ubicacion && ubicaciones.length >= 2
   const cualquiera = ofreceCualquiera && ubicacion === '*'
@@ -29,7 +41,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const [cargandoSlots, setCargandoSlots] = useState(false)
   const [errorSlots, setErrorSlots] = useState<string | null>(null)
   const [hora, setHora] = useState('')
-  const [modo, setModo] = useState<'elegir' | 'asesor' | null>(cfg.elegir_mesa ? null : 'asesor')
+  const [modo, setModo] = useState<'elegir' | 'asesor' | null>(puedeElegir ? null : 'asesor')
   const [plano, setPlano] = useState<{ salones: SalonWeb[]; mesas: MesaWeb[] } | null>(null)
   const [cargandoPlano, setCargandoPlano] = useState(false)
   const [errorPlano, setErrorPlano] = useState<string | null>(null)
@@ -42,12 +54,21 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const [pend, start] = useTransition()
   const refDatos = useRef<HTMLDivElement>(null)
 
-  // horarios: se vuelven a pedir cuando cambia el día, la cantidad de personas o la ubicación
+  const elegirSede = (id: string) => { setSedeId(id); setUbicacion(ubicacionesDe(id)[0] ?? ''); setHora(''); setSel([]); setSlots(null); setModo(puedeElegirDe(id) ? null : 'asesor') }
+  // enlace directo a una sede: /reservar/<negocio>?sede=<nombre de la sede>
   useEffect(() => {
+    if (!conSedes || sedeId) return
+    const q = new URLSearchParams(window.location.search).get('sede'); if (!q) return
+    const s = sedes.find((x) => x.id === q || sinTildes(x.nombre) === sinTildes(q)); if (s) elegirSede(s.id)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // horarios: se vuelven a pedir cuando cambia el día, la cantidad de personas, la ubicación o la sede
+  useEffect(() => {
+    if (!listo) return
     let vivo = true
     setCargandoSlots(true); setErrorSlots(null)
     const t = setTimeout(async () => {
-      const r = await consultarHorarios(slug, fecha, personas, ubicacion)
+      const r = await consultarHorarios(slug, fecha, personas, ubicacion, sedeId)
       if (!vivo) return
       setCargandoSlots(false)
       if (!r.ok) { setSlots(null); setErrorSlots(r.error); return }
@@ -55,22 +76,22 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
       setHora((h) => (r.slots.some((s) => s.hora === h && s.disponible) ? h : ''))
     }, 250)
     return () => { vivo = false; clearTimeout(t) }
-  }, [slug, fecha, personas, ubicacion])
+  }, [slug, fecha, personas, ubicacion, sedeId, listo])
 
   // plano: cuando se eligió horario y la persona quiere elegir mesa
   useEffect(() => {
-    if (!hora || modo !== 'elegir') { setPlano(null); return }
+    if (!listo || !hora || modo !== 'elegir') { setPlano(null); return }
     let vivo = true
     setCargandoPlano(true); setErrorPlano(null); setSel([])
     void (async () => {
-      const r = await consultarPlano(slug, fecha, hora, personas, ubicacion)
+      const r = await consultarPlano(slug, fecha, hora, personas, ubicacion, sedeId)
       if (!vivo) return
       setCargandoPlano(false)
       if (!r.ok) { setPlano(null); setErrorPlano(r.error); return }
       setPlano({ salones: r.salones, mesas: r.mesas }); setSalonId(r.salones[0]?.id ?? '')
     })()
     return () => { vivo = false }
-  }, [slug, fecha, hora, personas, ubicacion, modo])
+  }, [slug, fecha, hora, personas, ubicacion, modo, sedeId, listo])
 
   const mesasSel = useMemo(() => (plano?.mesas ?? []).filter((m) => sel.includes(m.id)), [plano, sel])
   const total = mesasSel.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
@@ -93,7 +114,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     start(async () => {
-      const r = await crearReservaPublica(slug, { fecha, hora, personas, ubicacion, tipo, ...form, mesas: modo === 'elegir' ? sel : [] })
+      const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, mesas: modo === 'elegir' ? sel : [] })
       if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     })
   }
@@ -104,10 +125,10 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
   const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
-      negocio: cfg.titulo || nombre, codigo: r.codigo, nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
+      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
       ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
     })
-    return `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
+    return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
   }
 
   if (resultado) {
@@ -120,6 +141,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
           <p className="text-sm text-rs-muted">Tu reserva <b className="text-rs-text">todavía no está registrada</b>: queda en espera hasta que nos escribas. Se abre WhatsApp con tu solicitud ya escrita: <b className="text-rs-text">enviála sin cambiarla</b> (lleva tu código).</p>
           <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Tu código">{resultado.codigo}</p>
           <div className="card space-y-1 p-4 text-left text-sm">
+            {resultado.sede && <p><span className="text-rs-muted">Sede:</span> <b>{resultado.sede}</b></p>}
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
             <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion || cualquiera ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion ?? etiquetaCualquiera}</b></> : null}</p>
             <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>
@@ -127,7 +149,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
-          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', observaciones: '', web: '' }); setModo(cfg.elegir_mesa ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
         </main>
       </div>
     )
@@ -138,11 +160,31 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
     <div className="min-h-screen pb-16">
       <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} />
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
-        {cfg.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
+        {cfg.mensaje && !sede?.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
+
+        {/* 0. sede */}
+        {conSedes && sedes.length > 1 && (
+          <section className="card space-y-3 p-4">
+            <h2 className="font-bold">1 · ¿En qué sede?</h2>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sedes.map((s) => (
+                <button key={s.id} type="button" onClick={() => elegirSede(s.id)} aria-pressed={sedeId === s.id}
+                  className={'rounded-rs-lg border p-3 text-left transition ' + (sedeId === s.id ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}>
+                  <span className="block font-semibold">{s.nombre}</span>
+                  {s.direccion && <span className="mt-0.5 flex items-start gap-1 text-xs text-rs-muted"><MapPin size={12} className="mt-0.5 shrink-0" />{s.direccion}</span>}
+                  {s.elegir_mesa && s.tiene_plano && <span className="mt-1 block text-[11px] font-semibold text-rs-ok">Podés elegir tu mesa en el plano</span>}
+                </button>
+              ))}
+            </div>
+            {sede?.maps_url && <a href={sede.maps_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-rs-lime hover:underline"><MapPin size={12} />Ver {sede.nombre} en el mapa</a>}
+            {sede?.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{sede.mensaje}</p>}
+          </section>
+        )}
 
         {/* 1. cuándo y cuántos */}
+        {listo && (
         <section className="card space-y-4 p-4">
-          <h2 className="font-bold">1 · ¿Cuándo y cuántos?</h2>
+          <h2 className="font-bold">{conSedes && sedes.length > 1 ? 2 : 1} · ¿Cuándo y cuántos?</h2>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label" htmlFor="rw_fecha">Día</label><FechaInput id="rw_fecha" value={fecha} min={hoy} max={sumarDias(hoy, cfg.dias_adelante)} onChange={(v) => v && setFecha(v)} /></div>
             <div>
@@ -154,14 +196,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
               </div>
             </div>
           </div>
-          {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(cfg.elegir_mesa ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
+          {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(puedeElegir ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
           {tipos.length > 1 && <div><span className="label">Tipo de reserva</span><div className="flex flex-wrap gap-2">{tipos.map((t) => <button key={t.value} type="button" onClick={() => setTipo(t.value)} aria-pressed={tipo === t.value} className={chip(tipo === t.value)}>{t.label}</button>)}</div></div>}
           <div>
             <span className="label">Horario</span>
             {cargandoSlots && !slots ? <p className="text-sm text-rs-muted">Buscando horarios…</p> : errorSlots ? <p role="alert" className="text-sm text-rs-danger">{errorSlots}</p> : (
               <div className={'flex flex-wrap gap-2 ' + (cargandoSlots ? 'opacity-60' : '')}>
                 {(slots ?? []).map((s) => (
-                  <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cualquiera || !cfg.elegir_mesa ? 'asesor' : null); setSel([]) }} aria-pressed={hora === s.hora}
+                  <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cualquiera || !puedeElegir ? 'asesor' : null); setSel([]) }} aria-pressed={hora === s.hora}
                     className={chip(hora === s.hora) + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50')} title={s.disponible ? undefined : MOTIVO[s.motivo ?? 'fuera_de_rango']}>
                     {s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
@@ -171,12 +213,13 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
             )}
           </div>
         </section>
+        )}
 
         {/* 2. mesa */}
-        {hora && !cualquiera && (
+        {listo && hora && !cualquiera && (
           <section className="card space-y-3 p-4">
-            <h2 className="font-bold">2 · Tu mesa</h2>
-            {cfg.elegir_mesa && (
+            <h2 className="font-bold">{conSedes && sedes.length > 1 ? 3 : 2} · Tu mesa</h2>
+            {puedeElegir && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <button type="button" onClick={() => setModo('elegir')} aria-pressed={modo === 'elegir'} className={'rounded-rs-lg border p-3 text-left transition ' + (modo === 'elegir' ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}><span className="block font-semibold">Elegir mi mesa</span><span className="text-xs text-rs-muted">La ves en el plano del salón</span></button>
                 <button type="button" onClick={() => { setModo('asesor'); setSel([]) }} aria-pressed={modo === 'asesor'} className={'rounded-rs-lg border p-3 text-left transition ' + (modo === 'asesor' ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}><span className="block font-semibold">Que un asesor la elija</span><span className="text-xs text-rs-muted">Te asignamos la mejor mesa disponible</span></button>
@@ -205,15 +248,15 @@ export default function ReservarPublico({ slug, nombre, ubicaciones, tipos, cfg,
         )}
 
         {/* 3. datos */}
-        {listoParaDatos && (
+        {listo && listoParaDatos && (
           <section ref={refDatos} className="card p-4">
-            <h2 className="mb-3 font-bold">{cualquiera ? '2' : '3'} · Tus datos</h2>
+            <h2 className="mb-3 font-bold">{(cualquiera ? 2 : 3) + (conSedes && sedes.length > 1 ? 1 : 0)} · Tus datos</h2>
             <form onSubmit={enviar} className="space-y-3">
               {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
               <div><label className="label" htmlFor="rw_nombre">Nombre y apellido *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={80} autoComplete="name" className="input w-full" required /></div>
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
-              <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
+              <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{sede && sedes.length > 1 ? ` · ${sede.nombre}` : ''}{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
               <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : 'Reservar y enviar por WhatsApp'}</button>
               <p className="text-center text-xs text-rs-muted">No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.</p>
             </form>
