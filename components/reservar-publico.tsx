@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { FechaInput } from '@/components/inputs'
+import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
@@ -48,7 +49,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const [salonId, setSalonId] = useState('')
   const [sel, setSel] = useState<string[]>([])
   const [aviso, setAviso] = useState<string | null>(null)
-  const [form, setForm] = useState({ nombre: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<Extract<ResultadoReserva, { ok: true }> | null>(null)
   const [pend, start] = useTransition()
@@ -115,7 +116,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     e.preventDefault(); setError(null)
     if (!!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); return }
     start(async () => {
-      const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, mesas: modo === 'elegir' ? sel : [] })
+      const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, nombre: unirNombre(form.nombre, form.apellido), mesas: modo === 'elegir' ? sel : [] })
       if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     })
   }
@@ -126,7 +127,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
-      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: form.nombre.trim(), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
+      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre_pila: form.nombre.trim(), apellido: form.apellido.trim(), cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: unirNombre(form.nombre, form.apellido), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
       ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
@@ -150,7 +151,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
-          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
         </main>
       </div>
     )
@@ -254,7 +255,10 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             <h2 className="mb-3 font-bold">{(cualquiera ? 2 : 3) + (conSedes && sedes.length > 1 ? 1 : 0)} · Tus datos</h2>
             <form onSubmit={enviar} className="space-y-3">
               {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
-              <div><label className="label" htmlFor="rw_nombre">Nombre y apellido *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={80} autoComplete="name" className="input w-full" required /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label" htmlFor="rw_nombre">Nombre *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required /></div>
+                <div><label className="label" htmlFor="rw_apellido">Apellido *</label><input id="rw_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required /></div>
+              </div>
               {cfg.pedir_cumple && (
                 <div>
                   <span className="label">Tu cumpleaños (opcional)</span>

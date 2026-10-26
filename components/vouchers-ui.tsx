@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { Check, Copy, Gift, Plus, RotateCcw, Ticket, Trash2 } from 'lucide-react'
 import { cambiarEstadoVoucher, crearVoucher, eliminarVoucher } from '@/app/(panel)/modulos-actions'
 import { useConfirm, useToast } from '@/components/feedback'
-import { FechaInput, TelefonoInput } from '@/components/inputs'
+import { FechaInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
@@ -32,7 +32,7 @@ function VoucherForm({ prefill, onDone }: { prefill?: { cliente_id?: string; nom
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       {prefill?.cliente_id && <input type="hidden" name="cliente_id" value={prefill.cliente_id} />}
-      <div className="col-span-2"><label className="label" htmlFor="v_nombre">Nombre</label><input id="v_nombre" name="nombre" defaultValue={prefill?.nombre ?? ''} className="input w-full" /></div>
+      <div className="col-span-2"><NombreApellidoInput id="v_nombre" name="nombre" defaultValue={prefill?.nombre ?? ''} /></div>
       <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono" defaultValue={prefill?.telefono ?? ''} /></div>
       <div className="col-span-2"><label className="label" htmlFor="v_ben">Beneficio *</label><input id="v_ben" name="beneficio" placeholder='Ej. "1 postre de regalo"' className="input w-full" required /></div>
       <div>

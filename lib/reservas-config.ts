@@ -28,7 +28,8 @@ export const claveDeTipo = (nombre: string) =>
 export const PLANTILLA_WA_DEFECTO = `SOLICITUD DE RESERVA - {negocio}
 Código: {codigo}
 
-Nombre: {nombre}
+Nombre: {nombre_pila}
+Apellido: {apellido}
 Sede: {sede}
 Día: {dia}
 Hora: {hora}
@@ -40,7 +41,7 @@ Cumpleaños: {cumple}
 Comentarios: {comentarios}`
 
 export const VARIABLES_WA = [
-  ['negocio', 'nombre del local'], ['codigo', 'código de la solicitud (obligatorio)'], ['nombre', 'nombre del cliente'], ['sede', 'sede elegida (vacío si el negocio no tiene sedes)'], ['dia', 'día elegido'], ['hora', 'horario'],
+  ['negocio', 'nombre del local'], ['codigo', 'código de la solicitud (obligatorio)'], ['nombre', 'nombre y apellido del cliente'], ['nombre_pila', 'solo el nombre'], ['apellido', 'solo el apellido'], ['sede', 'sede elegida (vacío si el negocio no tiene sedes)'], ['dia', 'día elegido'], ['hora', 'horario'],
   ['personas', 'cantidad de personas'], ['ubicacion', 'ubicación'], ['tipo', 'tipo de reserva'], ['mesa', 'mesa elegida o “que la elija el local”'], ['cumple', 'día y mes de cumpleaños (si lo dejó)'], ['comentarios', 'comentarios del cliente'],
 ] as const
 

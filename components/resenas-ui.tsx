@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { eliminarResena, guardarResena } from '@/app/(panel)/modulos-actions'
 import { useConfirm, useToast } from '@/components/feedback'
-import { FechaInput, TelefonoInput } from '@/components/inputs'
+import { FechaInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
@@ -66,7 +66,7 @@ function ResenaForm({ resena, prefill, sedes, hoy, onDone }: { resena?: ResenaUI
       {resena && <input type="hidden" name="id" value={resena.id} />}
       {prefill?.cliente_id && <input type="hidden" name="cliente_id" value={prefill.cliente_id} />}
       <input type="hidden" name="puntaje" value={puntaje || ''} />
-      <div className="col-span-2"><label className="label" htmlFor="rs_nombre">Nombre *</label><input id="rs_nombre" name="nombre" defaultValue={resena?.nombre ?? prefill?.nombre ?? ''} className="input w-full" required /></div>
+      <div className="col-span-2"><NombreApellidoInput id="rs_nombre" name="nombre" defaultValue={resena?.nombre ?? prefill?.nombre ?? ''} nombreRequerido /></div>
       <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono *" required defaultValue={resena?.telefono ?? prefill?.telefono ?? ''} /></div>
       <div className="col-span-2"><span className="label">Puntaje *</span><SelectorEstrellas valor={puntaje} onChange={setPuntaje} /></div>
       <div className="col-span-2"><label className="label" htmlFor="rs_com">Comentario</label><textarea id="rs_com" name="comentario" rows={3} defaultValue={resena?.comentario ?? ''} className="input w-full" /></div>

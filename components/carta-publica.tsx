@@ -1,5 +1,6 @@
 'use client'
 
+import { unirNombre } from '@/lib/nombres'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import { crearPedidoPublico, type ResultadoPedidoPublico } from '@/app/carta/[slug]/actions'
@@ -128,7 +129,7 @@ function Pedido({ slug, nombre, pedidos, moneda, lineas, subtotal, exito, onCerr
   const tiposDisp = TIPOS.filter((t) => pedidos.tipos.includes(t.value))
   const mesaUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mesa') ?? '' : ''
   const [tipo, setTipo] = useState(mesaUrl && pedidos.tipos.includes('mesa') ? 'mesa' : tiposDisp[0]?.value ?? 'retiro')
-  const [form, setForm] = useState({ nombre: '', telefono: '', direccion: '', mesa: pedidos.tipos.includes('mesa') ? mesaUrl : '', medio_pago: pedidos.medios_pago[0] ?? 'efectivo', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', direccion: '', mesa: pedidos.tipos.includes('mesa') ? mesaUrl : '', medio_pago: pedidos.medios_pago[0] ?? 'efectivo', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
   const arriba = useRef<HTMLDivElement>(null)
@@ -141,12 +142,12 @@ function Pedido({ slug, nombre, pedidos, moneda, lineas, subtotal, exito, onCerr
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     start(async () => {
-      const r = await crearPedidoPublico(slug, { tipo, ...form, items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
+      const r = await crearPedidoPublico(slug, { tipo, ...form, nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
       if (r.ok) onExito(r); else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
     })
   }
 
-  const textoWA = exito ? `Hola, soy ${form.nombre}. Hice el pedido #${exito.numero} por ${dinero(exito.total, moneda)} (${labelTipo(exito.tipo)}). ¡Gracias!` : ''
+  const textoWA = exito ? `Hola, soy ${unirNombre(form.nombre, form.apellido)}. Hice el pedido #${exito.numero} por ${dinero(exito.total, moneda)} (${labelTipo(exito.tipo)}). ¡Gracias!` : ''
   return (
     <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
       <div role="dialog" aria-modal="true" aria-label="Mi pedido" className="flex max-h-[94vh] w-full max-w-lg animate-scale-in flex-col rounded-t-rs-lg border border-rs-control bg-rs-card shadow-2xl sm:rounded-rs-lg">
@@ -184,7 +185,8 @@ function Pedido({ slug, nombre, pedidos, moneda, lineas, subtotal, exito, onCerr
                 <div className="flex flex-wrap gap-2">{tiposDisp.map((t) => <label key={t.value} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="tipo" value={t.value} checked={tipo === t.value} onChange={() => setTipo(t.value)} className="sr-only" />{t.corto}</label>)}</div>
               </fieldset>
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_nombre">Tu nombre *</label><input id="pp_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={80} autoComplete="name" className="input w-full" required={tipo !== 'mesa'} /></div>
+                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_nombre">Tu nombre {tipo === 'mesa' ? '' : '*'}</label><input id="pp_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required={tipo !== 'mesa'} /></div>
+                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_apellido">Tu apellido {tipo === 'mesa' ? '' : '*'}</label><input id="pp_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required={tipo !== 'mesa'} /></div>
                 <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {tipo === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
                 {tipo === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pp_dir">Dirección de entrega *</label><input id="pp_dir" value={form.direccion} onChange={campo('direccion')} maxLength={200} autoComplete="street-address" placeholder="Calle, número, piso/depto, referencias" className="input w-full" required /></div>}
                 {tipo === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_mesa">Número de mesa *</label><input id="pp_mesa" value={form.mesa} onChange={campo('mesa')} maxLength={20} className="input w-full" required /></div>}

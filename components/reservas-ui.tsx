@@ -5,7 +5,7 @@ import { CalendarPlus, Check, MapPin, Pencil, Phone, Plus, Trash2, Users, UserX,
 import { marcarLlego } from '@/app/(panel)/fidelidad-actions'
 import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
-import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
+import { FechaInput, HoraInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import DialogoCambioEstado, { type DatosCambio } from '@/components/dialogo-estado'
 import MenuEstado, { PUNTO_ESTADO } from '@/components/menu-estado'
 import Modal from '@/components/modal'
@@ -104,8 +104,7 @@ function ReservaForm({ reserva, fechaDefault, onDone, op }: { reserva?: Reserva;
       {reserva && <input type="hidden" name="id" value={reserva.id} />}
       <input type="hidden" name="forzar" defaultValue="" />
       <div className="col-span-2">
-        <label className="label" htmlFor="cliente_nombre">Nombre del titular *</label>
-        <input id="cliente_nombre" name="cliente_nombre" defaultValue={reserva?.cliente_nombre ?? ''} className="input w-full" required />
+        <NombreApellidoInput id="cliente_nombre" name="cliente_nombre" defaultValue={reserva?.cliente_nombre ?? ''} labelNombre="Nombre del titular" nombreRequerido />
       </div>
       <div className="col-span-2">
         <TelefonoInput name="cliente_telefono" label="Teléfono (WhatsApp)" defaultValue={reserva?.cliente_telefono ?? ''} />

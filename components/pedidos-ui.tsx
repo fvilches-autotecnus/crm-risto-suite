@@ -1,4 +1,5 @@
 'use client'
+import { NombreApellidoInput } from '@/components/inputs'
 import { diaMesDe } from '@/lib/fechas'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
@@ -192,7 +193,7 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
     <form {...formProps} className="grid grid-cols-2 gap-3">
       <input type="hidden" name="items" value={JSON.stringify(items)} />
       <div className="col-span-2"><span className="label">Tipo</span><div className="flex flex-wrap gap-2">{TIPOS.map((t) => <label key={t.value} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="radio" name="tipo" value={t.value} checked={tipo === t.value} onChange={() => setTipo(t.value)} className="sr-only" />{t.corto}</label>)}</div></div>
-      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_nombre">Nombre {tipo === 'mesa' ? '' : '*'}</label><input id="pm_nombre" name="nombre" maxLength={80} className="input w-full" required={tipo !== 'mesa'} /></div>
+      <div className="col-span-2"><NombreApellidoInput id="pm_nombre" name="nombre" nombreRequerido={tipo !== 'mesa'} /></div>
       <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_tel">Teléfono {tipo === 'mesa' ? '' : '*'}</label><input id="pm_tel" name="telefono" inputMode="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
       {tipo === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pm_dir">Dirección *</label><input id="pm_dir" name="direccion" maxLength={200} className="input w-full" required /></div>}
       {tipo === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_mesa">Mesa *</label><input id="pm_mesa" name="mesa" maxLength={20} className="input w-full" required /></div>}

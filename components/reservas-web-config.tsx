@@ -20,7 +20,7 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
   const toast = useToast()
   const [origen, setOrigen] = useState('')
   const [plantilla, setPlantilla] = useState(config.texto_whatsapp ?? '')
-  const vista = useMemo(() => renderPlantillaWA(plantilla.trim() || PLANTILLA_WA_DEFECTO, { negocio: 'Tu local', codigo: '3FA09C', nombre: 'Ana Pérez', dia: 'sábado 31 de octubre', hora: '21:00', personas: '4', ubicacion: 'SALÓN', tipo: 'Cumpleaños', mesa: 'M1 + M2', comentarios: 'Una torta con velita' }), [plantilla])
+  const vista = useMemo(() => renderPlantillaWA(plantilla.trim() || PLANTILLA_WA_DEFECTO, { negocio: 'Tu local', codigo: '3FA09C', nombre: 'Ana Pérez', nombre_pila: 'Ana', apellido: 'Pérez', dia: 'sábado 31 de octubre', hora: '21:00', personas: '4', ubicacion: 'SALÓN', tipo: 'Cumpleaños', mesa: 'M1 + M2', comentarios: 'Una torta con velita' }), [plantilla])
   useEffect(() => setOrigen(window.location.origin), [])
   useEffect(() => { if (state?.ok) toast({ texto: 'Configuración guardada' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const url = `${origen}/reservar/${slug}`

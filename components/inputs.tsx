@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { SEP_FECHA, TZ_AR, hoyEn } from '@/lib/fechas'
+import { separarNombre, unirNombre } from '@/lib/nombres'
 
 // Entradas "estilo LATAM": fecha dd-mm-aaaa con calendario que empieza el lunes, hora de 24 h y teléfono
 // con código de país + código de área + número. Cada una emite un <input type="hidden" name=...> con el
@@ -229,6 +230,24 @@ export function TelefonoInput({ name, defaultValue = '', required, label, ayuda 
         <input ref={numRef} aria-label="Número" inputMode="numeric" placeholder="5551234" value={num} onChange={(e) => setNum(solo(e.target.value, 10))} className="input w-full tabular-nums" required={required} />
       </div>
       {ayuda && <p className="mt-1 text-[11px] text-rs-muted">País (549 = Argentina móvil), área sin 0 y número sin 15{completo ? <span className="text-rs-text"> · se guarda +{completo}</span> : null}</p>}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Nombre y apellido: dos campos para que el dato quede ordenado; se envía uno solo (`name`) con los dos juntos.
+// ---------------------------------------------------------------------------
+export function NombreApellidoInput({ name, id, defaultValue = '', labelNombre = 'Nombre', labelApellido = 'Apellido', nombreRequerido = false, apellidoRequerido = false }: {
+  name: string; id: string; defaultValue?: string; labelNombre?: string; labelApellido?: string; nombreRequerido?: boolean; apellidoRequerido?: boolean
+}) {
+  const ini = separarNombre(defaultValue)
+  const [n, setN] = useState(ini.nombre)
+  const [a, setA] = useState(ini.apellido)
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <input type="hidden" name={name} value={unirNombre(n, a)} />
+      <div><label className="label" htmlFor={id}>{labelNombre}{nombreRequerido ? ' *' : ''}</label><input id={id} value={n} onChange={(e) => setN(e.target.value)} maxLength={60} autoComplete="given-name" className="input w-full" required={nombreRequerido} /></div>
+      <div><label className="label" htmlFor={id + '_apellido'}>{labelApellido}{apellidoRequerido ? ' *' : ''}</label><input id={id + '_apellido'} value={a} onChange={(e) => setA(e.target.value)} maxLength={60} autoComplete="family-name" className="input w-full" required={apellidoRequerido} /></div>
     </div>
   )
 }
