@@ -52,7 +52,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   }
   // ajustes por sede (cada sede puede tener sus horarios, su mensaje y si deja elegir mesa; vacío = hereda lo del sitio)
   const idsSede = fd.getAll('sede_id').map(String).filter((i) => UUID.test(i))
-  const filasSede: { sucursal_id: string; negocio_id: string; activo: boolean; horarios: string[] | null; elegir_mesa: boolean | null; mensaje: string | null }[] = []
+  const filasSede: { sucursal_id: string; negocio_id: string; activo: boolean; horarios: string[] | null; horarios_dias: Record<string, string[]>; elegir_mesa: boolean | null; mensaje: string | null }[] = []
   if (idsSede.length) {
     const { data: validas } = await ctx.supabase.from('sucursales').select('id, nombre').eq('negocio_id', ctx.negocio.id).in('id', idsSede)
     for (const v of validas ?? []) {
@@ -60,10 +60,18 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
       const hs = [...new Set(text(fd, `sede_horarios_${id}`).split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
       if (hs.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h))) return fail(`Los horarios de ${v.nombre} van como 13:00, 21:30 (separados por coma)`)
       if (hs.length > 24) return fail(`${v.nombre}: hasta 24 horarios`)
+      const hd: Record<string, string[]> = {}
+      for (let d = 0; d <= 6; d++) {
+        const h = [...new Set(text(fd, `sede_horarios_dia_${id}_${d}`).split(/[\s,;]+/).filter(Boolean).map((x) => (/^\d{1,2}:\d{2}$/.test(x) ? x.padStart(5, '0') : x)))]
+        if (h.length === 0) continue
+        if (h.some((x) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(x))) return fail(`Los horarios de ${v.nombre} por día van como 13:00, 21:30 (separados por coma)`)
+        if (h.length > 24) return fail(`${v.nombre}: hasta 24 horarios por día`)
+        hd[String(d)] = h.sort()
+      }
       const msg = text(fd, `sede_mensaje_${id}`)
       if (msg.length > 400) return fail(`El mensaje de ${v.nombre} puede tener hasta 400 letras`)
       const mesa = text(fd, `sede_mesa_${id}`)
-      filasSede.push({ sucursal_id: id, negocio_id: ctx.negocio.id, activo: fd.get(`sede_activo_${id}`) === 'on', horarios: hs.length ? hs.sort() : null, elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null })
+      filasSede.push({ sucursal_id: id, negocio_id: ctx.negocio.id, activo: fd.get(`sede_activo_${id}`) === 'on', horarios: hs.length ? hs.sort() : null, horarios_dias: hd, elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null })
     }
   }
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({

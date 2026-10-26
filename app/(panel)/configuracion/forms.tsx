@@ -13,6 +13,8 @@ import ModulosPicker from '@/components/modulos-picker'
 import type { ModulosActivos } from '@/lib/modulos'
 import { guardarPausaAuto } from '../pausados-actions'
 import { UNIDADES_PAUSA, partirMinutos, type PausaAuto } from '@/lib/pausas'
+import { DIAS_SEMANA, textoDias } from '@/lib/dias'
+import { fechaCorta } from '@/lib/fechas'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
   return <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : children}</button>
@@ -36,7 +38,7 @@ export function AforoForm({ aforo, puedeEditar }: { aforo: number | null; puedeE
 // ---------------------------------------------------------------------------
 // Reglas de aforo por franja horaria y ubicación
 // ---------------------------------------------------------------------------
-export interface ReglaEditable { id: string; sucursal_id: string | null; ubicacion: string | null; hora_desde: string | null; hora_hasta: string | null; maximo: number }
+export interface ReglaEditable { id: string; sucursal_id: string | null; ubicacion: string | null; hora_desde: string | null; hora_hasta: string | null; maximo: number; dias_semana?: number[] | null; fecha_desde?: string | null; fecha_hasta?: string | null }
 
 function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: ReglaEditable; sedes: { id: string; nombre: string }[]; ubicaciones: string[]; puedeTodas: boolean; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarRegla)
@@ -66,6 +68,20 @@ function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: 
       <div><label className="label" htmlFor="r_desde">Franja desde</label><HoraInput id="r_desde" name="hora_desde" defaultValue={regla?.hora_desde?.slice(0, 5) ?? ''} /></div>
       <div><label className="label" htmlFor="r_hasta">Franja hasta</label><HoraInput id="r_hasta" name="hora_hasta" defaultValue={regla?.hora_hasta?.slice(0, 5) ?? ''} /></div>
       <p className="col-span-2 -mt-1 text-xs text-rs-muted">Dejá la franja vacía para que valga todo el día. La reserva entra en la franja si su hora es desde ≤ hora &lt; hasta.</p>
+      <fieldset className="col-span-2">
+        <legend className="label">Días de la semana</legend>
+        <div className="flex flex-wrap gap-2">
+          {DIAS_SEMANA.map((d) => (
+            <label key={d.n} className="inline-flex h-9 cursor-pointer items-center rounded-full border border-rs-control px-3.5 text-sm font-medium text-rs-muted transition hover:border-rs-lime/40 has-[:checked]:border-rs-lime/70 has-[:checked]:bg-rs-lime/15 has-[:checked]:font-semibold has-[:checked]:text-rs-lime">
+              <input type="checkbox" name="dias" value={d.n} defaultChecked={!!regla?.dias_semana?.map(Number).includes(d.n)} className="sr-only" aria-label={d.l} />{d.c}
+            </label>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-rs-muted">Sin marcar ninguno, la regla vale todos los días. Así podés tener un aforo para viernes y sábado y otro para el resto de la semana.</p>
+      </fieldset>
+      <div><label className="label" htmlFor="r_fdesde">Solo desde (fecha)</label><FechaInput id="r_fdesde" name="fecha_desde" defaultValue={regla?.fecha_desde ?? ''} /></div>
+      <div><label className="label" htmlFor="r_fhasta">Hasta (fecha)</label><FechaInput id="r_fhasta" name="fecha_hasta" defaultValue={regla?.fecha_hasta ?? ''} /></div>
+      <p className="col-span-2 -mt-1 text-xs text-rs-muted">Opcional: para que la regla valga solo en un rango de fechas (por ejemplo una semana especial). Para un solo día, poné la misma fecha en las dos.</p>
       <div className="col-span-2">
         <label className="label" htmlFor="r_max">Máximo de personas *</label>
         <input id="r_max" name="maximo" type="number" min={1} defaultValue={regla?.maximo ?? ''} className="input w-full" required />
@@ -85,7 +101,7 @@ export function ReglasPanel({ reglas, sedes, nombresSede, ubicaciones, puedeToda
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
-  const texto = (r: ReglaEditable) => [r.sucursal_id ? nombresSede[r.sucursal_id] ?? 'otra sede' : sedes.length > 0 ? 'Todas las sedes' : null, r.ubicacion ?? (ubicaciones.length > 0 ? 'todas las ubicaciones' : null), r.hora_desde && r.hora_hasta ? `${r.hora_desde.slice(0, 5)}–${r.hora_hasta.slice(0, 5)}` : 'todo el día'].filter(Boolean).join(' · ')
+  const texto = (r: ReglaEditable) => [r.sucursal_id ? nombresSede[r.sucursal_id] ?? 'otra sede' : sedes.length > 0 ? 'Todas las sedes' : null, r.ubicacion ?? (ubicaciones.length > 0 ? 'todas las ubicaciones' : null), textoDias(r.dias_semana), r.fecha_desde && r.fecha_hasta ? (r.fecha_desde === r.fecha_hasta ? fechaCorta(r.fecha_desde) : `${fechaCorta(r.fecha_desde)} al ${fechaCorta(r.fecha_hasta)}`) : null, r.hora_desde && r.hora_hasta ? `${r.hora_desde.slice(0, 5)}–${r.hora_hasta.slice(0, 5)}` : 'todo el día'].filter(Boolean).join(' · ')
   const borrar = async (r: ReglaEditable) => {
     if (!(await confirmar({ titulo: '¿Borrar esta regla de aforo?', texto: texto(r), confirmar: 'Borrar', peligro: true }))) return
     start(async () => { const x = await borrarRegla(r.id); toast(x.ok ? { texto: 'Regla borrada' } : { tipo: 'error', texto: x.error ?? 'No se pudo borrar' }) })
@@ -93,7 +109,7 @@ export function ReglasPanel({ reglas, sedes, nombresSede, ubicaciones, puedeToda
   return (
     <div>
       <ul className="divide-y divide-rs-border/60">
-        {reglas.length === 0 && <li className="py-3 text-sm text-rs-muted">Todavía no hay reglas por franja o ubicación. Sin reglas, solo rige el total por día.</li>}
+        {reglas.length === 0 && <li className="py-3 text-sm text-rs-muted">Todavía no hay reglas por franja, ubicación o día. Sin reglas, solo rige el total por día.</li>}
         {reglas.map((r, i) => (
           <li key={r.id} className="reveal flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm" style={{ ['--i' as string]: i }}>
             <span className="flex items-center gap-2">

@@ -13,7 +13,7 @@ export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipo
   modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]> }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
-export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean }
+export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean; horarios_dias?: Record<string, string[]> }
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp, sedes = [] }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; sedes?: SedeCfg[]; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
@@ -52,6 +52,13 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
                     <select id={`sm_${s.id}`} name={`sede_mesa_${s.id}`} defaultValue={s.elegir_mesa === null ? '' : s.elegir_mesa ? 'si' : 'no'} className="input w-full"><option value="">Como el sitio</option><option value="si">Sí</option><option value="no">No (decide un asesor)</option></select></div>
                   <div><label className="label" htmlFor={`sg_${s.id}`}>Mensaje de esta sede</label><input id={`sg_${s.id}`} name={`sede_mensaje_${s.id}`} defaultValue={s.mensaje ?? ''} maxLength={400} placeholder="Hereda el del sitio" className="input w-full" /></div>
                 </div>
+                <details className="rounded-md border border-rs-border/60 px-3 py-2" open={Object.values(s.horarios_dias ?? {}).some((h) => h.length > 0)}>
+                  <summary className="cursor-pointer text-sm font-medium">Horarios de {s.nombre} según el día de la semana (opcional)</summary>
+                  <p className="mt-1 text-xs text-rs-muted">Si un día queda vacío usa los horarios de esta sede y, si tampoco tiene, los del sitio (incluidos los de ese día de la semana).</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`shd_${s.id}_${d.n}`}>{d.l}</label><input id={`shd_${s.id}_${d.n}`} name={`sede_horarios_dia_${s.id}_${d.n}`} defaultValue={(s.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de la sede" className="input w-full" /></div>)}
+                  </div>
+                </details>
                 <p className="truncate font-mono text-[11px] text-rs-muted" title="Enlace directo a esta sede">{enlace}</p>
               </div>
             )

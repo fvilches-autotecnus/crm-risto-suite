@@ -541,12 +541,17 @@ export async function guardarRegla(_prev: ActionResult | null, fd: FormData): Pr
   const hasta = text(fd, 'hora_hasta')
   const maximo = Number(text(fd, 'maximo'))
   if (!Number.isInteger(maximo) || maximo <= 0) return fail('El máximo de personas debe ser un entero mayor a 0')
+  const dias = [...new Set(fd.getAll('dias').map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+  const fDesde = text(fd, 'fecha_desde'), fHasta = text(fd, 'fecha_hasta')
+  if (!!fDesde !== !!fHasta) return fail('Completá las fechas desde y hasta, o dejá ambas vacías')
+  if (fDesde && (!FECHA_RE.test(fDesde) || !FECHA_RE.test(fHasta))) return fail('Las fechas no son válidas')
+  if (fDesde && fDesde > fHasta) return fail('La fecha “hasta” no puede ser anterior a la “desde”')
   if (!!desde !== !!hasta) return fail('Completá la franja desde y hasta, o dejá ambas vacías para todo el día')
   if (desde && (!HORA_RE.test(desde) || !HORA_RE.test(hasta))) return fail('La franja horaria no es válida')
   if (desde && desde >= hasta) return fail('La franja debe terminar después de empezar (no puede cruzar la medianoche)')
   if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
   if (!sedeId && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
-  const fila = { sucursal_id: sedeId, ubicacion, hora_desde: desde || null, hora_hasta: hasta || null, maximo }
+  const fila = { sucursal_id: sedeId, ubicacion, hora_desde: desde || null, hora_hasta: hasta || null, maximo, dias_semana: dias.length > 0 && dias.length < 7 ? dias : null, fecha_desde: fDesde || null, fecha_hasta: fHasta || null }
   const { error } = id
     ? await ctx.supabase.from('aforos').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('aforos').insert({ ...fila, negocio_id: ctx.negocio.id })

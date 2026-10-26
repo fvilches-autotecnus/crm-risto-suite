@@ -8,8 +8,8 @@ import { FechaInput } from '@/components/inputs'
 import { Spinner } from '@/components/ui'
 import { fechaCorta } from '@/lib/fechas'
 
-// Lunes a domingo (0 = domingo, como en la base)
-export const DIAS_SEMANA = [{ n: 1, c: 'Lun', l: 'Lunes' }, { n: 2, c: 'Mar', l: 'Martes' }, { n: 3, c: 'Mié', l: 'Miércoles' }, { n: 4, c: 'Jue', l: 'Jueves' }, { n: 5, c: 'Vie', l: 'Viernes' }, { n: 6, c: 'Sáb', l: 'Sábado' }, { n: 0, c: 'Dom', l: 'Domingo' }]
+import { DIAS_SEMANA } from '@/lib/dias'
+export { DIAS_SEMANA }
 
 export interface AmbitoApertura { id: string | null; nombre: string; dias: number[] | null }   // id null = todo el negocio; dias null = sin regla
 export interface DiaExtraUI { id: string; fecha: string; motivo: string | null; sucursal_id: string | null }

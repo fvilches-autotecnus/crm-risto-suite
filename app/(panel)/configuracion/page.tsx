@@ -12,6 +12,9 @@ import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/compo
 import { labelTipo } from '@/lib/reservas'
 import ConfigTiposReserva, { type FilaTipo } from '@/components/config-tipos-reserva'
 import ConfigCalendario, { type AmbitoApertura, type DiaExtraUI } from '@/components/config-calendario'
+import ConfigConfirmacion from '@/components/config-confirmacion'
+import type { ReglaConfirmacion, ResultadoConfirmacion } from '@/lib/confirmacion'
+import { createAdminClient } from '@/lib/supabase/server'
 import ConfigParametrosReservas from '@/components/config-parametros-reservas'
 import ConfigMensajesBot from '@/components/config-mensajes-bot'
 import { cargarConfigReservas, cargarTiposReserva } from '@/lib/config-reservas-servidor'
@@ -47,7 +50,7 @@ export default async function ConfiguracionPage() {
   const [{ data: bloqueos }, { data: ubicaciones }, { data: reglas }, { data: miembros }] = await Promise.all([
     bq.order('fecha'),
     supabase.from('ubicaciones').select('id, nombre, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
-    ctx.puedeAdministrar ? supabase.from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo').eq('negocio_id', negocio.id).order('creado_en') : Promise.resolve({ data: [] }),
+    ctx.puedeAdministrar ? supabase.from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo, dias_semana, fecha_desde, fecha_hasta').eq('negocio_id', negocio.id).order('creado_en') : Promise.resolve({ data: [] }),
     ctx.puedeAdministrar
       ? supabase.from('membresias').select('user_id, rol, activo, sucursal_ids, perfiles(id, usuario, nombre, activo, es_superadmin)').eq('negocio_id', negocio.id)
       : Promise.resolve({ data: null }),
@@ -62,6 +65,8 @@ export default async function ConfiguracionPage() {
   let sedesWeb: SedeCfg[] = []
   let ambitos: AmbitoApertura[] = []
   let diasExtra: DiaExtraUI[] = []
+  let confDefecto: ResultadoConfirmacion = 'nueva'
+  let confReglas: ReglaConfirmacion[] = []
   let cfgRes: ConfigReservas | null = null
   let mensajesOriginales: Record<string, string> = {}
   let mensajesPropios: Record<string, string> = {}
@@ -73,13 +78,17 @@ export default async function ConfiguracionPage() {
     ])
     webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, cualquier_ubicacion: true, texto_cualquier_ubicacion: null, pedir_cumple: true, ...(c ?? {}) } as ConfigReservasWeb
     // catálogo de tipos de reserva (el que configura el dueño) + los que el bot creó y todavía no tienen nombre
-    const [catalogo, cr, { data: bm }, { data: orig }, { data: apert }, { data: extras }] = await Promise.all([
+    const [catalogo, cr, { data: bm }, { data: orig }, { data: apert }, { data: extras }, { data: negEstado }, { data: reglasConf }] = await Promise.all([
       cargarTiposReserva(ctx), cargarConfigReservas(ctx),
       supabase.from('bot_mensajes').select('clave, texto').eq('negocio_id', negocio.id),
       supabase.rpc('bot_mensajes_defectos'),
       supabase.from('reservas_dias_apertura').select('sucursal_id, dias_semana').eq('negocio_id', negocio.id),
       supabase.from('reservas_dias_extra').select('id, fecha, motivo, sucursal_id').eq('negocio_id', negocio.id).gte('fecha', sumarDias(hoy, -30)).order('fecha'),
+      createAdminClient().from('negocios').select('reserva_estado_inicial').eq('id', negocio.id).maybeSingle(),
+      supabase.from('reservas_confirmacion_reglas').select('id, activo, sucursal_id, tipo_reserva, fecha_desde, fecha_hasta, dias_semana, personas_min, personas_max, resultado, nota').eq('negocio_id', negocio.id).order('orden').order('creado_en'),
     ])
+    confDefecto = negEstado?.reserva_estado_inicial === 'confirmada' ? 'confirmada' : 'nueva'
+    confReglas = (reglasConf ?? []).map((g) => ({ uid: g.id as string, activo: g.activo as boolean, sucursal_id: g.sucursal_id as string | null, tipo_reserva: g.tipo_reserva as string | null, fecha_desde: g.fecha_desde as string | null, fecha_hasta: g.fecha_hasta as string | null, dias_semana: ((g.dias_semana as number[] | null) ?? []).map(Number), personas_min: g.personas_min as number | null, personas_max: g.personas_max as number | null, resultado: g.resultado as ResultadoConfirmacion, nota: (g.nota as string | null) ?? '' }))
     const reglaDe = (sid: string | null) => ((apert ?? []).find((a) => (a.sucursal_id as string | null) === sid)?.dias_semana as number[] | undefined) ?? null
     ambitos = [{ id: null, nombre: ctx.sedesTodas.length ? 'Todo el negocio' : negocio.nombre, dias: reglaDe(null) }, ...ctx.sedesTodas.filter((x) => x.activa).map((x) => ({ id: x.id, nombre: x.nombre, dias: reglaDe(x.id) }))]
     diasExtra = (extras ?? []) as DiaExtraUI[]
@@ -88,7 +97,7 @@ export default async function ConfiguracionPage() {
     const sedesActivas = ctx.sedesTodas.filter((x) => x.activa)
     if (sedesActivas.length) {
       const [{ data: ajustes }, { data: salonesW }, { data: mesasW }] = await Promise.all([
-        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
+        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
         supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id),
         supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
       ])
@@ -98,7 +107,7 @@ export default async function ConfiguracionPage() {
         const propio = !!(x.whatsapp_nro ?? '').replace(/\D/g, '')
         return {
           id: x.id, nombre: x.nombre, whatsapp: ((x.whatsapp_nro ?? '') || (negocio.whatsapp_nro ?? '')).replace(/\D/g, ''), propio,
-          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null,
+          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null, horarios_dias: (a?.horarios_dias as Record<string, string[]> | null) ?? {},
           tiene_plano: (salonesW ?? []).some((sl) => (!sl.sucursal_id || sl.sucursal_id === x.id) && conMesas.has(sl.id as string)),
         }
       })
@@ -129,7 +138,7 @@ export default async function ConfiguracionPage() {
     { id: 'negocio', label: 'Negocio' },
     ...(muestraSedes ? [{ id: 'sedes', label: 'Sedes' }] : []),
     ...(ctx.modulosActivos.reservas ? [{ id: 'aforo', label: 'Aforo' }, ...(cfgRes ? [{ id: 'calendario', label: 'Días de apertura' }] : []), { id: 'bloqueos', label: 'Fechas bloqueadas' }] : []),
-    ...(cfgRes ? [{ id: 'tipos', label: 'Tipos de reserva' }, { id: 'parametros', label: 'Parámetros' }] : []),
+    ...(cfgRes ? [{ id: 'tipos', label: 'Tipos de reserva' }, { id: 'confirmacion', label: 'Confirmación' }, { id: 'parametros', label: 'Parámetros' }] : []),
     ...(webCfg ? [{ id: 'reservas-web', label: 'Reservas web' }, { id: 'mensajes-bot', label: 'Mensajes del bot' }] : []),
     ...(ctx.modulosActivos.reservas && ctx.puedeAdministrar ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []),
     ...(ctx.esSuperadmin ? [{ id: 'funciones', label: 'Funciones' }] : []),
@@ -165,7 +174,7 @@ export default async function ConfiguracionPage() {
         {ctx.puedeAdministrar && (
           <>
             <h3 className="mt-6 text-sm font-semibold">Reglas por franja horaria y ubicación</h3>
-            <p className="mb-2 text-xs text-rs-muted">Ej.: "INTERIOR de 20:00 a 23:00, máximo 20 personas". Una reserva cuenta en todas las reglas que le corresponden.</p>
+            <p className="mb-2 text-xs text-rs-muted">Ej.: "INTERIOR de 20:00 a 23:00, máximo 20 personas", o "viernes y sábado, máximo 120" y "lunes a jueves, máximo 60". Una reserva cuenta en todas las reglas que le corresponden, así que para tener un aforo distinto por día cargá una regla por grupo de días (y no una general que las pise).</p>
             <ReglasPanel reglas={(reglas ?? []) as any} sedes={sedesAsignables} nombresSede={nombresSede} ubicaciones={nombresUbicacion} puedeTodas={ctx.sinRestriccionSede} />
           </>
         )}
@@ -194,6 +203,12 @@ export default async function ConfiguracionPage() {
       {cfgRes && (
         <Seccion id="tipos" i={n++} titulo="Tipos de reserva" texto="Los tipos que se ofrecen al cargar una reserva y en el sitio de reservas (Común, Cumpleaños, Cena show…). Cambiás el nombre, el orden y cuáles están activos.">
           <div className="mt-3"><ConfigTiposReserva inicial={filasTipos} hoy={hoy} /></div>
+        </Seccion>
+      )}
+
+      {cfgRes && (
+        <Seccion id="confirmacion" i={n++} titulo="Confirmación de reservas" texto="Si las reservas que llegan por el sitio o el bot se confirman solas o quedan en “Nuevas” para que un asesor las confirme, y las excepciones (por cantidad de personas, tipo de reserva, fechas o días).">
+          <div className="mt-3"><ConfigConfirmacion defectoInicial={confDefecto} inicial={confReglas} sedes={ctx.sedesTodas.filter((x) => x.activa).map((x) => ({ id: x.id, nombre: x.nombre }))} tipos={filasTipos.map((t) => ({ value: t.clave, label: t.etiqueta }))} hoy={hoy} /></div>
         </Seccion>
       )}
 
