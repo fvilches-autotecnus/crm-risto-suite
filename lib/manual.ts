@@ -348,6 +348,7 @@ export const MANUAL: SeccionManual[] = [
       { t: 'tabla', cab: ['Flujo', 'Para qué', 'Cómo se dispara'], filas: [
         ['Origen del cliente / Calificación / Respuesta negativa / Emitir voucher (Fellini)', 'Los cuatro pasos de la encuesta de reseña: registran de dónde vino el cliente, su puntaje, su queja y emiten el voucher si calificó bien.', 'Los llama BotConversa por webhook (automático).'],
         ['Confirmar reserva web (Fellini)', 'Cuando el cliente manda “SOLICITUD DE RESERVA … Código: XXXXXX” desde el sitio de reservas, crea la reserva con su teléfono y devuelve el texto para contestarle.', 'Webhook (BotConversa, por palabra clave). Hoy está inactivo: se activa en n8n cuando esté lista la regla.'],
+        ['Confirmar reserva web (Nenina)', 'Lo mismo para Nenina: sirve a las tres sedes (la sede ya viene guardada en la solicitud).', 'Webhook (BotConversa, por palabra clave). Hoy está inactivo: se activa en n8n cuando esté lista la regla.'],
         ['Emitir voucher de retorno (BotConversa)', 'Entrega el voucher de la campaña de retorno al cliente que responde.', 'Webhook (automático).'],
         ['Campaña de marketing de retorno (Fellini)', 'Manda la difusión a clientes cuya última reserva confirmada fue hace entre 10 y 60 días, con o sin voucher, hasta un límite por corrida.', 'Manual: lo corrés vos desde n8n.'],
         ['Avisar premios de fidelidad (Fellini)', 'Avisa a los clientes que ganaron un premio de Fidelización.', 'Manual (hoy inactivo, modo de prueba).'],

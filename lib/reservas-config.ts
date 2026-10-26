@@ -60,7 +60,7 @@ export interface MensajeBotDef { clave: string; titulo: string; cuando: string; 
 export const MENSAJES_BOT: MensajeBotDef[] = [
   { clave: 'reserva_web_recibida', titulo: 'Reserva recibida', cuando: 'El cliente mandó su solicitud de reserva desde el sitio y se registró.', variables: ['nombre', 'numero', 'resumen', 'extra'] },
   { clave: 'reserva_web_ya_registrada', titulo: 'Reserva ya registrada', cuando: 'El cliente reenvía el mismo mensaje y su reserva ya estaba registrada.', variables: ['numero', 'resumen'] },
-  { clave: 'reserva_web_no_encontrada', titulo: 'No se encontró la solicitud', cuando: 'El código no existe, venció o el mensaje no lo trae. El chat se deriva a una persona.', variables: ['validez_horas'] },
+  { clave: 'reserva_web_no_encontrada', titulo: 'No se encontró la solicitud', cuando: 'El código no existe, venció o el mensaje no lo trae. El chat se deriva a una persona.', variables: ['validez', 'validez_horas'] },
   { clave: 'reserva_web_aviso_mesa', titulo: 'Aviso: la mesa se ocupó', cuando: 'Se agrega al mensaje de “reserva recibida” si la mesa elegida se ocupó mientras el cliente escribía.', variables: [] },
   { clave: 'reserva_web_aviso_horario', titulo: 'Aviso: el horario se completó', cuando: 'Se agrega al mensaje de “reserva recibida” si el horario se completó mientras el cliente escribía.', variables: [] },
   { clave: 'reserva_web_error', titulo: 'Error al registrar', cuando: 'Algo falló al registrar la solicitud. El chat se deriva a una persona.', variables: [] },
