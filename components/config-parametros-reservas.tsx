@@ -3,19 +3,23 @@
 import { useEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { guardarParametrosReservas } from '@/app/(panel)/config-reservas-actions'
+import { guardarParametrosSede } from '@/app/(panel)/config-sedes-actions'
+import GrupoSede from '@/components/grupo-sede'
 import { useToast } from '@/components/feedback'
 import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { ESTADOS_BLOQUEO, type ConfigReservas } from '@/lib/reservas-config'
 
 /** Alerta de aforo, turnos del plano y estados que bloquean una mesa en el sitio de reservas. */
-export default function ConfigParametrosReservas({ config, usaMesas }: { config: ConfigReservas; usaMesas: boolean }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarParametrosReservas)
+export default function ConfigParametrosReservas({ config, usaMesas, sede }: { config: ConfigReservas; usaMesas: boolean; sede?: { id: string; pisado: boolean } }) {
+  const { state, pending, formProps } = useAccionFormulario(sede ? guardarParametrosSede : guardarParametrosReservas)
   const toast = useToast()
   const [turnos, setTurnos] = useState(config.turnos)
   useEffect(() => { if (state?.ok) toast({ texto: 'Parámetros guardados' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form {...formProps} className="space-y-4">
+      {sede && <input type="hidden" name="sede_id" value={sede.id} />}
+      <GrupoSede id="parametros" titulo="Parámetros de reservas" sedeId={sede?.id} pisado={sede?.pisado ?? false}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="pr_alerta">Alertar cuando el aforo llegue al (%)</label>
@@ -51,6 +55,7 @@ export default function ConfigParametrosReservas({ config, usaMesas }: { config:
         </div>
         <p className="mt-1 text-xs text-rs-muted">Una reserva en esos estados deja la mesa “Reservada” para los demás clientes que usan el sitio. Lo habitual es dejar solo Confirmada, Pendiente de pago y Revisar pago.</p>
       </fieldset>
+      </GrupoSede>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
       <div className="flex justify-end"><button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar'}</button></div>
     </form>

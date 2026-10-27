@@ -4,7 +4,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TZ_AR } from '@/lib/fechas'
-import { resolverModulos, type ModulosActivos } from '@/lib/modulos'
+import { aplicarSede, resolverModulos, unionModulos, type ModulosActivos } from '@/lib/modulos'
+import { CONFIG_SEDE_VACIA, type ConfigSede } from '@/lib/config-sedes'
 
 export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura'
 
@@ -40,8 +41,12 @@ export interface Contexto {
   rol: Rol | 'superadmin'
   puedeEscribir: boolean
   puedeAdministrar: boolean
-  /** Módulos de pestañas habilitados (todos por defecto; el superadmin puede apagar alguno por negocio). */
+  /** Módulos habilitados para lo que el usuario está viendo: los del negocio, menos los que apagó la sede elegida (con varias sedes a la vista, los que usa alguna). */
   modulosActivos: ModulosActivos
+  /** Módulos del negocio (lo que contrató), sin tener en cuenta las sedes. */
+  modulosNegocio: ModulosActivos
+  /** Lo propio de cada sede (módulos que apagó, ajustes del sitio, parámetros, tipos y mensajes), por id de sede. Lo que no figura se hereda del negocio. */
+  configSedes: Record<string, ConfigSede>
   tieneApagadoBot: boolean // el negocio tiene habilitado el botón de apagado (lo configura Autotecnus)
   puedeApagarBot: boolean
   /** Sedes del negocio a las que el usuario tiene alcance (todas si no tiene restricción). Vacío = negocio de una sola sede. */
@@ -90,14 +95,19 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     : ((membresias?.find((m) => m.negocio_id === negocio.id)?.rol as Rol | undefined) ?? 'solo_lectura')
 
   // Sedes: la lista completa (RLS deja ver los nombres) y el alcance del usuario.
-  const { data: sedesData } = await supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa, direccion, telefono, maps_url, numeracion_propia').eq('negocio_id', negocio.id).order('orden').order('nombre')
+  const [{ data: sedesData }, { data: cfgSedesData }] = await Promise.all([supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa, direccion, telefono, maps_url, numeracion_propia').eq('negocio_id', negocio.id).order('orden').order('nombre'),
+    supabase.from('config_sedes').select('sucursal_id, modulos, web, params, tipos, mensajes, estado_inicial').eq('negocio_id', negocio.id)])
   const sedesTodas = (sedesData ?? []) as Sede[]
+  const configSedes: Record<string, ConfigSede> = Object.fromEntries(sedesTodas.map((x) => [x.id, CONFIG_SEDE_VACIA(x.id)]))
+  for (const c of (cfgSedesData ?? []) as ConfigSede[]) configSedes[c.sucursal_id] = { ...CONFIG_SEDE_VACIA(c.sucursal_id), ...c }
   const alcance = perfil.es_superadmin ? [] : ((membresias?.find((m) => m.negocio_id === negocio.id)?.sucursal_ids as string[] | undefined) ?? [])
   const sinRestriccionSede = alcance.length === 0
   const sedesGestion = sinRestriccionSede ? sedesTodas : sedesTodas.filter((x) => alcance.includes(x.id))
   const sedes = sedesGestion.filter((x) => x.activa)
   const sedeCookie = cookieStore.get(SEDE_COOKIE)?.value
   const sede = sedes.length === 1 ? sedes[0] : (sedes.find((x) => x.id === sedeCookie) ?? null)
+  const modulosNegocio = resolverModulos(negocio.modulos as Record<string, unknown> | null)
+  const modulosActivos = sede ? aplicarSede(modulosNegocio, configSedes[sede.id]?.modulos) : unionModulos(modulosNegocio, sedes.map((x) => aplicarSede(modulosNegocio, configSedes[x.id]?.modulos)))
 
   return {
     userId,
@@ -108,7 +118,9 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     rol,
     puedeEscribir: rol !== 'solo_lectura',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
-    modulosActivos: resolverModulos(negocio.modulos as Record<string, unknown> | null),
+    modulosActivos,
+    modulosNegocio,
+    configSedes,
     tieneApagadoBot,
     puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
     sedes,

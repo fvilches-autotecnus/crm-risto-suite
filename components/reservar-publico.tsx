@@ -9,8 +9,9 @@ import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
+type Cfg = Props['cfg']
 interface Props {
-  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>
   cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
 }
 
@@ -20,14 +21,18 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposTodos, cerrados, cfg, hoy, whatsapp }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
-  const [personas, setPersonas] = useState(Math.min(Math.max(2, cfg.personas_min), cfg.personas_max))
+  const [personas, setPersonas] = useState(Math.min(Math.max(2, cfgBase.personas_min), cfgBase.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
   const conSedes = sedes.length > 0
   const [sedeId, setSedeId] = useState(sedes.length === 1 ? sedes[0].id : '')
   const sede = sedes.find((s) => s.id === sedeId) ?? null
   const listo = !conSedes || !!sede
+  // lo propio de la sede elegida (reglas, textos, tipos de reserva) pisa lo del negocio
+  const cfg = useMemo<Cfg>(() => ({ ...cfgBase, ...(conSedes ? porSede[sedeId]?.cfg ?? {} : {}) }), [cfgBase, porSede, conSedes, sedeId])
+  const tiposTodos = (conSedes ? porSede[sedeId]?.tipos : undefined) ?? tiposBase
+  useEffect(() => { setPersonas((p) => Math.min(Math.max(p, cfg.personas_min), cfg.personas_max)) }, [cfg.personas_min, cfg.personas_max])
   const diasCerrados = useMemo(() => new Set(cerrados[conSedes ? sedeId : '*'] ?? []), [cerrados, conSedes, sedeId])
   // tipos de reserva que se ofrecen ese día (algunos son solo de ciertos días de la semana o de fechas puntuales)
   const tipos = useMemo(() => {

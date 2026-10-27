@@ -21,7 +21,7 @@ import {
 
 interface Props {
   salones: Salon[]; mesas: Mesa[]; reservas: ReservaSalon[]; duracion: number; fecha: string; hoy: string; modo: 'servicio' | 'editar'
-  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]; turnos: { nombre: string; hora: string }[]; inactivos: number
+  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]; turnos: { nombre: string; hora: string }[]; inactivos: number; nombreSedeElegida: string | null
 }
 
 const Acciones = ({ pending, texto, onCancel }: { pending: boolean; texto: string; onCancel: () => void }) => (
@@ -122,7 +122,7 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
 // ---------------------------------------------------------------------------
 // Pantalla
 // ---------------------------------------------------------------------------
-export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones, turnos, inactivos }: Props) {
+export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones, turnos, inactivos, nombreSedeElegida }: Props) {
   const router = useRouter()
   const toast = useToast()
   const confirmar = useConfirm()
@@ -320,7 +320,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
       {dialogo === 'salon' && salon && <Modal titulo="Editar salón" onClose={() => setDialogo(null)}><FormSalon salon={salon} ubicaciones={ubicaciones} onDone={() => setDialogo(null)} /></Modal>}
       {(dialogo === 'mesa' || dialogo === 'deco') && salon && <Modal titulo={dialogo === 'mesa' ? 'Nueva mesa' : 'Nuevo cartel'} onClose={() => setDialogo(null)}><FormNuevaMesa salonId={salon.id} deco={dialogo === 'deco'} sugerido={String(Math.max(0, ...mesasSalon.filter((m) => m.tipo === 'mesa').map((m) => Number(m.numero) || 0)) + 1)} onDone={() => setDialogo(null)} /></Modal>}
       {dialogo === 'varias' && salon && <Modal titulo="Agregar varias mesas" onClose={() => setDialogo(null)}><FormVarias salonId={salon.id} onDone={() => setDialogo(null)} /></Modal>}
-      {dialogo === 'duracion' && <Modal titulo="Duración de una mesa" onClose={() => setDialogo(null)}><FormDuracion actual={duracion} onDone={() => setDialogo(null)} /></Modal>}
+      {dialogo === 'duracion' && <Modal titulo="Duración de una mesa" onClose={() => setDialogo(null)}><FormDuracion actual={duracion} sedeNombre={nombreSedeElegida} onDone={() => setDialogo(null)} /></Modal>}
     </div>
   )
 }
@@ -520,12 +520,12 @@ function FormVarias({ salonId, onDone }: { salonId: string; onDone: () => void }
     </form>
   )
 }
-function FormDuracion({ actual, onDone }: { actual: number; onDone: () => void }) {
+function FormDuracion({ actual, sedeNombre, onDone }: { actual: number; sedeNombre: string | null; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarDuracionMesas)
   useCerrarAlGuardar(state, 'Duración guardada', onDone)
   return (
     <form {...formProps} className="space-y-3">
-      <div><label className="label" htmlFor="d_min">Minutos que suele ocupar una mesa cada reserva</label><input id="d_min" name="duracion_min" type="number" min={30} max={480} defaultValue={actual} className="input w-32" required /></div>
+      <div><label className="label" htmlFor="d_min">Minutos que suele ocupar una mesa cada reserva{sedeNombre ? ` (en ${sedeNombre})` : ''}</label><input id="d_min" name="duracion_min" type="number" min={30} max={480} defaultValue={actual} className="input w-32" required /></div>
       <p className="text-xs text-rs-muted">Se usa para avisarte cuando le querés dar una mesa a una reserva que se pisa con otra (por ejemplo, 120 min: una reserva de las 21:00 y otra de las 22:00 en la misma mesa).</p>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
       <Acciones pending={pending} texto="Guardar" onCancel={onDone} />

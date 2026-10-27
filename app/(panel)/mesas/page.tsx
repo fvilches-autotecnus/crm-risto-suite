@@ -3,7 +3,7 @@ import { Armchair } from 'lucide-react'
 import SalonUI from '@/components/mesas-ui'
 import { getContexto } from '@/lib/context'
 import { hoyEn } from '@/lib/fechas'
-import { cargarConfigReservas } from '@/lib/config-reservas-servidor'
+import { cargarConfigReservas, cargarDuracionMesas } from '@/lib/config-reservas-servidor'
 import type { Mesa, ReservaSalon, Salon } from '@/lib/mesas'
 
 /** Minutos desde la medianoche en Argentina, ahora. */
@@ -31,11 +31,12 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
     supabase.from('mesas').select('id, salon_id, tipo, numero, capacidad, capacidad_min, movil, x, y, w, h, forma, activa, ocupada_desde, ocupada_pax, rotacion, sillas, sillas_lados').eq('negocio_id', negocio.id).order('creado_en').limit(2000),
     qReservas,
     supabase.from('reserva_mesas').select('reserva_id, mesa_id').eq('negocio_id', negocio.id).limit(10000),
-    supabase.from('mesas_config').select('duracion_min').eq('negocio_id', negocio.id).maybeSingle(),
+    Promise.resolve({ data: null as { duracion_min: number } | null }),
   ])
   const { count: inactivos } = modo === 'editar' ? { count: 0 } : await supabase.from('salones').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('activo', false)
   const ubicaciones = (ubs ?? []).map((u) => u.nombre as string)
   const turnos = (await cargarConfigReservas(ctx)).turnos
+  const duracionMesas = await cargarDuracionMesas(ctx)
   const idsSalon = new Set((salones ?? []).map((s) => s.id))
   const porReserva = new Map<string, string[]>()
   for (const a of asign ?? []) porReserva.set(a.reserva_id, [...(porReserva.get(a.reserva_id) ?? []), a.mesa_id])
@@ -47,8 +48,8 @@ export default async function MesasPage({ searchParams }: { searchParams: Promis
         <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Armchair className="text-rs-lime" size={22} />Salón y mesas</h1>
         <p className="text-sm text-rs-muted">{modo === 'editar' ? 'Armá el plano del local' : 'Plano del salón: asigná mesas a las reservas y seguí el servicio en vivo'}</p>
       </div>
-      <SalonUI salones={(salones ?? []) as Salon[]} mesas={((mesas ?? []) as Mesa[]).filter((m) => idsSalon.has(m.salon_id))} reservas={reservasSalon} duracion={cfg?.duracion_min ?? 120} fecha={fecha} hoy={hoy} modo={modo}
-        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} ubicaciones={ubicaciones} turnos={turnos} inactivos={inactivos ?? 0} />
+      <SalonUI salones={(salones ?? []) as Salon[]} mesas={((mesas ?? []) as Mesa[]).filter((m) => idsSalon.has(m.salon_id))} reservas={reservasSalon} duracion={duracionMesas} fecha={fecha} hoy={hoy} modo={modo}
+        puedeEscribir={ctx.puedeEscribir} puedeEstructura={puedeEstructura} puedeAdministrar={ctx.puedeAdministrar} negocioId={negocio.id} ahoraInicial={ahoraAR()} ubicaciones={ubicaciones} turnos={turnos} inactivos={inactivos ?? 0} nombreSedeElegida={ctx.sede && ctx.sedesTodas.length > 0 ? ctx.sede.nombre : null} />
     </div>
   )
 }

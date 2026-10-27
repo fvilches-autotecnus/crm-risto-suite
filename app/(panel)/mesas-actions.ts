@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
+import { guardarConfigSede } from '@/lib/config-sedes-servidor'
 import { seSuperponen } from '@/lib/mesas'
 import type { ActionResult } from './actions'
 
@@ -191,6 +192,12 @@ export async function guardarDuracionMesas(_prev: ActionResult | null, fd: FormD
   const { ctx, error } = await permiso(true); if (error) return fail(error)
   const min = entero(text(fd, 'duracion_min'), 30, 480)
   if (!min) return fail('La duración va de 30 a 480 minutos')
+  if (ctx.sede && ctx.sedesTodas.length > 0) {   // con una sede elegida, la duración es la de esa sede
+    const err = await guardarConfigSede(ctx, ctx.sede.id, { params: { ...(ctx.configSedes[ctx.sede.id]?.params ?? {}), duracion_min: min } })
+    if (err) return fail(err)
+    refrescar()
+    return { ok: true }
+  }
   const { error: e } = await ctx.supabase.from('mesas_config').upsert({ negocio_id: ctx.negocio.id, duracion_min: min })
   if (e) return fail('No se pudo guardar')
   refrescar()

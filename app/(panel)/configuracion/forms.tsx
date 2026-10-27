@@ -23,11 +23,12 @@ function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children
 // ---------------------------------------------------------------------------
 // Aforo total por día
 // ---------------------------------------------------------------------------
-export function AforoForm({ aforo, puedeEditar }: { aforo: number | null; puedeEditar: boolean }) {
+export function AforoForm({ aforo, puedeEditar, sedeId }: { aforo: number | null; puedeEditar: boolean; sedeId?: string }) {
   const { state, pending, formProps } = useAccionFormulario(guardarAforo)
   useResultado(state, 'Aforo guardado')
   return (
     <form {...formProps} className="mt-3 flex flex-wrap items-center gap-3">
+      {sedeId && <input type="hidden" name="sucursal_id" value={sedeId} />}
       <input name="aforo" type="number" min={1} defaultValue={aforo ?? ''} placeholder="Sin límite" disabled={!puedeEditar} aria-label="Aforo máximo" className="input w-32" />
       <span className="text-sm text-rs-muted">personas por día</span>
       {puedeEditar && <Guardar pending={pending} />}

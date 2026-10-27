@@ -75,3 +75,24 @@ export function leerModulosForm(fd: FormData): ModulosActivos {
 }
 
 export const clavesModulos = MODULOS.map((m) => m.clave)
+
+// ─────────────────────────── módulos por sede
+// El negocio define qué módulos tiene; cada sede puede APAGAR algunos (nunca prender lo que el negocio no tiene).
+// Solo los módulos operativos se pueden apagar por sede: lo demás (clientes, vouchers, campañas…) es del negocio entero.
+
+export const MODULOS_POR_SEDE: ModuloClave[] = ['reservas', 'mesas', 'shows', 'carta', 'pedidos', 'consultas', 'derivadas']
+
+/** Los módulos del negocio menos los que esa sede apagó (`apagados` = { clave: false }). */
+export function aplicarSede(base: ModulosActivos, apagados: Record<string, unknown> | null | undefined): ModulosActivos {
+  const r = { ...base }
+  for (const c of MODULOS_POR_SEDE) if (apagados?.[c] === false) r[c] = false
+  return r
+}
+
+/** Con varias sedes a la vista, un módulo está activo si lo usa alguna de ellas. */
+export function unionModulos(base: ModulosActivos, lista: ModulosActivos[]): ModulosActivos {
+  if (lista.length === 0) return base
+  const r = { ...base }
+  for (const c of MODULOS_POR_SEDE) r[c] = lista.some((m) => m[c])
+  return r
+}
