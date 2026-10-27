@@ -87,7 +87,8 @@ export async function guardarParametrosSede(_prev: ActionResult | null, fd: Form
     if (turnos.length > 6) return fail('Hasta 6 turnos')
     const estados = fd.getAll('estados_bloquean').map(String).filter((e) => ESTADOS_BLOQUEO.some((x) => x.value === e))
     if (estados.length === 0) return fail('Elegí al menos un estado que bloquee la mesa')
-    Object.assign(params, { alerta_aforo_pct: alerta, turnos, estados_bloquean: estados })
+    // los turnos solo se piden si la sede usa Salón y mesas (si no, no hay plano al que ponerle botones)
+    Object.assign(params, { alerta_aforo_pct: alerta, estados_bloquean: estados }, fd.get('turnos_form') ? { turnos } : {})
   }
   const err = await guardarConfigSede(ctx, sedeId, { params }); if (err) return fail(err)
   refrescar(ctx.negocio.slug)

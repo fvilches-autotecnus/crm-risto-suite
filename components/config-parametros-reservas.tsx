@@ -29,6 +29,7 @@ export default function ConfigParametrosReservas({ config, usaMesas, sede }: { c
       </div>
       {usaMesas && (
         <fieldset>
+          <input type="hidden" name="turnos_form" value="1" />
           <legend className="label">Turnos del plano de mesas</legend>
           <div className="space-y-2">
             {turnos.map((t, i) => (
