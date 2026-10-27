@@ -98,7 +98,7 @@ export default async function ConfiguracionPage() {
     if (sedesActivas.length) {
       const [{ data: ajustes }, { data: salonesW }, { data: mesasW }] = await Promise.all([
         supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
-        supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id),
+        supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true),
         supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
       ])
       const conMesas = new Set((mesasW ?? []).map((m) => m.salon_id as string))

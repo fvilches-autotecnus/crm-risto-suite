@@ -20,8 +20,8 @@ export interface ActionResult {
   nota?: string             // aviso para mostrar aunque la acción salió bien (ej. la reserva se creó pero no se pudo asignar la mesa)
 }
 
-export interface SalonPanel { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null }
-export interface MesaPanel { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco'; ocupada_por?: string | null }
+export interface SalonPanel { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null; tema_sillas?: string; color_sillas?: string | null }
+export interface MesaPanel { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; rotacion?: number; sillas?: boolean; sillas_lados?: string[] | null; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco'; ocupada_por?: string | null }
 
 /** Mesas que tiene asignadas una reserva (para mostrarlas elegidas al editarla). */
 export async function mesasDeReserva(reservaId: string): Promise<string[]> {

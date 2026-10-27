@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Users } from 'lucide-react'
+import { CajaMesa, Derecho } from '@/components/mesa-sillas'
 import { consultarPlanoReserva, type MesaPanel, type SalonPanel } from '@/app/(panel)/actions'
 
 const rango = (m: Pick<MesaPanel, 'capacidad' | 'capacidad_min'>) => (m.capacidad_min > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
@@ -19,21 +20,21 @@ function alternar(mesas: MesaPanel[], sel: string[], m: MesaPanel, personas: num
 
 function Plano({ salon, mesas, sel, onTocar }: { salon: SalonPanel; mesas: MesaPanel[]; sel: string[]; onTocar: (m: MesaPanel) => void }) {
   return (
-    <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60">
+    <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60 p-3">
       <div className="relative" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: Math.max(salon.ancho * 24, 320), containerType: 'inline-size' }}>
         {mesas.map((m) => {
           const base = { left: `${(m.x / salon.ancho) * 100}%`, top: `${(m.y / salon.alto) * 100}%`, width: `${(m.w / salon.ancho) * 100}%`, height: `${(m.h / salon.alto) * 100}%`, fontSize: `calc(100cqw / ${salon.ancho} * .55)` }
           if (m.tipo === 'deco') return <div key={m.id} style={base} className="absolute grid place-items-center overflow-hidden rounded border border-dashed border-rs-muted/50 bg-rs-raised/40 px-1 text-center font-semibold uppercase tracking-wide text-rs-muted">{m.numero}</div>
           const elegida = sel.includes(m.id), libre = m.estado === 'disponible'
           return (
-            <button key={m.id} type="button" style={base} onClick={() => onTocar(m)} aria-pressed={elegida} title={m.ocupada_por ? `Ocupada: ${m.ocupada_por}` : undefined}
+            <CajaMesa key={m.id} mesa={m} tema={salon} style={base}><button type="button" onClick={() => onTocar(m)} aria-pressed={elegida} title={m.ocupada_por ? `Ocupada: ${m.ocupada_por}` : undefined}
               aria-label={`Mesa ${m.numero}, ${rango(m)} personas, ${m.movil ? 'móvil, ' : 'fija, '}${libre ? 'libre' : m.estado === 'ocupada' ? 'ocupada' : 'no apta para esta cantidad'}`}
-              className={'absolute flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (m.movil ? 'border-dashed ' : '') +
+              className={'absolute inset-0 flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (m.movil ? 'border-dashed ' : '') +
                 (elegida ? 'border-rs-lime bg-rs-lime/30 text-rs-text ring-2 ring-rs-lime ' : libre ? 'border-rs-ok/70 bg-rs-ok/15 text-rs-text hover:bg-rs-ok/25 ' : 'cursor-not-allowed border-rs-muted/40 bg-rs-raised/40 text-rs-muted opacity-60 ')}>
-              <span className="font-bold">{m.numero}</span>
+              <Derecho rot={m.rotacion}><span className="font-bold">{m.numero}</span>
               <span className="opacity-80" style={{ fontSize: '.68em' }}><Users className="mr-0.5 inline" size={9} />{rango(m)}</span>
-              {!libre && !elegida && <span style={{ fontSize: '.58em' }} className="uppercase">{m.estado === 'ocupada' ? 'Ocupada' : 'No apta'}</span>}
-            </button>
+              {!libre && !elegida && <span style={{ fontSize: '.58em' }} className="uppercase">{m.estado === 'ocupada' ? 'Ocupada' : 'No apta'}</span>}</Derecho>
+            </button></CajaMesa>
           )
         })}
       </div>

@@ -17,7 +17,7 @@ export async function cargarOpciones(ctx: Contexto): Promise<OpcionesSede> {
     tiposEtiquetas: Object.fromEntries(catalogo.map((t) => [t.clave, t.etiqueta])),
     tiposActivos: catalogo.filter((t) => t.activo).map((t) => t.clave),
     alertaAforo: cfg.alerta_aforo_pct,
-    conPlano: ctx.modulosActivos.mesas && ((await ctx.supabase.from('salones').select('id', { count: 'exact', head: true }).eq('negocio_id', ctx.negocio.id)).count ?? 0) > 0,
+    conPlano: ctx.modulosActivos.mesas && ((await ctx.supabase.from('salones').select('id', { count: 'exact', head: true }).eq('negocio_id', ctx.negocio.id).eq('activo', true)).count ?? 0) > 0,
     sedes: ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre })),
     nombresSede: Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre])),
     sedeDefault: ctx.sede?.id ?? null,

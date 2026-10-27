@@ -3,10 +3,10 @@
 import { createAdminClient } from '@/lib/supabase/server'
 
 export interface SlotWeb { hora: string; disponible: boolean; motivo?: 'fuera_de_rango' | 'pasado' | 'bloqueado' | 'completo' }
-export interface MesaWeb { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco' }
+export interface MesaWeb { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; rotacion?: number; sillas?: boolean; sillas_lados?: string[] | null; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco' }
 export interface SedeWeb { id: string; nombre: string; direccion: string | null; maps_url: string | null; whatsapp: string; elegir_mesa: boolean; mensaje: string | null; tiene_plano: boolean }
 export interface TipoWeb { value: string; label: string; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[]; fechas: string[] }
-export interface SalonWeb { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null }
+export interface SalonWeb { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null; tema_sillas?: string; color_sillas?: string | null }
 export type ResultadoReserva =
   | { ok: true; codigo: string; whatsapp: string; sede: string | null; mesas: string | null; fecha: string; hora: string; personas: number; ubicacion: string | null; mensaje: string | null }
   | { ok: false; error: string }

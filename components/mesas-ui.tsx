@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { Armchair, Check, ChevronLeft, ChevronRight, Clock, Copy, Pencil, Plus, QrCode, Sparkles, Trash2, Users, X } from 'lucide-react'
 import {
-  asignarMesas, crearVariasMesas, eliminarMesa, eliminarSalon, guardarDuracionMesas, guardarMesa, guardarSalon, liberarMesa, marcarServicio, moverMesa, ocuparMesa,
+  alternarSalon, asignarMesas, crearVariasMesas, eliminarMesa, eliminarSalon, guardarDuracionMesas, guardarMesa, guardarSalon, liberarMesa, marcarServicio, moverMesa, ocuparMesa, rotarMesa,
   type ResultadoAsignacion,
 } from '@/app/(panel)/mesas-actions'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -14,13 +14,14 @@ import Modal from '@/components/modal'
 import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { iniciarCarga } from '@/lib/carga'
+import { CajaMesa, Derecho, LADOS_SILLAS, TEMAS_SILLAS, COLOR_SILLAS_DEFECTO } from '@/components/mesa-sillas'
 import {
   ESTADOS_MESA, aMinutos, conflictoCon, deMinutos, estadoMesa, rangoCapacidad, sePuedenJuntar, seSuperponen, sugerirMesas, type Mesa, type ReservaSalon, type Salon,
 } from '@/lib/mesas'
 
 interface Props {
   salones: Salon[]; mesas: Mesa[]; reservas: ReservaSalon[]; duracion: number; fecha: string; hoy: string; modo: 'servicio' | 'editar'
-  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]; turnos: { nombre: string; hora: string }[]
+  puedeEscribir: boolean; puedeEstructura: boolean; puedeAdministrar: boolean; negocioId: string; ahoraInicial: number; ubicaciones: string[]; turnos: { nombre: string; hora: string }[]; inactivos: number
 }
 
 const Acciones = ({ pending, texto, onCancel }: { pending: boolean; texto: string; onCancel: () => void }) => (
@@ -74,7 +75,7 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
     if ((a.x !== m.x || a.y !== m.y) && !choca(m, a.x, a.y)) await onMover?.(m, a.x, a.y)
   }
   return (
-    <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60">
+    <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60 p-3">
       <div ref={caja} className="relative select-none" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: salon.ancho * 26, containerType: 'inline-size',
         backgroundImage: 'linear-gradient(to right, rgba(122,144,80,.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(122,144,80,.10) 1px, transparent 1px)', backgroundSize: `${100 / salon.ancho}% ${100 / salon.alto}%` }}
         onPointerMove={(e) => {
@@ -100,16 +101,16 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
           const r = rs[0]
           const resaltado = resaltar?.[m.id]
           return (
-            <button key={m.id} type="button" style={base} aria-label={`Mesa ${m.numero}, ${rangoCapacidad(m)} personas, ${m.movil ? 'móvil, ' : 'fija, '}${est.label.toLowerCase()}`}
+            <CajaMesa key={m.id} mesa={m} tema={salon} style={base} className={enArrastre ? 'z-10' : ''}><button type="button" aria-label={`Mesa ${m.numero}, ${rangoCapacidad(m)} personas, ${m.movil ? 'móvil, ' : 'fija, '}${est.label.toLowerCase()}`}
               onPointerDown={(e) => { if (editar) { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); setArrastre({ id: m.id, x: m.x, y: m.y, ox: m.x, oy: m.y, px: e.clientX, py: e.clientY, mueve: false }) } }}
               onClick={() => { if (!editar) onClick(m) }}
-              className={'absolute flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition-colors ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (m.movil ? 'border-dashed ' : '') + (editar ? 'border-rs-control bg-rs-card text-rs-text cursor-grab touch-none ' : est.clases + ' ') +
-                (sel ? 'ring-2 ring-rs-lime ring-offset-1 ring-offset-black ' : '') + (resaltado === 'choque' ? '!border-rs-danger ' : resaltado === 'ok' ? '!border-rs-lime ' : '') + (choque ? '!border-rs-danger !bg-rs-danger/30 ' : '') + (enArrastre ? 'z-10 opacity-90 ' : '')}>
-              <span className="font-bold">{m.numero}</span>
+              className={'absolute inset-0 flex flex-col items-center justify-center overflow-hidden border-2 leading-tight transition-colors ' + (m.forma === 'redonda' ? 'rounded-full ' : 'rounded-lg ') + (m.movil ? 'border-dashed ' : '') + (editar ? 'border-rs-control bg-rs-card text-rs-text cursor-grab touch-none ' : est.clases + ' ') +
+                (sel ? 'ring-2 ring-rs-lime ring-offset-1 ring-offset-black ' : '') + (resaltado === 'choque' ? '!border-rs-danger ' : resaltado === 'ok' ? '!border-rs-lime ' : '') + (choque ? '!border-rs-danger !bg-rs-danger/30 ' : '') + (enArrastre ? 'opacity-90 ' : '')}>
+              <Derecho rot={m.rotacion}><span className="font-bold">{m.numero}</span>
               <span className="opacity-70" style={{ fontSize: '.7em' }}><Users className="mr-0.5 inline" size={9} />{rangoCapacidad(m)}</span>
               {!editar && r && m.w >= 3 && <span className="max-w-full truncate px-1 opacity-90" style={{ fontSize: '.62em' }}>{(r.cliente_nombre ?? '').split(' ')[0]} {r.hora?.slice(0, 5)}</span>}
-              {!editar && !r && estado === 'ocupada' && m.ocupada_pax && <span className="opacity-90" style={{ fontSize: '.62em' }}>{m.ocupada_pax} pers.</span>}
-            </button>
+              {!editar && !r && estado === 'ocupada' && m.ocupada_pax && <span className="opacity-90" style={{ fontSize: '.62em' }}>{m.ocupada_pax} pers.</span>}</Derecho>
+            </button></CajaMesa>
           )
         })}
         {mesas.length === 0 && <p className="absolute inset-0 grid place-items-center text-sm text-rs-muted">{editar ? 'Este salón está vacío: agregá mesas con los botones de arriba.' : 'Este salón todavía no tiene mesas.'}</p>}
@@ -121,7 +122,7 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
 // ---------------------------------------------------------------------------
 // Pantalla
 // ---------------------------------------------------------------------------
-export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones, turnos }: Props) {
+export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy, modo, puedeEscribir, puedeEstructura, puedeAdministrar, negocioId, ahoraInicial, ubicaciones, turnos, inactivos }: Props) {
   const router = useRouter()
   const toast = useToast()
   const confirmar = useConfirm()
@@ -204,9 +205,19 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
     return (
       <div className="card p-8 text-center">
         <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-rs-raised text-rs-lime"><Armchair size={26} /></div>
-        <p className="font-semibold">Todavía no armaste el plano del salón</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-rs-muted">Creá tu primer salón (por ejemplo “Salón”, “Patio” o “Terraza”), cargá las mesas con su capacidad y acomodalas como están en el local.</p>
-        {puedeEstructura && <button type="button" onClick={() => setDialogo('salon-nuevo')} className="btn btn-primary mt-4"><Plus size={14} />Crear el primer salón</button>}
+        {inactivos > 0 ? (
+          <>
+            <p className="font-semibold">Los planos están desactivados</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-rs-muted">Tenés {inactivos} plano{inactivos === 1 ? '' : 's'} guardado{inactivos === 1 ? '' : 's'} con sus mesas, pero ninguno está activo: no se usan para asignar mesas ni en el sitio de reservas. Activalos desde “Editar plano”.</p>
+            {puedeEstructura && <a href={`/mesas?fecha=${fecha}&modo=editar`} className="btn btn-primary mt-4"><Pencil size={14} />Editar plano</a>}
+          </>
+        ) : (
+          <>
+            <p className="font-semibold">Todavía no armaste el plano del salón</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-rs-muted">Creá tu primer salón (por ejemplo “Salón”, “Patio” o “Terraza”), cargá las mesas con su capacidad y acomodalas como están en el local.</p>
+            {puedeEstructura && <button type="button" onClick={() => setDialogo('salon-nuevo')} className="btn btn-primary mt-4"><Plus size={14} />Crear el primer salón</button>}
+          </>
+        )}
         {dialogo === 'salon-nuevo' && <Modal titulo="Nuevo salón" onClose={() => setDialogo(null)}><FormSalon ubicaciones={ubicaciones} onDone={() => setDialogo(null)} /></Modal>}
       </div>
     )
@@ -241,7 +252,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
         )}
         <div className="flex w-full flex-wrap items-center gap-2 border-t border-rs-border/60 pt-2">
           {salones.length > 1 || modo === 'editar' ? (
-            <div className="flex flex-wrap gap-1.5">{salones.map((s) => <button key={s.id} type="button" onClick={() => { setSalonId(s.id); setSeleccion(null) }} className={'btn btn-sm ' + (s.id === salonId ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>
+            <div className="flex flex-wrap gap-1.5">{salones.map((s) => <button key={s.id} type="button" onClick={() => { setSalonId(s.id); setSeleccion(null) }} className={'btn btn-sm ' + (s.id === salonId ? 'btn-primary' : '') + (s.activo ? '' : ' opacity-60')}>{s.nombre}{!s.activo && <span className="ml-1 text-[10px] font-normal uppercase">inactivo</span>}</button>)}</div>
           ) : <span className="text-sm font-semibold">{salon?.nombre}</span>}
           <span className="ml-auto flex flex-wrap items-center gap-1.5">
             {modo === 'servicio' ? (
@@ -285,8 +296,11 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
 
         <aside className="space-y-3">
           {modo === 'editar' ? (
-            mesaSel ? <PanelEdicion key={mesaSel.id + mesaSel.x + mesaSel.y + mesaSel.w + mesaSel.h} mesa={mesaSel} onBorrar={() => void borrarMesa(mesaSel)} onCerrar={() => setSeleccion(null)} />
-              : <div className="card p-4 text-sm text-rs-muted"><p className="font-semibold text-rs-text">{salon?.nombre} · {mesasSalon.filter((m) => m.tipo === 'mesa').length} mesas · {mesasSalon.filter((m) => m.tipo === 'mesa').reduce((s, m) => s + (m.capacidad ?? 0), 0)} lugares</p><p className="mt-2">Tocá una mesa para editarla o arrastrala para moverla. No se pueden superponer ni salir del plano.</p>{puedeAdministrar && <button type="button" onClick={() => void borrarSalon()} className="btn btn-sm btn-danger mt-3"><Trash2 size={13} />Borrar este salón</button>}</div>
+            mesaSel ? <PanelEdicion key={mesaSel.id + mesaSel.x + mesaSel.y + mesaSel.w + mesaSel.h + ':' + mesaSel.rotacion} mesa={mesaSel} onBorrar={() => void borrarMesa(mesaSel)} onCerrar={() => setSeleccion(null)} />
+              : <div className="card p-4 text-sm text-rs-muted"><p className="font-semibold text-rs-text">{salon?.nombre} · {mesasSalon.filter((m) => m.tipo === 'mesa').length} mesas · {mesasSalon.filter((m) => m.tipo === 'mesa').reduce((s, m) => s + (m.capacidad ?? 0), 0)} lugares</p><p className="mt-2">Tocá una mesa para editarla o arrastrala para moverla. No se pueden superponer ni salir del plano.</p>
+                {salon && <div className={'mt-3 rounded-md border px-3 py-2 ' + (salon.activo ? 'border-rs-border/60' : 'border-rs-warn/40 bg-rs-warn/10')}><p className="text-xs">{salon.activo ? <>Este plano está <b className="text-rs-lime">activo</b>: se usa para asignar mesas y en el sitio de reservas.</> : <>Este plano está <b className="text-rs-warn">inactivo</b>: queda guardado con sus mesas pero no se usa en ningún lado.</>}</p>
+                  <button type="button" disabled={pend} onClick={() => ejecutar(() => alternarSalon(salon.id, !salon.activo), salon.activo ? 'Plano desactivado' : 'Plano activado')} className="btn btn-sm mt-2">{salon.activo ? 'Desactivar este plano' : 'Activar este plano'}</button></div>}
+                {puedeAdministrar && <button type="button" onClick={() => void borrarSalon()} className="btn btn-sm btn-danger mt-3"><Trash2 size={13} />Borrar este salón</button>}</div>
           ) : (
             <>
               {mesaSel && !asignando && <PanelMesa mesa={mesaSel} reservas={reservas} t={t} duracion={duracion} esHoy={esHoy} puedeEscribir={puedeEscribir} pend={pend} paxLibre={paxLibre} setPaxLibre={setPaxLibre} nombreMesa={nombreMesa}
@@ -398,6 +412,8 @@ function PanelEdicion({ mesa, onBorrar, onCerrar }: { mesa: Mesa; onBorrar: () =
   const toast = useToast()
   useEffect(() => { if (state?.ok) toast({ texto: 'Guardado' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const deco = mesa.tipo === 'deco'
+  const [girando, empezarGiro] = useTransition()
+  const girar = (g: number) => empezarGiro(async () => { const r = await rotarMesa(mesa.id, g); if (!r.ok) toast({ tipo: 'error', texto: r.error ?? 'No se pudo girar' }) })
   return (
     <form {...formProps} className="card space-y-3 p-4">
       <input type="hidden" name="id" value={mesa.id} /><input type="hidden" name="salon_id" value={mesa.salon_id} /><input type="hidden" name="tipo" value={mesa.tipo} /><input type="hidden" name="x" value={mesa.x} /><input type="hidden" name="y" value={mesa.y} />
@@ -408,6 +424,27 @@ function PanelEdicion({ mesa, onBorrar, onCerrar }: { mesa: Mesa; onBorrar: () =
         <div><label className="label" htmlFor="e_forma">Forma</label><select id="e_forma" name="forma" defaultValue={mesa.forma} className="input w-full"><option value="cuadrada">Cuadrada</option><option value="redonda">Redonda</option></select></div></div>}
       <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="e_w">Ancho</label><input id="e_w" name="w" type="number" min={1} max={40} defaultValue={mesa.w} className="input w-full" /></div><div><label className="label" htmlFor="e_h">Alto</label><input id="e_h" name="h" type="number" min={1} max={40} defaultValue={mesa.h} className="input w-full" /></div></div>
       {!deco && <label className="flex items-center gap-2 text-sm"><input type="hidden" name="__activa_form" value="1" /><input type="checkbox" name="activa" defaultChecked={mesa.activa} className="h-4 w-4 accent-[#c8e62b]" />En servicio</label>}
+      {!deco && (
+        <fieldset className="space-y-2 rounded-md border border-rs-border/60 p-3">
+          <legend className="label px-1">Sillas y giro</legend>
+          <input type="hidden" name="__sillas_form" value="1" />
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="sillas" defaultChecked={mesa.sillas} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Dibujar las sillas</span><span className="block text-xs text-rs-muted">Una por lugar (capacidad máxima: {mesa.capacidad ?? 0}).</span></span></label>
+          <div>
+            <span className="label">Sillas en estos lados</span>
+            <div className="flex flex-wrap gap-1.5">{LADOS_SILLAS.map((l) => <label key={l.v} className="flex cursor-pointer items-center gap-1 rounded-full border border-rs-control px-2.5 py-1 text-xs has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="checkbox" name="sillas_lado" value={l.v} defaultChecked={!mesa.sillas_lados || mesa.sillas_lados.includes(l.v)} className="h-3 w-3 accent-[#c8e62b]" />{l.l}</label>)}</div>
+            <p className="mt-1 text-xs text-rs-muted">Por ejemplo, sin “Izquierda” si la mesa está contra la pared. En las redondas las sillas van alrededor.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="e_rot">Girar la mesa (grados)</label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input id="e_rot" name="rotacion" type="number" min={0} max={359} step={5} defaultValue={mesa.rotacion} className="input w-24" />
+              {[-15, 15, 90].map((g) => <button key={g} type="button" disabled={girando} onClick={() => girar((mesa.rotacion + g + 360) % 360)} className="btn btn-sm" title={`Girar ${g > 0 ? '+' : ''}${g}°`}>{g > 0 ? '+' : '−'}{Math.abs(g)}°</button>)}
+              {mesa.rotacion !== 0 && <button type="button" disabled={girando} onClick={() => girar(0)} className="btn btn-sm">Enderezar</button>}
+            </div>
+            <p className="mt-1 text-xs text-rs-muted">Es solo el dibujo: el lugar que ocupa en el plano no cambia (para dejarla vertical también podés intercambiar ancho y alto).</p>
+          </div>
+        </fieldset>
+      )}
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
       <div className="flex justify-between gap-2"><button type="button" onClick={onBorrar} className="btn btn-sm btn-danger"><Trash2 size={13} />Borrar</button><button disabled={pending} className="btn btn-sm btn-primary">{pending && <Spinner />}Guardar</button></div>
     </form>
@@ -420,6 +457,9 @@ function PanelEdicion({ mesa, onBorrar, onCerrar }: { mesa: Mesa; onBorrar: () =
 function FormSalon({ salon, ubicaciones, onDone }: { salon?: Salon; ubicaciones: string[]; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarSalon)
   useCerrarAlGuardar(state, salon ? 'Salón guardado' : 'Salón creado', onDone)
+  const [tema, setTema] = useState(salon?.tema_sillas ?? 'redondas')
+  const [color, setColor] = useState(salon?.color_sillas ?? COLOR_SILLAS_DEFECTO)
+  const [colorDefecto, setColorDefecto] = useState(!salon?.color_sillas)
   return (
     <form {...formProps} className="space-y-3">
       {salon && <input type="hidden" name="id" value={salon.id} />}
@@ -427,6 +467,19 @@ function FormSalon({ salon, ubicaciones, onDone }: { salon?: Salon; ubicaciones:
       {ubicaciones.length > 0 && <div><label className="label" htmlFor="s_ubic">Ubicación del CRM</label><select id="s_ubic" name="ubicacion" defaultValue={salon?.ubicacion ?? ''} className="input w-full"><option value="">Todas</option>{ubicaciones.map((u) => <option key={u} value={u}>{u}</option>)}</select><p className="mt-1 text-xs text-rs-muted">Si este plano es de una ubicación (por ejemplo SALÓN o PLANTA ALTA), el sitio de reservas lo muestra solo a quien elige esa ubicación.</p></div>}
       <div className="grid grid-cols-2 gap-3"><div><label className="label" htmlFor="s_ancho">Ancho del plano</label><input id="s_ancho" name="ancho" type="number" min={8} max={80} defaultValue={salon?.ancho ?? 24} className="input w-full" /></div><div><label className="label" htmlFor="s_alto">Alto del plano</label><input id="s_alto" name="alto" type="number" min={6} max={60} defaultValue={salon?.alto ?? 16} className="input w-full" /></div></div>
       <p className="text-xs text-rs-muted">El plano es una grilla de casilleros: una mesa chica ocupa 2×2. Un plano de 24×16 alcanza para un salón mediano; podés agrandarlo después.</p>
+      <label className="flex items-start gap-2 text-sm"><input type="hidden" name="__activo_form" value="1" /><input type="checkbox" name="activo" defaultChecked={salon?.activo ?? true} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Plano activo</span><span className="block text-xs text-rs-muted">Desmarcalo para dejarlo guardado sin usarlo: no se ofrece para asignar mesas ni en el sitio de reservas. Podés volver a activarlo cuando quieras.</span></span></label>
+      <fieldset className="space-y-2 rounded-md border border-rs-border/60 p-3">
+        <legend className="label px-1">Sillas de las mesas</legend>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label" htmlFor="s_tema">Estilo</label><select id="s_tema" name="tema_sillas" value={tema} onChange={(e) => setTema(e.target.value)} className="input w-full">{TEMAS_SILLAS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+          <div><label className="label" htmlFor="s_color">Color</label><div className="flex items-center gap-2"><input id="s_color" name="color_sillas" type="color" value={color} onChange={(e) => { setColor(e.target.value); setColorDefecto(false) }} className="h-9 w-12 cursor-pointer rounded border border-rs-control bg-transparent" /><label className="flex items-center gap-1 text-xs"><input type="checkbox" name="color_defecto" checked={colorDefecto} onChange={(e) => setColorDefecto(e.target.checked)} className="h-3.5 w-3.5 accent-[#c8e62b]" />Predeterminado</label></div></div>
+        </div>
+        <div className="relative mx-auto h-24 w-full max-w-xs overflow-visible rounded bg-rs-bg/60" style={{ fontSize: 14 }} aria-label="Vista previa de las sillas">
+          <CajaMesa mesa={{ capacidad: 4, forma: 'redonda', w: 3, h: 3 }} tema={{ tema_sillas: tema, color_sillas: colorDefecto ? null : color }} style={{ left: '12%', top: '22%', width: '17%', height: '56%' }}><div className="absolute inset-0 rounded-full border-2 border-rs-control bg-rs-card" /></CajaMesa>
+          <CajaMesa mesa={{ capacidad: 6, forma: 'cuadrada', w: 4, h: 2 }} tema={{ tema_sillas: tema, color_sillas: colorDefecto ? null : color }} style={{ left: '50%', top: '30%', width: '34%', height: '40%' }}><div className="absolute inset-0 rounded-lg border-2 border-rs-control bg-rs-card" /></CajaMesa>
+        </div>
+        <p className="text-xs text-rs-muted">Cada mesa dibuja una silla por lugar (su capacidad máxima). Después podés girar cada mesa o sacarle las sillas de algún lado desde su ficha.</p>
+      </fieldset>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
       <Acciones pending={pending} texto={salon ? 'Guardar' : 'Crear salón'} onCancel={onDone} />
     </form>

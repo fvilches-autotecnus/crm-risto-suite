@@ -47,19 +47,33 @@ export async function guardarSalon(_prev: ActionResult | null, fd: FormData): Pr
   const ancho = entero(text(fd, 'ancho'), 8, 80), alto = entero(text(fd, 'alto'), 6, 60), ubicacion = text(fd, 'ubicacion').slice(0, 60) || null
   if (!nombre || nombre.length > 40) return fail('Poné un nombre de hasta 40 letras (ej. Salón, Patio, Terraza)')
   if (!ancho || !alto) return fail('El tamaño del plano va de 8 a 80 de ancho y de 6 a 60 de alto')
+  const activo = fd.get('__activo_form') ? fd.get('activo') === 'on' : true
+  const tema = ['redondas', 'cuadradas', 'respaldo', 'ninguna'].includes(text(fd, 'tema_sillas')) ? text(fd, 'tema_sillas') : 'redondas'
+  const colorTxt = text(fd, 'color_sillas'), color = fd.get('color_defecto') === 'on' || !/^#[0-9a-fA-F]{6}$/.test(colorTxt) ? null : colorTxt.toLowerCase()
   if (id) {
     if (!UUID.test(id)) return fail('Salón no válido')
     const { mesas } = await datosSalon(ctx, id)
     const fuera = mesas.find((m) => m.x + m.w > ancho || m.y + m.h > alto)
     if (fuera) return fail(`La mesa “${fuera.numero}” quedaría fuera del plano: movela antes de achicar el salón`)
-    const { error: e } = await ctx.supabase.from('salones').update({ nombre, ancho, alto, ubicacion }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+    const { error: e } = await ctx.supabase.from('salones').update({ nombre, ancho, alto, ubicacion, activo, tema_sillas: tema, color_sillas: color }).eq('id', id).eq('negocio_id', ctx.negocio.id)
     if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo guardar el salón')
   } else {
     const { data: ult } = await ctx.supabase.from('salones').select('orden').eq('negocio_id', ctx.negocio.id).order('orden', { ascending: false }).limit(1)
-    const { error: e } = await ctx.supabase.from('salones').insert({ negocio_id: ctx.negocio.id, sucursal_id: ctx.sede?.id ?? null, nombre, ancho, alto, ubicacion, orden: (ult?.[0]?.orden ?? -1) + 1 })
+    const { error: e } = await ctx.supabase.from('salones').insert({ negocio_id: ctx.negocio.id, sucursal_id: ctx.sede?.id ?? null, nombre, ancho, alto, ubicacion, activo, tema_sillas: tema, color_sillas: color, orden: (ult?.[0]?.orden ?? -1) + 1 })
     if (e) return fail(e.code === '23505' ? 'Ya hay un salón con ese nombre' : 'No se pudo crear el salón')
   }
   refrescar()
+  return { ok: true }
+}
+
+/** Activa o desactiva un plano. Uno inactivo se conserva con todas sus mesas, pero no se usa (ni en el servicio, ni en el sitio de reservas, ni al elegir mesa). */
+export async function alternarSalon(id: string, activo: boolean): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  if (!UUID.test(id)) return fail('Salón no válido')
+  const { error: e } = await ctx.supabase.from('salones').update({ activo: !!activo }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo cambiar el plano')
+  refrescar()
+  revalidatePath('/configuracion')
   return { ok: true }
 }
 
@@ -96,7 +110,10 @@ export async function guardarMesa(_prev: ActionResult | null, fd: FormData): Pro
   if (x === null || y === null) return fail('Posición no válida')
   const e1 = validarRect(salon, mesas, { x, y, w, h }); if (e1) return fail(e1)
   const movil = tipo === 'mesa' && fd.get('movil') === 'on'
-  const datos = { salon_id: salonId, tipo, numero, capacidad, capacidad_min: capacidadMin, movil, x, y, w, h, forma, activa: fd.get('__activa_form') ? fd.get('activa') === 'on' : true }
+  // rotación y sillas solo vienen en el formulario de edición de una mesa; al crear quedan por defecto
+  const lados = [...new Set(fd.getAll('sillas_lado').map(String).filter((l) => ['n', 'e', 's', 'o'].includes(l)))]
+  const conSillas = tipo === 'mesa' && fd.get('__sillas_form') ? { rotacion: entero(text(fd, 'rotacion') || '0', 0, 359) ?? 0, sillas: fd.get('sillas') === 'on', sillas_lados: lados.length > 0 && lados.length < 4 ? lados : null } : {}
+  const datos = { salon_id: salonId, tipo, numero, capacidad, capacidad_min: capacidadMin, movil, x, y, w, h, forma, activa: fd.get('__activa_form') ? fd.get('activa') === 'on' : true, ...conSillas }
   if (id) {
     if (!UUID.test(id)) return fail('Mesa no válida')
     const { error: e } = await ctx.supabase.from('mesas').update(datos).eq('id', id).eq('negocio_id', ctx.negocio.id)
@@ -105,6 +122,17 @@ export async function guardarMesa(_prev: ActionResult | null, fd: FormData): Pro
     const { error: e } = await ctx.supabase.from('mesas').insert({ ...datos, negocio_id: ctx.negocio.id })
     if (e) return fail(e.code === '23505' ? `Ya hay una mesa “${numero}” en este salón` : 'No se pudo crear la mesa')
   }
+  refrescar()
+  return { ok: true }
+}
+
+/** Gira una mesa (con sus sillas) a un ángulo en grados. Es solo el dibujo: el espacio que ocupa en el plano no cambia. */
+export async function rotarMesa(id: string, grados: number): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error)
+  if (!UUID.test(id) || !Number.isFinite(grados)) return fail('Rotación no válida')
+  const g = ((Math.round(grados) % 360) + 360) % 360
+  const { error: e } = await ctx.supabase.from('mesas').update({ rotacion: g }).eq('id', id).eq('negocio_id', ctx.negocio.id).eq('tipo', 'mesa')
+  if (e) return fail('No se pudo girar la mesa')
   refrescar()
   return { ok: true }
 }

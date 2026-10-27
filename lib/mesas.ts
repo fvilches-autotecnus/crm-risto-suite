@@ -1,9 +1,10 @@
 /** Salón y mesas: tipos y cálculos del plano (estado de cada mesa en un momento, sugerencia de mesas, superposición). Sin dependencias de servidor. */
 
-export interface Salon { id: string; nombre: string; orden: number; ancho: number; alto: number; sucursal_id: string | null; ubicacion: string | null }
+export interface Salon { id: string; nombre: string; orden: number; ancho: number; alto: number; sucursal_id: string | null; ubicacion: string | null; activo: boolean; tema_sillas: string; color_sillas: string | null }
 export interface Mesa {
   id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; capacidad: number | null; capacidad_min: number; movil: boolean
   x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; activa: boolean; ocupada_desde: string | null; ocupada_pax: number | null
+  rotacion: number; sillas: boolean; sillas_lados: string[] | null
 }
 export interface ReservaSalon {
   id: string; numero: number; numero_sede?: number | null; cliente_nombre: string | null; cliente_telefono: string | null; hora: string | null; cantidad_personas: number | null; estado: string
