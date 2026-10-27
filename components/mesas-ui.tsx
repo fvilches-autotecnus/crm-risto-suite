@@ -130,6 +130,9 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
   const esHoy = fecha === hoy
   const [salonId, setSalonId] = useState(salones[0]?.id ?? '')
   useEffect(() => { if (!salones.some((s) => s.id === salonId)) setSalonId(salones[0]?.id ?? '') }, [salones, salonId])
+  // Al crear el primer salón la pantalla cambia de la invitación a la del plano y el diálogo se vuelve a montar: se cierra acá
+  const cantAntes = useRef(salones.length)
+  useEffect(() => { if (cantAntes.current === 0 && salones.length > 0) setDialogo((d) => (d === 'salon-nuevo' ? null : d)); cantAntes.current = salones.length }, [salones.length])
   const salon = salones.find((s) => s.id === salonId) ?? null
   const mesasSalon = useMemo(() => mesas.filter((m) => m.salon_id === salonId), [mesas, salonId])
   // La hora "ahora" arranca con la del servidor (así coincide con lo que se dibujó al cargar) y se actualiza cada minuto en el navegador.
