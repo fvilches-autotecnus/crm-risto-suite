@@ -10,7 +10,7 @@ import { Copy, ExternalLink } from 'lucide-react'
 import { DIAS_SEMANA } from '@/components/config-calendario'
 
 export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
-  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]> }
+  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]>; escasez_modo?: 'off' | 'pocos' | 'cantidad'; escasez_umbral?: number; escasez_texto?: string | null }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
 export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean; horarios_dias?: Record<string, string[]> }
@@ -91,6 +91,19 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
         <legend className="label px-1">Textos y reglas del sitio</legend>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="modo_prueba" defaultChecked={config.modo_prueba} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Modo prueba</span><span className="block text-xs text-rs-muted">Muestra el cartel “Sitio de prueba” y marca las reservas como “[Sitio de prueba]”. Apagalo cuando quieras publicarlo de verdad.</span></span></label>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="cualquier_ubicacion" defaultChecked={config.cualquier_ubicacion} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Ofrecer “cualquier ubicación disponible”</span><span className="block text-xs text-rs-muted">El cliente puede no elegir lugar ni mesa y reservar directo. Solo se ofrece si hay lugar en al menos una ubicación según el aforo de cada una (y los topes generales), y al registrar la reserva se le asigna la primera ubicación con lugar, en el orden en que cargaste las ubicaciones. Se muestra solo si tenés dos o más ubicaciones.</span></span></label>
+        <fieldset className="space-y-2 rounded-md border border-rs-border/60 p-3 sm:col-span-2">
+          <legend className="label px-1">Aviso de pocos lugares</legend>
+          <p className="text-xs text-rs-muted">Cuando a un horario de un sector (ubicación) le quedan pocos lugares, el sitio lo avisa junto al horario. Se calcula con tus reglas de aforo (por ubicación y franja): si un sector no tiene regla de aforo, no se avisa nada.</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div><label className="label" htmlFor="rw_esc_modo">Qué mostrar</label>
+              <select id="rw_esc_modo" name="escasez_modo" defaultValue={config.escasez_modo ?? 'off'} className="input w-full"><option value="off">No avisar</option><option value="pocos">“Quedan pocos lugares”</option><option value="cantidad">“Quedan 6 lugares” (el número exacto)</option></select></div>
+            <div><label className="label" htmlFor="rw_esc_umbral">Avisar cuando queden…</label>
+              <div className="flex items-center gap-2"><input id="rw_esc_umbral" name="escasez_umbral" type="number" min={1} max={500} defaultValue={config.escasez_umbral ?? 10} className="input w-24" /><span className="text-sm text-rs-muted">lugares o menos</span></div></div>
+            <div><label className="label" htmlFor="rw_esc_texto">Texto (solo “pocos lugares”)</label>
+              <input id="rw_esc_texto" name="escasez_texto" maxLength={40} defaultValue={config.escasez_texto ?? ''} placeholder="Quedan pocos lugares" className="input w-full" /></div>
+          </div>
+          <p className="text-xs text-rs-muted">Recomendado: “pocos lugares”. Dice que se está llenando sin mostrar la capacidad del local ni confundir (los lugares son personas, no mesas). Con el número exacto el cliente ve, por ejemplo, “Quedan 6 lugares”.</p>
+        </fieldset>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="pedir_cumple" defaultChecked={config.pedir_cumple} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Preguntar el cumpleaños (opcional para el cliente)</span><span className="block text-xs text-rs-muted">Agrega al formulario el día y el mes. Si lo completa, queda en la reserva y en su ficha (módulo Cumpleaños) para saludarlo.</span></span></label>
         <div><label className="label" htmlFor="rw_cualq">Texto de esa opción</label><input id="rw_cualq" name="texto_cualquier_ubicacion" defaultValue={config.texto_cualquier_ubicacion ?? ''} maxLength={60} placeholder="Cualquier ubicación disponible" className="input w-full" /></div>
         <div className="grid gap-3 sm:grid-cols-2">

@@ -72,7 +72,7 @@ export default async function ConfiguracionPage() {
   let mensajesPropios: Record<string, string> = {}
   if (ctx.modulosActivos.reservas && ctx.puedeAdministrar) {
     const [{ data: c }, { data: ts }, { data: hs }] = await Promise.all([
-      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple, horarios_dias').eq('negocio_id', negocio.id).maybeSingle(),
+      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple, horarios_dias, escasez_modo, escasez_umbral, escasez_texto').eq('negocio_id', negocio.id).maybeSingle(),
       supabase.from('reservas').select('tipo_reserva').eq('negocio_id', negocio.id).limit(10000),
       supabase.from('reservas').select('hora').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', sumarDias(hoy, -120)).lte('fecha', hoy).not('hora', 'is', null).limit(10000),
     ])

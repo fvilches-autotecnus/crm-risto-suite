@@ -176,8 +176,8 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
               <div className="flex flex-wrap gap-2">
                 {(slots ?? []).map((s) => (
                   <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => setHora(s.hora)} aria-pressed={hora === s.hora}
-                    className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (hora === s.hora ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text') + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50')}>
-                    {s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
+                    className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (hora === s.hora ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text') + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50') + (s.aviso && s.disponible ? ' !h-auto min-h-9 py-1' : '')} title={s.disponible ? s.aviso : undefined}>
+                    {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
                 ))}
                 {!slots && !error && <p className="text-sm text-rs-muted">Buscando horarios…</p>}

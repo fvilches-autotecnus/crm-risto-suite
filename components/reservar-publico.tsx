@@ -215,8 +215,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               <div className={'flex flex-wrap gap-2 ' + (cargandoSlots ? 'opacity-60' : '')}>
                 {(slots ?? []).map((s) => (
                   <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cualquiera || !puedeElegir ? 'asesor' : null); setSel([]) }} aria-pressed={hora === s.hora}
-                    className={chip(hora === s.hora) + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50')} title={s.disponible ? undefined : MOTIVO[s.motivo ?? 'fuera_de_rango']}>
-                    {s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
+                    className={chip(hora === s.hora) + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50') + (s.aviso && s.disponible ? ' !h-auto min-h-9 py-1' : '')} title={s.disponible ? s.aviso : MOTIVO[s.motivo ?? 'fuera_de_rango']}>
+                    {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
                 ))}
                 {slots && slots.length === 0 && <p className="text-sm text-rs-muted">No hay horarios para este día.</p>}
