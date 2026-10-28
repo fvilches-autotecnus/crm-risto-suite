@@ -5,7 +5,7 @@ import ValidacionPropia from '@/components/validacion-propia'
 export const metadata: Metadata = {
   title: 'RistoSuite · Portal CRM',
   description: 'Reservas, clientes y consultas de tu restaurante.',
-  icons: { icon: '/logo.jpeg' },
+  icons: { icon: process.env.VERCEL_ENV === 'production' ? 'https://crm.ristosuite.app/logo.jpeg' : '/logo.jpeg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

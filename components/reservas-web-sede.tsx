@@ -19,6 +19,8 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
   const { state, pending, formProps } = useAccionFormulario(guardarReservasWebSede)
   const toast = useToast()
   const [origen, setOrigen] = useState('')
+  const [alias, setAlias] = useState(sede.alias_web ?? '')
+  const copiarEnlace = async (t: string) => { try { await navigator.clipboard.writeText(t); toast({ texto: 'Enlace copiado' }) } catch { toast({ tipo: 'error', texto: t }) } }
   useEffect(() => setOrigen(window.location.origin), [])
   useEffect(() => { if (state?.ok) toast({ texto: `Sitio de ${sede.nombre} guardado` }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const enlace = `${origen}/reservar/${slug}?sede=${sinTildes(sede.nombre)}`
@@ -45,6 +47,23 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
           </div>
         </details>
         <p className="flex items-center gap-2 truncate font-mono text-[11px] text-rs-muted" title="Enlace directo a esta sede">{enlace}<a href={enlace} target="_blank" rel="noopener noreferrer" className="btn btn-sm"><ExternalLink size={12} />Abrir</a></p>
+      </div>
+
+      <div className="space-y-2 rounded-md border border-rs-border/60 p-3">
+        <label className="label" htmlFor="ws_alias">Dirección propia del sitio de {sede.nombre}</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs text-rs-muted">{origen}/reservar/</span>
+          <input id="ws_alias" name="alias_web" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="ej. nenina-san-lorenzo" maxLength={60} autoCapitalize="none" autoCorrect="off" spellCheck={false} className="input w-64 font-mono" />
+        </div>
+        <p className="text-xs text-rs-muted">Con una dirección propia, el sitio de esta sede muestra <b className="text-rs-text">solo {sede.nombre}</b> (el cliente no elige sede). Dejala vacía para usar solo el sitio del negocio. Letras minúsculas, números y guiones; no puede repetirse con la de otra sede ni con la de un negocio.</p>
+        {sede.alias_web && alias.trim() === sede.alias_web && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md bg-rs-raised/50 px-3 py-2 text-sm">
+            <span className="min-w-0 flex-1 truncate font-mono text-xs">{origen}/reservar/{sede.alias_web}</span>
+            <button type="button" className="btn btn-sm" onClick={() => copiarEnlace(`${origen}/reservar/${sede.alias_web}`)}>Copiar</button>
+            <a href={`/reservar/${sede.alias_web}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm"><ExternalLink size={13} />Abrir</a>
+          </div>
+        )}
+        <p className="text-xs text-rs-muted">¿Querés publicarla en otro dominio, por ejemplo <span className="font-mono">reservas.ristosuite.app/{alias.trim() || 'mi-sede'}</span>? Se hace con una regla en el proyecto de ese dominio que reenvíe esa dirección a <span className="font-mono">{origen}/reservar/{alias.trim() || 'mi-sede'}</span> (ver el manual).</p>
       </div>
 
       <GrupoSede id="reglas" titulo="Reglas de la reserva" {...g('reglas')}>

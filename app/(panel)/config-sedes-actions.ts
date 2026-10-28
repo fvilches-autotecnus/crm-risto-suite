@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
+import { createAdminClient } from '@/lib/supabase/server'
 import { guardarConfigSede } from '@/lib/config-sedes-servidor'
 import { CLAVES_PARAMS, GRUPOS_WEB, type TipoSedeOv } from '@/lib/config-sedes'
 import { MODULOS_POR_SEDE } from '@/lib/modulos'
@@ -132,7 +133,19 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
   const sedeId = text(fd, 'sede_id')
   const { ctx, error } = await sedePermitida(sedeId); if (error) return fail(error)
   if (!ctx.modulosNegocio.reservas) return fail('Este negocio no tiene el módulo Reservas')
-  const nombre = ctx.sedesTodas.find((s) => s.id === sedeId)!.nombre
+  const sedeActual = ctx.sedesTodas.find((s) => s.id === sedeId)!
+  const nombre = sedeActual.nombre
+
+  // 0) la dirección propia del sitio de la sede (/reservar/<alias>)
+  const aliasTxt = text(fd, 'alias_web').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  if (aliasTxt && (aliasTxt.length < 3 || aliasTxt.length > 60)) return fail('La dirección del sitio va de 3 a 60 letras, números o guiones')
+  const aliasNuevo = aliasTxt || null
+  if (aliasNuevo !== (sedeActual.alias_web ?? null)) {
+    const { error: eAlias } = await createAdminClient().from('sucursales').update({ alias_web: aliasNuevo }).eq('id', sedeId).eq('negocio_id', ctx.negocio.id)
+    if (eAlias) return fail(eAlias.code === '23505' ? 'Esa dirección ya la usa otra sede o un negocio: elegí otra' : 'No se pudo guardar la dirección del sitio')
+    if (sedeActual.alias_web) revalidatePath(`/reservar/${sedeActual.alias_web}`)
+    if (aliasNuevo) revalidatePath(`/reservar/${aliasNuevo}`)
+  }
 
   // 1) lo que ya tenía el sitio por sede
   const hs = horas(text(fd, 'sede_horarios'))

@@ -30,6 +30,7 @@ export interface Sede {
   telefono: string | null
   maps_url: string | null
   numeracion_propia: boolean
+  alias_web: string | null   // dirección propia del sitio de reservas de la sede (/reservar/<alias>)
 }
 
 export interface Contexto {
@@ -95,7 +96,7 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     : ((membresias?.find((m) => m.negocio_id === negocio.id)?.rol as Rol | undefined) ?? 'solo_lectura')
 
   // Sedes: la lista completa (RLS deja ver los nombres) y el alcance del usuario.
-  const [{ data: sedesData }, { data: cfgSedesData }] = await Promise.all([supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa, direccion, telefono, maps_url, numeracion_propia').eq('negocio_id', negocio.id).order('orden').order('nombre'),
+  const [{ data: sedesData }, { data: cfgSedesData }] = await Promise.all([supabase.from('sucursales').select('id, nombre, whatsapp_nro, aforo_maximo_reservas, activa, direccion, telefono, maps_url, numeracion_propia, alias_web').eq('negocio_id', negocio.id).order('orden').order('nombre'),
     supabase.from('config_sedes').select('sucursal_id, modulos, web, params, tipos, mensajes, estado_inicial').eq('negocio_id', negocio.id)])
   const sedesTodas = (sedesData ?? []) as Sede[]
   const configSedes: Record<string, ConfigSede> = Object.fromEntries(sedesTodas.map((x) => [x.id, CONFIG_SEDE_VACIA(x.id)]))
