@@ -275,8 +275,12 @@ export const MANUAL: SeccionManual[] = [
 
   // ───────────────────────── Análisis
   {
-    id: 'metricas', grupo: 'Análisis', titulo: 'Métricas', modulo: 'metricas', resumen: 'Gráficos de reservas, horarios y clientes recurrentes.',
-    bloques: [{ t: 'p', x: 'Elegís el período y ves: **promedio de personas por reserva**, **horario más reservado**, la **evolución** de reservas (por día, semana o mes), los **días más fuertes**, los **horarios más reservados**, las reservas **por estado** (y por sede si hay varias) y los **clientes recurrentes** (los que más vuelven). Se calculan con las reservas, así que sin Reservas los gráficos quedan vacíos.' }],
+    id: 'metricas', grupo: 'Análisis', titulo: 'Métricas', modulo: 'metricas', resumen: 'Gráficos de reservas y de pedidos, horarios fuertes y clientes recurrentes.',
+    bloques: [
+      { t: 'p', x: 'Elegís el período y ves los números de lo que use tu negocio: si tiene **Reservas** y **Pedidos**, aparecen dos pestañas arriba (**Reservas** y **Pedidos**); si usa solo uno, ves directamente ese. El período y la forma de agrupar la evolución valen para ambas.' },
+      { t: 'p', x: '**Reservas:** promedio de personas por reserva, horario más reservado, evolución (por día, semana o mes), días más fuertes, horarios más reservados, reservas por estado (y por sede si hay varias) y clientes recurrentes (los que más vuelven).' },
+      { t: 'p', x: '**Pedidos:** cantidad de pedidos, **ventas** (sin contar cancelados), **ticket promedio** y hora pico; evolución de pedidos y de ventas, días más fuertes, horas con más pedidos, **productos más pedidos**, pedidos por tipo (retiro, delivery, mesa), medios de pago, pedidos por estado y los clientes que más piden. Los pedidos no se registran por sede: con una sede elegida se ven los de todo el negocio.' },
+    ],
   },
 
   // ───────────────────────── Administración

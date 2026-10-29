@@ -1,5 +1,6 @@
 'use client'
 
+import { dinero } from '@/lib/pedidos'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Table2, BarChart3 } from 'lucide-react'
 
@@ -112,7 +113,8 @@ function curva(pts: { x: number; y: number }[]): string {
   return d
 }
 
-export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }: { puntos: PuntoLinea[]; unidad?: string; tendencia?: boolean }) {
+export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false, formato = 'numero' }: { puntos: PuntoLinea[]; unidad?: string; tendencia?: boolean; formato?: 'numero' | 'dinero' }) {
+  const fmt = (n: number) => (formato === 'dinero' ? dinero(n) : String(n))
   const [ref, W] = useAncho<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const idGrad = useId().replace(/:/g, '')
@@ -147,7 +149,7 @@ export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }:
 
   return (
     <div ref={ref} className="relative w-full min-w-0 overflow-hidden" onPointerLeave={() => setHover(null)}>
-      <svg width={W} height={H} role="img" aria-label={`Evolución: ${puntos.reduce((s, p) => s + p.valor, 0)} ${unidad} en ${n} puntos`} tabIndex={0}
+      <svg width={W} height={H} role="img" aria-label={`Evolución: ${fmt(puntos.reduce((s, p) => s + p.valor, 0))} ${unidad} en ${n} puntos`} tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'ArrowRight') setHover(Math.min(n - 1, (hover ?? -1) + 1)); if (e.key === 'ArrowLeft') setHover(Math.max(0, (hover ?? n) - 1)) }}
         onBlur={() => setHover(null)} className="block overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-rs-lime/40">
         <defs>
@@ -174,7 +176,7 @@ export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }:
           {recta && <span className="inline-flex items-center gap-2"><span className="h-0.5 w-4 rounded" style={{ background: TEXTO, opacity: 0.45 }} />Tendencia</span>}
         </div>
       )}
-      {hover !== null && <Tooltip x={px(hover)} y={py(puntos[hover].valor)} ancho={W} titulo={puntos[hover].titulo} valor={`${puntos[hover].valor} ${unidad}`} />}
+      {hover !== null && <Tooltip x={px(hover)} y={py(puntos[hover].valor)} ancho={W} titulo={puntos[hover].titulo} valor={`${fmt(puntos[hover].valor)} ${unidad}`} />}
     </div>
   )
 }
@@ -182,7 +184,8 @@ export function GraficoLinea({ puntos, unidad = 'reservas', tendencia = false }:
 // ---------------------------------------------------------------------------
 // Columnas (comparar categorías: día de la semana)
 // ---------------------------------------------------------------------------
-export function GraficoColumnas({ datos, unidad = 'reservas', titulo = 'Reservas por día de la semana' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string; titulo?: string }) {
+export function GraficoColumnas({ datos, unidad = 'reservas', titulo = 'Reservas por día de la semana', formato = 'numero' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string; titulo?: string; formato?: 'numero' | 'dinero' }) {
+  const fmt = (n: number) => (formato === 'dinero' ? dinero(n) : String(n))
   const [ref, W] = useAncho<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const H = 220, m = { l: 34, r: 10, t: 22, b: 26 }
@@ -206,13 +209,13 @@ export function GraficoColumnas({ datos, unidad = 'reservas', titulo = 'Reservas
             <g key={d.etiqueta} tabIndex={0} onFocus={() => setHover(i)} onBlur={() => setHover(null)} onPointerEnter={() => setHover(i)} className="outline-none">
               <rect x={m.l + banda * i} y={m.t} width={banda} height={ih + 8} fill="transparent" />
               {d.valor > 0 && <path d={columna(x, y, ancho, h)} fill={LIMA} opacity={hover === i ? 1 : i === top ? 0.95 : 0.45} className="grow-y transition-opacity" style={{ animationDelay: `${i * 50}ms` }} />}
-              {i === top && d.valor > 0 && <text x={x + ancho / 2} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600} fill={TEXTO}>{d.valor}</text>}
+              {i === top && d.valor > 0 && <text x={x + ancho / 2} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600} fill={TEXTO}>{fmt(d.valor)}</text>}
               <text x={m.l + banda * i + banda / 2} y={H - 6} textAnchor="middle" fontSize={11} fill={TEXTO_SUAVE}>{d.etiqueta}</text>
             </g>
           )
         })}
       </svg>
-      {hover !== null && <Tooltip x={m.l + banda * hover + banda / 2} y={m.t + ih - (datos[hover].valor / tope) * ih} ancho={W} titulo={datos[hover].etiqueta} valor={`${datos[hover].valor} ${unidad}`} />}
+      {hover !== null && <Tooltip x={m.l + banda * hover + banda / 2} y={m.t + ih - (datos[hover].valor / tope) * ih} ancho={W} titulo={datos[hover].etiqueta} valor={`${fmt(datos[hover].valor)} ${unidad}`} />}
     </div>
   )
 }
@@ -220,17 +223,18 @@ export function GraficoColumnas({ datos, unidad = 'reservas', titulo = 'Reservas
 // ---------------------------------------------------------------------------
 // Barras horizontales (ranking: horarios, sedes)
 // ---------------------------------------------------------------------------
-export function BarrasHorizontales({ datos, unidad = 'reservas' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string }) {
+export function BarrasHorizontales({ datos, unidad = 'reservas', formato = 'numero', anchoEtiqueta = '4.5rem' }: { datos: { etiqueta: string; valor: number }[]; unidad?: string; formato?: 'numero' | 'dinero'; anchoEtiqueta?: string }) {
+  const fmt = (n: number) => (formato === 'dinero' ? dinero(n) : String(n))
   const max = Math.max(...datos.map((d) => d.valor), 1)
   return (
     <ul className="space-y-2.5">
       {datos.map((d, i) => (
-        <li key={d.etiqueta} className="group grid grid-cols-[4.5rem_1fr_2.5rem] items-center gap-3 text-sm" title={`${d.etiqueta}: ${d.valor} ${unidad}`}>
+        <li key={d.etiqueta} className="group grid items-center gap-3 text-sm" style={{ gridTemplateColumns: `${anchoEtiqueta} 1fr minmax(2.5rem, auto)` }} title={`${d.etiqueta}: ${fmt(d.valor)} ${unidad}`}>
           <span className="truncate text-rs-muted tabular-nums">{d.etiqueta}</span>
           <span className="h-2.5 overflow-hidden rounded-full bg-rs-raised">
             <span className="grow-x block h-full rounded-full transition-opacity group-hover:opacity-100" style={{ width: `${(d.valor / max) * 100}%`, background: LIMA, opacity: i === 0 ? 1 : 0.55, animationDelay: `${i * 60}ms` }} />
           </span>
-          <span className="text-right font-semibold tabular-nums">{d.valor}</span>
+          <span className="text-right font-semibold tabular-nums">{fmt(d.valor)}</span>
         </li>
       ))}
     </ul>
