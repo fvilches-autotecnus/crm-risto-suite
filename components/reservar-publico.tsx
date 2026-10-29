@@ -330,8 +330,10 @@ function Banner({ nombre, subtitulo, prueba, marca }: { nombre: string; subtitul
       )}
       {prueba && <span className="mb-2 inline-block rounded-full bg-rs-warn/15 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rs-warn">Sitio de prueba</span>}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {logo && <img src={logo} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />}
-      <h1 className={logo ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>{nombre}</h1>
+      {logo && (marca?.logo_forma === 'libre'
+        ? <img src={logo} alt="" className="mx-auto mb-3 h-28 w-auto max-w-[85%] object-contain" />
+        : <img src={logo} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />)}
+      <h1 className={logo && marca?.logo_forma === 'libre' ? 'sr-only' : logo ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>   {/* un logo libre ya trae el nombre: se lee igual, pero no se repite a la vista */}{nombre}</h1>
       {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
       <p className="mt-1 text-sm text-rs-muted">{subtitulo || 'Reservá tu mesa'}</p>
       {prueba && <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>}

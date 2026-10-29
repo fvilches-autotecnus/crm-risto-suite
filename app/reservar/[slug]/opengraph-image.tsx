@@ -28,7 +28,9 @@ export default async function Miniatura({ params }: { params: Promise<{ slug: st
         {orn && <img src={orn} width={420} height={528} style={{ position: 'absolute', top: -40, right: -30, opacity: 0.28 }} />}
         {orn && <img src={orn} width={420} height={528} style={{ position: 'absolute', bottom: -40, left: -30, opacity: 0.18, transform: 'rotate(180deg)' }} />}
         {logo
-          ? <img src={logo} width={230} height={230} style={{ borderRadius: 115, border: `3px solid ${acento}` }} />
+          ? marca?.logo_forma === 'libre'
+            ? <img src={logo} height={230} style={{ height: 230, objectFit: 'contain' }} />
+            : <img src={logo} width={230} height={230} style={{ borderRadius: 115, border: `3px solid ${acento}` }} />
           : <img src={risto} width={170} height={170} style={{ borderRadius: 40 }} />}
         <div style={{ display: 'flex', marginTop: 28, fontSize: 54, fontWeight: 300, letterSpacing: 10, textTransform: 'uppercase', color: acento, textAlign: 'center', maxWidth: 1000 }}>{nombre}</div>
         {marca?.lema && <div style={{ display: 'flex', marginTop: 12, fontSize: 32, fontStyle: 'italic', color: texto, textAlign: 'center', maxWidth: 900 }}>{marca.lema}</div>}
