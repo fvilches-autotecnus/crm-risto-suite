@@ -142,7 +142,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
       negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre_pila: form.nombre.trim(), apellido: form.apellido.trim(), cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: unirNombre(form.nombre, form.apellido), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
-      ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : 'que la elija el local', comentarios: form.observaciones.trim(),
+      ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : puedeElegir ? 'que la elija el local' : '', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
   }
@@ -161,7 +161,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             {resultado.sede && <p><span className="text-rs-muted">Sede:</span> <b>{resultado.sede}</b></p>}
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
             <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion || cualquiera ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion ?? etiquetaCualquiera}</b></> : null}</p>
-            <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>
+            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>}
           </div>
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
