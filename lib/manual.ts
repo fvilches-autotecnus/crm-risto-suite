@@ -248,6 +248,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Cuando un cliente escribe algo que el bot no resuelve (una consulta) o se queja (un reclamo), queda acá. Filtrás por **Pendientes / Resueltas** y por tipo.' },
       { t: 'pasos', x: ['Abrí el mensaje, respondé al cliente por WhatsApp y marcá la consulta como **Resuelta**.', 'Podés pedir un **Resumen con IA** para ver de qué se trata lo que más se repite.'] },
+      { t: 'p', x: '**Bot sin respuesta:** el bot puede tomar el mensaje **sin contestarle nada al cliente**. La respuesta del bot trae `responder: false`, `mensaje` vacío y un campo `notificacion_equipo` (por ejemplo «📩 NUEVA CONSULTA · San Lorenzo / Cami / +54… / ¿Tienen menú sin TACC?») para reenviarlo a un contacto o grupo del equipo desde BotConversa. La atención queda para vos, desde acá.' },
     ],
   },
   {
