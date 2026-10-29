@@ -7,11 +7,12 @@ import { FechaInput } from '@/components/inputs'
 import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
+import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 type Cfg = Props['cfg']
 interface Props {
-  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string
   cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
 }
 
@@ -21,7 +22,7 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfgBase.personas_min), cfgBase.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
@@ -148,8 +149,9 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
 
   if (resultado) {
     return (
-      <div className="min-h-screen">
-        <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} />
+      <div className="relative isolate min-h-screen pb-10">
+        <Adorno marca={marca} />
+        <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><MessageCircle size={28} /></div>
           <h1 className="text-xl font-bold">¡Último paso: mandá el mensaje por WhatsApp!</h1>
@@ -165,6 +167,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
           <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <PieRisto logo={logoRisto} />
         </main>
       </div>
     )
@@ -172,8 +175,9 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
 
   const chip = (activo: boolean) => 'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (activo ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text')
   return (
-    <div className="min-h-screen pb-16">
-      <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} />
+    <div className="relative isolate min-h-screen pb-10">
+      <Adorno marca={marca} />
+      <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
         {cfg.mensaje && !sede?.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
 
@@ -291,16 +295,44 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             </form>
           </section>
         )}
+        <PieRisto logo={logoRisto} />
       </main>
     </div>
   )
 }
 
-function Banner({ nombre, subtitulo, prueba }: { nombre: string; subtitulo: string | null; prueba: boolean }) {
+/** Adorno del local al pie de la página (el de arriba va dentro del encabezado): fijo, de fondo y sin tapar nada. */
+function Adorno({ marca }: { marca?: Marca }) {
+  if (!marca?.ornamento_url) return null
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={marca.ornamento_url} alt="" aria-hidden className="pointer-events-none fixed -bottom-16 -left-20 -z-10 w-64 rotate-180 select-none opacity-[.12] sm:w-80" />
+}
+
+/** La firma de Risto Suite: el sitio puede tener la marca del local, pero siempre se ve de quién es la herramienta. */
+function PieRisto({ logo }: { logo?: string }) {
   return (
-    <header className="border-b border-rs-raised bg-rs-header px-4 pb-4 pt-6 text-center">
+    <p className="flex items-center justify-center gap-1.5 pt-4 text-xs text-rs-muted">
+      Reservas con
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {logo && <img src={logo} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-md" />}
+      <b className="font-semibold text-rs-text">Risto Suite</b>
+    </p>
+  )
+}
+
+function Banner({ nombre, subtitulo, prueba, marca }: { nombre: string; subtitulo: string | null; prueba: boolean; marca?: Marca }) {
+  const logo = marca?.logo_url
+  return (
+    <header className={'relative isolate overflow-hidden border-b border-rs-raised bg-rs-header px-4 text-center ' + (logo ? 'pb-6 pt-8' : 'pb-4 pt-6')}>
+      {marca?.ornamento_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={marca.ornamento_url} alt="" aria-hidden className="pointer-events-none absolute -right-8 -top-4 -z-10 w-48 select-none opacity-25 sm:-right-4 sm:w-64" />
+      )}
       {prueba && <span className="mb-2 inline-block rounded-full bg-rs-warn/15 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rs-warn">Sitio de prueba</span>}
-      <h1 className="text-2xl font-bold text-rs-lime">{nombre}</h1>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {logo && <img src={logo} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />}
+      <h1 className={logo ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>{nombre}</h1>
+      {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
       <p className="mt-1 text-sm text-rs-muted">{subtitulo || 'Reservá tu mesa'}</p>
       {prueba && <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>}
     </header>

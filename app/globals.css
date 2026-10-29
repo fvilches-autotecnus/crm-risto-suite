@@ -2,21 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Paleta Risto Suite. El sitio público de reservas puede pisarla con la marca del local (lib/marca.ts). */
+  --rs-bg: 0 0 0;
+  --rs-header: 10 17 0;
+  --rs-card: 19 29 3;
+  --rs-raised: 26 37 4;
+  --rs-border: 31 45 3;
+  --rs-control: 37 51 0;
+  --rs-input: 13 20 0;
+  --rs-text: 240 244 232;
+  --rs-muted: 122 144 80;
+  --rs-lime: 200 230 43;
+  --rs-on-lime: 13 20 0;
+  --rs-ok: 94 204 110;
+  --rs-lav: 165 180 252;
+  --rs-warn: 245 185 66;
+  --rs-danger: 240 112 107;
+}
+
 html { color-scheme: dark; scroll-behavior: smooth; }
 body { @apply bg-rs-bg text-rs-text antialiased; font-family: ui-sans-serif, system-ui, sans-serif; }
-::selection { background: rgba(200, 230, 43, .35); }
-* { scrollbar-width: thin; scrollbar-color: #253300 transparent; }
+::selection { background: rgb(var(--rs-lime) / .35); }
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--rs-control)) transparent; }
 
 @layer components {
   .card { @apply rounded-rs-lg border border-rs-border bg-rs-card; }
-  .card-hover { @apply transition duration-200 hover:-translate-y-0.5 hover:border-rs-lime/30 hover:shadow-[0_8px_30px_-12px_rgba(200,230,43,.25)]; }
+  .card-hover { @apply transition duration-200 hover:-translate-y-0.5 hover:border-rs-lime/30 hover:shadow-[0_8px_30px_-12px_rgb(var(--rs-lime)/.25)]; }
   .card-title { @apply text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
-  .input { @apply h-9 rounded-rs border border-rs-control bg-[#131d03] px-3 text-sm text-rs-text outline-none transition placeholder:text-rs-muted/70 hover:border-rs-muted/50 focus:border-rs-lime/70 focus:ring-2 focus:ring-rs-lime/20 disabled:opacity-50; }
+  .input { @apply h-9 rounded-rs border border-rs-control bg-rs-card px-3 text-sm text-rs-text outline-none transition placeholder:text-rs-muted/70 hover:border-rs-muted/50 focus:border-rs-lime/70 focus:ring-2 focus:ring-rs-lime/20 disabled:opacity-50; }
   textarea.input { @apply h-auto py-2; }
   .input[aria-invalid='true'] { @apply border-rs-danger/70 ring-2 ring-rs-danger/20; }
   .label { @apply mb-1 block text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted; }
   .btn { @apply inline-flex h-9 select-none items-center justify-center gap-2 rounded-rs border border-rs-control px-3 text-sm font-medium text-rs-muted transition duration-150 hover:bg-rs-raised hover:text-rs-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rs-lime/50 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100; }
-  .btn-primary { @apply border-transparent bg-rs-lime font-semibold text-rs-on-lime hover:bg-rs-lime/90 hover:text-rs-on-lime hover:shadow-[0_0_24px_-4px_rgba(200,230,43,.55)]; }
+  .btn-primary { @apply border-transparent bg-rs-lime font-semibold text-rs-on-lime hover:bg-rs-lime/90 hover:text-rs-on-lime hover:shadow-[0_0_24px_-4px_rgb(var(--rs-lime)/.55)]; }
   .btn-danger { @apply border-rs-danger/40 text-rs-danger hover:bg-rs-danger/10 hover:text-rs-danger; }
   .btn-sm { @apply h-7 px-2 text-xs; }
   .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
