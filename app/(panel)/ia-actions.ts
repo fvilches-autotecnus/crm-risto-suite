@@ -97,59 +97,92 @@ ${lineas}
 
 const variacion = (ahora: number, antes: number) => (antes === 0 ? (ahora === 0 ? 'igual' : 'sin datos del período anterior') : `${ahora >= antes ? '+' : ''}${Math.round(((ahora - antes) / antes) * 100)}% vs el período anterior (${antes})`)
 
-/** Resumen y conclusiones de las métricas del período (reservas o pedidos), comparadas con el período anterior de igual largo. A la IA solo van números agregados. */
-export async function resumirMetricas(f: { seccion: string; desde: string; hasta: string }): Promise<ResumenIAResult> {
+/**
+ * Resumen y conclusiones del período, UNO solo para todo lo que el negocio tiene habilitado (reservas, pedidos, reseñas, consultas y reclamos),
+ * comparado con el período anterior de igual largo. Lo que el negocio no usa no se pide ni se menciona. A la IA solo van números agregados.
+ */
+export async function resumirMetricas(f: { desde: string; hasta: string }): Promise<ResumenIAResult> {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.metricas) return { ok: false, error: 'Las métricas no están habilitadas en este negocio.' }
-  const { negocio, sede } = ctx
+  const { supabase, negocio, sede } = ctx
   const hoyReal = hoyEn(negocio.zona_horaria)
   const FECHA = /^\d{4}-\d{2}-\d{2}$/
   if (!FECHA.test(f.desde) || !FECHA.test(f.hasta) || f.desde > f.hasta || f.hasta > hoyReal || diasEntre(f.desde, f.hasta) > 366) return { ok: false, error: 'El período no es válido.' }
-  const seccion = f.seccion === 'pedidos' && ctx.modulosActivos.pedidos ? 'pedidos' : ctx.modulosActivos.reservas ? 'reservas' : 'pedidos'
-  if (seccion === 'pedidos' && !ctx.modulosActivos.pedidos) return { ok: false, error: 'Este negocio no tiene reservas ni pedidos para resumir.' }
+  const mod = ctx.modulosActivos
   const dias = diasEntre(f.desde, f.hasta)
   const antHasta = sumarDias(f.desde, -1), antDesde = sumarDias(antHasta, -(dias - 1))
   const modo = agrupacionAuto(dias)
-  const periodoTxt = `del ${fechaCorta(f.desde)} al ${fechaCorta(f.hasta)} (${dias} días)`
+  const cadaUno = modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'
+  const periodoTxt = `del ${fechaCorta(f.desde)} al ${fechaCorta(f.hasta)}`
+  const anteriorTxt = `del ${fechaCorta(antDesde)} al ${fechaCorta(antHasta)}`
   const lista = (xs: { etiqueta: string; valor: number }[]) => xs.map((x) => `${x.etiqueta}: ${x.valor}`).join(' · ') || 'sin datos'
-  let datos: string, total: number
-  if (seccion === 'reservas') {
+  const bloques: string[] = [], usados: string[] = []
+
+  if (mod.reservas) {
     const [m, a] = await Promise.all([cargarReservas(ctx, f.desde, f.hasta), cargarReservas(ctx, antDesde, antHasta)])
-    total = m.total
-    if (m.total === 0 && m.canceladas === 0) return { ok: false, error: 'No hay reservas en este período para resumir.' }
-    const nombresSede = new Map(ctx.sedesTodas.map((x) => [x.id, x.nombre]))
-    const serie = serieEvolucion(m.porDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: p.valor }))
-    datos = [`Reservas (sin canceladas): ${m.total} (${variacion(m.total, a.total)}). Canceladas: ${m.canceladas} (antes ${a.canceladas}).`,
-      `Promedio de personas por reserva: ${m.promPersonas} (antes ${a.promPersonas}). Horario más reservado: ${m.horarioTop ?? '—'}.`,
-      `Evolución ${modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'}: ${lista(serie)}`,
-      `Por día de la semana: ${lista(m.porDiaSemana)}`, `Horarios más reservados: ${lista(m.porHorario)}`,
-      `Por estado: ${m.porEstado.map((e) => `${labelEstado(e.estado)} ${e.valor}`).join(' · ') || 'sin datos'}`,
-      ...(sede || ctx.sedesTodas.length === 0 ? [] : [`Por sede: ${m.porSede.map((s) => `${s.sucursal_id ? nombresSede.get(s.sucursal_id) ?? '—' : 'Sin sede'} ${s.valor}`).join(' · ') || 'sin datos'}`]),
-      `Clientes: ${m.pctRecurrentes}% recurrentes (${m.recurrentes} recurrentes, ${m.nuevos} nuevos; antes ${a.pctRecurrentes}%).`].join('\n')
-  } else {
-    const [{ m, productos }, { m: a }] = await Promise.all([cargarPedidos(ctx, f.desde, f.hasta), cargarPedidos(ctx, antDesde, antHasta)])
-    total = m.total
-    if (m.total === 0 && m.cancelados === 0) return { ok: false, error: 'No hay pedidos en este período para resumir.' }
-    const serie = serieEvolucion(m.porDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: p.valor }))
-    const ventas = serieEvolucion(m.ventasPorDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: Math.round(p.valor) }))
-    datos = [`Pedidos (sin cancelados): ${m.total} (${variacion(m.total, a.total)}). Cancelados: ${m.cancelados} (antes ${a.cancelados}).`,
-      `Ventas: ${dinero(m.ventas)} (${variacion(m.ventas, a.ventas)}). Ticket promedio: ${m.total ? dinero(m.ticket) : '—'} (antes ${a.total ? dinero(a.ticket) : '—'}). Hora pico: ${m.horaTop ?? '—'}.`,
-      `Pedidos ${modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'}: ${lista(serie)}`, `Ventas ${modo === 'dia' ? 'por día' : modo === 'semana' ? 'por semana' : 'por mes'} (en pesos): ${lista(ventas)}`,
-      `Por día de la semana: ${lista(m.porDiaSemana)}`, `Horas con más pedidos: ${lista(m.porHora)}`,
-      `Productos más pedidos (unidades): ${lista(productos.map((p) => ({ etiqueta: p.etiqueta, valor: p.valor })))}`,
-      `Por tipo: ${m.porTipo.map((x) => `${labelTipo(x.tipo)} ${x.valor}`).join(' · ') || 'sin datos'}`, `Medios de pago: ${m.porPago.map((x) => `${labelPago(x.medio)} ${x.valor}`).join(' · ') || 'sin datos'}`,
-      `Por estado: ${m.porEstado.map((x) => `${labelEstadoPedido(x.estado)} ${x.valor}`).join(' · ') || 'sin datos'}`,
-      `Clientes: ${m.pctRecurrentes}% recurrentes (${m.recurrentes} recurrentes, ${m.nuevos} nuevos; antes ${a.pctRecurrentes}%).`].join('\n')
+    if (m.total > 0 || m.canceladas > 0) {
+      usados.push('reservas')
+      const nombresSede = new Map(ctx.sedesTodas.map((x) => [x.id, x.nombre]))
+      const serie = serieEvolucion(m.porDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: p.valor }))
+      bloques.push([`## RESERVAS`, `Reservas (sin canceladas): ${m.total} (${variacion(m.total, a.total)}). Canceladas: ${m.canceladas} (antes ${a.canceladas}).`,
+        `Promedio de personas por reserva: ${m.promPersonas} (antes ${a.promPersonas}). Horario más reservado: ${m.horarioTop ?? '—'}.`,
+        `Evolución ${cadaUno}: ${lista(serie)}`, `Por día de la semana: ${lista(m.porDiaSemana)}`, `Horarios más reservados: ${lista(m.porHorario)}`,
+        `Por estado: ${m.porEstado.map((e) => `${labelEstado(e.estado)} ${e.valor}`).join(' · ') || 'sin datos'}`,
+        ...(sede || ctx.sedesTodas.length === 0 ? [] : [`Por sede: ${m.porSede.map((s) => `${s.sucursal_id ? nombresSede.get(s.sucursal_id) ?? '—' : 'Sin sede'} ${s.valor}`).join(' · ') || 'sin datos'}`]),
+        `Clientes: ${m.pctRecurrentes}% recurrentes (${m.recurrentes} recurrentes, ${m.nuevos} nuevos; antes ${a.pctRecurrentes}%).`].join('\n'))
+    }
   }
-  const sistema = `Sos analista de gestión de un restaurante. Recibís las métricas de ${seccion === 'reservas' ? 'reservas' : 'pedidos'} de un período, comparadas con el período anterior de igual largo, y sacás conclusiones útiles para el dueño.
-${REGLAS}
-Secciones a devolver (en este orden): "Lo que anda bien", "Lo que hay que mirar de cerca". Basate solo en los números: si la diferencia con el período anterior es chica, decilo; no atribuyas causas que los datos no muestran. Con pocos datos, advertilo. En "temas" devolvé una lista vacía [].`
-  const usuario = `Negocio: ${negocio.nombre}${sede && seccion === 'reservas' ? ` · sede ${sede.nombre}` : ''}.
-Período: ${periodoTxt}. Período anterior para comparar: del ${fechaCorta(antDesde)} al ${fechaCorta(antHasta)}.
-<datos>
-${sinTags(datos)}
-</datos>`
+
+  if (mod.pedidos) {
+    const [{ m, productos }, { m: a }] = await Promise.all([cargarPedidos(ctx, f.desde, f.hasta), cargarPedidos(ctx, antDesde, antHasta)])
+    if (m.total > 0 || m.cancelados > 0) {
+      usados.push('pedidos')
+      const serie = serieEvolucion(m.porDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: p.valor }))
+      const ventas = serieEvolucion(m.ventasPorDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: Math.round(p.valor) }))
+      bloques.push([`## PEDIDOS`, `Pedidos (sin cancelados): ${m.total} (${variacion(m.total, a.total)}). Cancelados: ${m.cancelados} (antes ${a.cancelados}).`,
+        `Ventas: ${dinero(m.ventas)} (${variacion(m.ventas, a.ventas)}). Ticket promedio: ${m.total ? dinero(m.ticket) : '—'} (antes ${a.total ? dinero(a.ticket) : '—'}). Hora pico: ${m.horaTop ?? '—'}.`,
+        `Pedidos ${cadaUno}: ${lista(serie)}`, `Ventas ${cadaUno} (en pesos): ${lista(ventas)}`, `Por día de la semana: ${lista(m.porDiaSemana)}`, `Horas con más pedidos: ${lista(m.porHora)}`,
+        `Productos más pedidos (unidades): ${lista(productos.map((p) => ({ etiqueta: p.etiqueta, valor: p.valor })))}`,
+        `Por tipo: ${m.porTipo.map((x) => `${labelTipo(x.tipo)} ${x.valor}`).join(' · ') || 'sin datos'}`, `Medios de pago: ${m.porPago.map((x) => `${labelPago(x.medio)} ${x.valor}`).join(' · ') || 'sin datos'}`,
+        `Por estado: ${m.porEstado.map((x) => `${labelEstadoPedido(x.estado)} ${x.valor}`).join(' · ') || 'sin datos'}`,
+        `Clientes: ${m.pctRecurrentes}% recurrentes (${m.recurrentes} recurrentes, ${m.nuevos} nuevos; antes ${a.pctRecurrentes}%).`].join('\n'))
+    }
+  }
+
+  if (mod.resenas) {
+    const leer = async (d: string, h: string) => {
+      let q = supabase.from('resenas').select('puntaje').eq('negocio_id', negocio.id).gte('fecha', d).lte('fecha', h)
+      if (sede) q = q.eq('sucursal_id', sede.id)
+      return ((await q.limit(5000)).data ?? []) as { puntaje: number }[]
+    }
+    const [r, ra] = await Promise.all([leer(f.desde, f.hasta), leer(antDesde, antHasta)])
+    if (r.length > 0) {
+      usados.push('reseñas')
+      const prom = (xs: { puntaje: number }[]) => (xs.length ? Math.round((xs.reduce((s, x) => s + x.puntaje, 0) / xs.length) * 10) / 10 : null)
+      bloques.push([`## RESEÑAS`, `Reseñas: ${r.length} (${variacion(r.length, ra.length)}). Puntaje promedio: ${prom(r)} (antes ${prom(ra) ?? 'sin reseñas'}).`,
+        `Distribución: ${[5, 4, 3, 2, 1].map((n) => `${n}★ ${r.filter((x) => x.puntaje === n).length}`).join(' · ')}.`].join('\n'))
+    }
+  }
+
+  if (mod.consultas) {
+    const leer = async (d: string, h: string) => {
+      let q = supabase.from('consultas_reclamos').select('tipo, estado').eq('negocio_id', negocio.id).gte('creado_en', `${d}T00:00:00-03:00`).lte('creado_en', `${h}T23:59:59-03:00`)
+      if (sede) q = q.eq('sucursal_id', sede.id)
+      return ((await q.limit(5000)).data ?? []) as { tipo: string; estado: string }[]
+    }
+    const [c, ca] = await Promise.all([leer(f.desde, f.hasta), leer(antDesde, antHasta)])
+    if (c.length > 0) {
+      usados.push('consultas y reclamos')
+      const rec = (xs: { tipo: string }[]) => xs.filter((x) => x.tipo === 'reclamo').length
+      bloques.push([`## CONSULTAS Y RECLAMOS`, `Mensajes: ${c.length} (${variacion(c.length, ca.length)}). Reclamos: ${rec(c)} (antes ${rec(ca)}). Consultas: ${c.length - rec(c)}. Sin resolver: ${c.filter((x) => x.estado === 'pendiente').length}.`].join('\n'))
+    }
+  }
+
+  if (bloques.length === 0) return { ok: false, error: 'No hay datos en este período para resumir (o el negocio no tiene habilitados los módulos que se resumen).' }
+  const sistema = `Sos analista de gestión de un restaurante. Recibís las métricas de un período de lo que el negocio usa (${usados.join(', ')}), comparadas con el período anterior de igual largo, y sacás conclusiones útiles para el dueño.\n${REGLAS}\nSecciones a devolver (en este orden): "Lo que anda bien", "Lo que hay que mirar de cerca". Hablá SOLO de las áreas que figuran en los datos; no menciones las que no aparecen. Basate solo en los números: si la diferencia con el período anterior es chica, decilo; no atribuyas causas que los datos no muestran. Con pocos datos, advertilo. En "temas" devolvé una lista vacía [].`
+  const usuario = `Negocio: ${negocio.nombre}${sede ? ` · sede ${sede.nombre}` : ''}.\nPeríodo: ${periodoTxt} (${dias} días). Período anterior, para comparar: ${anteriorTxt}.\n<datos>\n${sinTags(bloques.join('\n\n'))}\n</datos>`
   const r = await pedirResumen(sistema, usuario, [])
   if (!r.ok) return r
-  return { ok: true, ...r.datos, analizadas: dias, total, generado: new Date().toISOString(), modelo: r.modelo, nota: `Se analizaron las métricas de ${seccion} ${periodoTxt}, comparadas con los ${dias} días anteriores.` }
+  return { ok: true, ...r.datos, analizadas: dias, total: dias, generado: new Date().toISOString(), modelo: r.modelo,
+    nota: `Se analizó ${usados.join(', ')} ${periodoTxt}, comparado con ${anteriorTxt}.` }
 }

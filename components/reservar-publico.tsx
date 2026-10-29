@@ -290,7 +290,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                   <div className="mt-2">
                     <label className="label" htmlFor="rw_cumple_anio">Año de nacimiento (opcional)</label>
                     <select id="rw_cumple_anio" value={form.cumple_anio} disabled={!form.cumple_dia || !form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_anio: e.target.value }))} className="input w-full">
-                      <option value="">Año</option>{Array.from({ length: new Date().getFullYear() - 5 - 1920 + 1 }, (_, i) => new Date().getFullYear() - 5 - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                      <option value="">Año</option>{Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}
                     </select>
                     <p className="mt-1 text-xs text-rs-muted">Así sabemos qué edad cumplís. Primero elegí el día y el mes.</p>
                   </div>
