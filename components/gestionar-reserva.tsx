@@ -5,6 +5,7 @@ import { CalendarClock, Check, MessageCircle, Minus, Plus, ShieldCheck, Users, X
 import { FechaInput } from '@/components/inputs'
 import { consultarHorarios, consultarPlano, pedirAccionReserva, type MesaWeb, type ResultadoAccion, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 import { PlanoWeb } from '@/components/reservar-publico'
+import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
 import { fechaCorta } from '@/lib/fechas'
 
 export interface InfoReserva {
@@ -73,6 +74,9 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
   }, [modo, modoMesa, fecha, hora, personas, ubic, slug, codigo, r.sede_id, info.elegir_mesa])
   const mesasSel = (plano?.mesas ?? []).filter((m) => sel.includes(m.id))
   const totalMesas = mesasSel.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
+  // ¿eligió una mesa distinta de la que ya tiene? (cambiar solo la mesa también es un cambio)
+  const mesasActuales = (info.mesas ?? '').split('+').map((x) => x.trim()).filter(Boolean).sort().join('+')
+  const cambiaMesa = modoMesa === 'elegir' && mesasSel.length > 0 && mesasSel.map((m) => m.numero).sort().join('+') !== mesasActuales
   const seleccionValida = mesasSel.length > 0 && personas >= totalMesas.min && personas <= totalMesas.max && (mesasSel.length === 1 || mesasSel.every((m) => m.movil))
   const tocarMesa = (m: MesaWeb) => {
     setAviso(null)
@@ -130,6 +134,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
           <p className="text-lg font-bold"><span className="text-rs-lime">#{r.numero}</span> · {r.nombre}</p>
           <p><CalendarClock size={14} className="mr-1 inline text-rs-muted" /><b className="capitalize">{fechaTxt(r.fecha)}</b>{r.hora ? ` · ${r.hora}` : ''}</p>
           <p><Users size={14} className="mr-1 inline text-rs-muted" />{r.personas ?? '—'} personas{r.sede ? ` · ${r.sede}` : ''}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</p>
+          {info.mesas && <p className="text-sm"><span className="text-rs-muted">Mesa:</span> <b>{info.mesas}</b></p>}
           <p className="text-xs text-rs-muted">Estado: <b className="text-rs-text">{ESTADO[r.estado] ?? r.estado}</b></p>
         </section>
 
@@ -194,6 +199,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
                   <div className="space-y-2">
                     {plano.salones.length > 1 && <div className="flex flex-wrap gap-2">{plano.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} className={'btn btn-sm ' + (salonId === s.id ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>}
                     {(() => { const salon = plano.salones.find((s) => s.id === salonId); return salon ? <PlanoWeb salon={salon} mesas={plano.mesas.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} /> : null })()}
+                    {(() => { const t = avisoCapacidadMinima(plano.mesas.filter((m) => m.salon_id === salonId), personas); return t ? <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{t}</p> : null })()}
                     {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
                     <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')}>{mesasSel.length === 0 ? 'Tocá una mesa disponible.' : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} ✓` : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran de ${totalMesas.min} a ${totalMesas.max} personas y son ${personas}.`}</p>
                   </div>
@@ -202,7 +208,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
               </div>
             )}
             {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
-            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas && igualUbic)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
+            <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas && igualUbic && !cambiaMesa)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
             <p className="text-xs text-rs-muted">El cambio se aplica cuando envíes el mensaje de WhatsApp desde tu número. Si el horario se completa mientras tanto, te avisamos.</p>
           </section>
         )}

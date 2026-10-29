@@ -7,6 +7,7 @@ import { FechaInput } from '@/components/inputs'
 import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
+import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
 import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
@@ -63,7 +64,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const [salonId, setSalonId] = useState('')
   const [sel, setSel] = useState<string[]>([])
   const [aviso, setAviso] = useState<string | null>(null)
-  const [form, setForm] = useState({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<Extract<ResultadoReserva, { ok: true }> | null>(null)
   const [pend, start] = useTransition()
@@ -130,7 +131,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     e.preventDefault(); setError(null)
     if (!!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); return }
     start(async () => {
-      const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, nombre: unirNombre(form.nombre, form.apellido), mesas: modo === 'elegir' ? sel : [] })
+      const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, ...form, cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), mesas: modo === 'elegir' ? sel : [] })
       if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     })
   }
@@ -166,7 +167,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
-          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
           <PieRisto logo={logoRisto} />
         </main>
       </div>
@@ -253,6 +254,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-rs-muted">
                     <Leyenda clase="border-rs-ok/70 bg-rs-ok/15" t="Disponible" /><Leyenda clase="border-rs-lime bg-rs-lime/30" t="Tu elección" /><Leyenda clase="border-rs-muted/40 bg-rs-raised/40 opacity-60" t="No disponible" /><Leyenda clase="border-dashed border-rs-ok/70 bg-rs-ok/15" t="Móvil (se puede juntar)" />
                   </div>
+                  {salon && (() => { const t = avisoCapacidadMinima(plano.mesas.filter((m) => m.salon_id === salon.id), personas); return t ? <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{t}</p> : null })()}
                   {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
                   <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')} role="status">
                     {mesasSel.length === 0 ? `Tocá una mesa disponible. Para ${personas} personas se muestran las que entran; las punteadas se pueden juntar para grupos grandes.`
@@ -284,7 +286,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                     <select aria-label="Día de cumpleaños" value={form.cumple_dia} onChange={(e) => setForm((f) => ({ ...f, cumple_dia: e.target.value }))} className="input w-full"><option value="">Día</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}</select>
                     <select aria-label="Mes de cumpleaños" value={form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_mes: e.target.value }))} className="input w-full"><option value="">Mes</option>{['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'].map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}</select>
                   </div>
-                  <p className="mt-1 text-xs text-rs-muted">Solo el día y el mes, para saludarte en tu día. Podés dejarlo vacío.</p>
+                  <p className="mt-1 text-xs text-rs-muted">Recibí un regalo en ese día 🎁 Podés dejarlo vacío.</p>
+                  <div className="mt-2">
+                    <label className="label" htmlFor="rw_cumple_anio">Año de nacimiento (opcional)</label>
+                    <select id="rw_cumple_anio" value={form.cumple_anio} disabled={!form.cumple_dia || !form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_anio: e.target.value }))} className="input w-full">
+                      <option value="">Año</option>{Array.from({ length: new Date().getFullYear() - 5 - 1920 + 1 }, (_, i) => new Date().getFullYear() - 5 - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                    </select>
+                    <p className="mt-1 text-xs text-rs-muted">Así sabemos qué edad cumplís. Primero elegí el día y el mes.</p>
+                  </div>
                 </div>
               )}
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
@@ -344,6 +353,8 @@ const Leyenda = ({ clase, t }: { clase: string; t: string }) => <span className=
 
 export function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesas: MesaWeb[]; sel: string[]; onTocar: (m: MesaWeb) => void }) {
   return (
+    <div>
+    {salon.ancho * 24 > 340 && <p className="mb-1.5 text-xs text-rs-muted sm:hidden">Deslizá hacia los costados para ver todo el plano →</p>}
     <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60 p-3">
       <div className="relative" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: Math.max(salon.ancho * 24, 320), containerType: 'inline-size' }}>
         {mesas.map((m) => {
@@ -361,6 +372,7 @@ export function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesa
           )
         })}
       </div>
+    </div>
     </div>
   )
 }

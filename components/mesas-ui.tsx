@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
-import { Armchair, Check, ChevronLeft, ChevronRight, Clock, Copy, Pencil, Plus, QrCode, Sparkles, Trash2, Users, X } from 'lucide-react'
+import { Armchair, Check, ChevronLeft, ChevronRight, Clock, Copy, LayoutGrid, List, Maximize2, Minimize2, Pencil, Plus, QrCode, Sparkles, Trash2, Users, X } from 'lucide-react'
 import {
   alternarSalon, asignarMesas, crearVariasMesas, eliminarMesa, eliminarSalon, guardarDuracionMesas, guardarMesa, guardarSalon, liberarMesa, marcarServicio, moverMesa, ocuparMesa, rotarMesa,
   type ResultadoAsignacion,
@@ -62,6 +62,10 @@ interface PlanoProps {
 }
 function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resaltar, editar, onClick, onMover }: PlanoProps) {
   const caja = useRef<HTMLDivElement>(null)
+  // En el celular el plano entero se ve achicado ("ajustar"); con "ampliar" vuelve a su tamaño y se desliza hacia los costados. En el editor siempre va a tamaño real.
+  const [ajustar, setAjustar] = useState(false)
+  useEffect(() => { if (!editar && window.matchMedia('(max-width: 639px)').matches) setAjustar(true) }, [editar])
+  const ajustado = ajustar && !editar
   const [arrastre, setArrastre] = useState<{ id: string; x: number; y: number; ox: number; oy: number; px: number; py: number; mueve: boolean } | null>(null)
   const celda = () => (caja.current ? caja.current.getBoundingClientRect().width / salon.ancho : 24)
   const posDe = (m: Mesa) => (arrastre?.id === m.id && arrastre.mueve ? { x: arrastre.x, y: arrastre.y } : { x: m.x, y: m.y })
@@ -75,8 +79,15 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
     if ((a.x !== m.x || a.y !== m.y) && !choca(m, a.x, a.y)) await onMover?.(m, a.x, a.y)
   }
   return (
+    <div>
+      {!editar && (
+        <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
+          <span className="text-xs text-rs-muted">{ajustado ? 'Plano completo. Tocá una mesa para ver su detalle.' : 'Deslizá hacia los costados para ver todo el salón →'}</span>
+          <button type="button" onClick={() => setAjustar((v) => !v)} aria-pressed={ajustado} className="btn btn-sm shrink-0">{ajustado ? <><Maximize2 size={13} />Ampliar</> : <><Minimize2 size={13} />Ajustar</>}</button>
+        </div>
+      )}
     <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60 p-3">
-      <div ref={caja} className="relative select-none" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: salon.ancho * 26, containerType: 'inline-size',
+      <div ref={caja} className="relative select-none" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: ajustado ? undefined : salon.ancho * 26, containerType: 'inline-size',
         backgroundImage: 'linear-gradient(to right, rgba(122,144,80,.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(122,144,80,.10) 1px, transparent 1px)', backgroundSize: `${100 / salon.ancho}% ${100 / salon.alto}%` }}
         onPointerMove={(e) => {
           if (!arrastre || !editar) return
@@ -116,6 +127,33 @@ function Plano({ salon, mesas, reservas, t, duracion, esHoy, seleccionadas, resa
         {mesas.length === 0 && <p className="absolute inset-0 grid place-items-center text-sm text-rs-muted">{editar ? 'Este salón está vacío: agregá mesas con los botones de arriba.' : 'Este salón todavía no tiene mesas.'}</p>}
       </div>
     </div>
+    </div>
+  )
+}
+
+/** Lo mismo que el plano pero como lista: en el celular es más cómodo que un dibujo chico. Una fila por mesa, con su estado y la reserva que tiene. */
+function ListaMesas({ mesas, reservas, t, duracion, esHoy, seleccionadas, resaltar, onClick }: { mesas: Mesa[]; reservas: ReservaSalon[]; t: number; duracion: number; esHoy: boolean; seleccionadas: string[]; resaltar?: Record<string, 'ok' | 'choque'>; onClick: (m: Mesa) => void }) {
+  const filas = mesas.filter((m) => m.tipo === 'mesa').sort((a, b) => a.numero.localeCompare(b.numero, 'es', { numeric: true }))
+  if (filas.length === 0) return <p className="card p-4 text-sm text-rs-muted">Este salón todavía no tiene mesas.</p>
+  return (
+    <ul className="card divide-y divide-rs-border/60" aria-label="Mesas del salón">
+      {filas.map((m) => {
+        const { estado, reservas: rs } = estadoMesa(m, reservas, t, duracion, esHoy)
+        const est = ESTADOS_MESA[estado], r = rs[0], resaltado = resaltar?.[m.id]
+        return (
+          <li key={m.id}>
+            <button type="button" onClick={() => onClick(m)} aria-pressed={seleccionadas.includes(m.id)}
+              className={'flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-rs-raised/50 ' + (seleccionadas.includes(m.id) ? 'bg-rs-lime/10 ' : '') + (resaltado === 'choque' ? 'border-l-2 border-rs-danger ' : resaltado === 'ok' ? 'border-l-2 border-rs-lime ' : '')}>
+              <span className={'h-3 w-3 shrink-0 rounded-full ' + est.punto} aria-hidden />
+              <span className="w-14 shrink-0 font-bold">{m.numero}</span>
+              <span className="w-16 shrink-0 text-xs text-rs-muted"><Users size={11} className="mr-1 inline" />{rangoCapacidad(m)}{m.movil ? ' · móvil' : ''}</span>
+              <span className="min-w-0 flex-1 truncate">{est.label}{r ? <span className="text-rs-muted"> · {(r.cliente_nombre ?? 'Sin nombre').split(' ')[0]} {r.hora?.slice(0, 5)}</span> : null}{!r && estado === 'ocupada' && m.ocupada_pax ? <span className="text-rs-muted"> · {m.ocupada_pax} pers.</span> : null}</span>
+              <ChevronRight size={14} className="shrink-0 text-rs-muted" />
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -147,6 +185,7 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
   const t = usarAhora && esHoy ? ahora : aMinutos(horaTxt) ?? 21 * 60
 
   const [seleccion, setSeleccion] = useState<string | null>(null)
+  const [vista, setVista] = useState<'plano' | 'lista'>('plano')   // la lista es una alternativa para el celular
   const [asignando, setAsignando] = useState<{ reserva: ReservaSalon; ids: string[] } | null>(null)
   const [dialogo, setDialogo] = useState<null | 'salon' | 'salon-nuevo' | 'mesa' | 'deco' | 'varias' | 'duracion'>(null)
   const [paxLibre, setPaxLibre] = useState('')
@@ -292,8 +331,15 @@ export default function SalonUI({ salones, mesas, reservas, duracion, fecha, hoy
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="min-w-0 space-y-3">
-          {salon && <Plano salon={salon} mesas={mesasSalon} reservas={reservas} t={t} duracion={duracion} esHoy={esHoy} seleccionadas={asignando ? asignando.ids : seleccion ? [seleccion] : []} resaltar={resaltar} editar={modo === 'editar'}
-            onClick={(m) => (modo === 'editar' ? setSeleccion(m.id) : clickMesa(m))} onMover={mover} />}
+          {modo === 'servicio' && salon && (
+            <div role="group" aria-label="Cómo ver las mesas" className="flex gap-1.5 sm:hidden">
+              <button type="button" onClick={() => setVista('plano')} aria-pressed={vista === 'plano'} className={'btn btn-sm flex-1 ' + (vista === 'plano' ? 'btn-primary' : '')}><LayoutGrid size={13} />Plano</button>
+              <button type="button" onClick={() => setVista('lista')} aria-pressed={vista === 'lista'} className={'btn btn-sm flex-1 ' + (vista === 'lista' ? 'btn-primary' : '')}><List size={13} />Lista</button>
+            </div>
+          )}
+          {modo === 'servicio' && salon && vista === 'lista' && <div className="sm:hidden"><ListaMesas mesas={mesasSalon} reservas={reservas} t={t} duracion={duracion} esHoy={esHoy} seleccionadas={asignando ? asignando.ids : seleccion ? [seleccion] : []} resaltar={resaltar} onClick={clickMesa} /></div>}
+          {salon && <div className={modo === 'servicio' && vista === 'lista' ? 'hidden sm:block' : ''}><Plano salon={salon} mesas={mesasSalon} reservas={reservas} t={t} duracion={duracion} esHoy={esHoy} seleccionadas={asignando ? asignando.ids : seleccion ? [seleccion] : []} resaltar={resaltar} editar={modo === 'editar'}
+            onClick={(m) => (modo === 'editar' ? setSeleccion(m.id) : clickMesa(m))} onMover={mover} /></div>}
           {modo === 'servicio' && <div className="flex flex-wrap items-center gap-3 text-xs text-rs-muted">{(['libre', 'reservada', 'llego', 'ocupada', 'inactiva'] as const).map((e) => <span key={e} className="inline-flex items-center gap-1.5"><span className={'h-2.5 w-2.5 rounded-full ' + ESTADOS_MESA[e].punto} />{ESTADOS_MESA[e].label}</span>)}{!esHoy && <span>· “Llegó” y “Ocupada” solo se ven el día de hoy</span>}</div>}
         </div>
 

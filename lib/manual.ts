@@ -98,6 +98,7 @@ export const MANUAL: SeccionManual[] = [
     id: 'mesas', grupo: 'Operación diaria', titulo: 'Salón y mesas', modulo: 'mesas', resumen: 'El plano: asignar mesas, ver qué está libre y manejar el servicio.',
     bloques: [
       { t: 'p', x: 'Muestra el plano de tu salón. Tiene dos modos: **servicio** (el día a día) y **editar** (armar el plano).' },
+      { t: 'p', x: '**En el celular** el plano entero se ve achicado (botón **Ampliar** para verlo a tamaño real y deslizarlo hacia los costados), y hay una vista **Lista** con una fila por mesa (número, lugares, estado y reserva) que es más cómoda para tocar.' },
       { t: 'p', x: '**Modo servicio.** Elegís la fecha y el momento (**Ahora**, una hora o Almuerzo / Cena). Cada mesa se pinta según su estado: libre, reservada, **llegó** (amarillo), ocupada o fuera de servicio. Tocás una mesa y se abre su panel. Abajo ves la **lista de reservas del día**:' },
       { t: 'lista', x: [
         '**Asignar / Cambiar:** elegís la mesa (o varias, si son móviles y se juntan). Si otra reserva ya tiene esa mesa a esa hora, te avisa y podés forzarlo.',
@@ -137,6 +138,7 @@ export const MANUAL: SeccionManual[] = [
       { t: 'ojo', x: 'Si entre que el cliente armó la solicitud y mandó el mensaje la mesa se ocupó o el horario se completó, **igual se crea la reserva** (el cliente ya escribió), pero **sin mesa** y con un aviso en las observaciones para que un asesor la resuelva con él.' },
       { t: 'ojo', x: 'Una reserva **“Nueva” no bloquea** la mesa: dos clientes pueden pedir la misma mientras ninguna esté confirmada. Si pasa, al asignar la segunda el sistema te avisa del choque y vos resolvés con el cliente.' },
       { t: 'p', x: '**Configuración del sitio** (dueño, administrador): en **Configuración → Sitio de reservas (prueba)**.' },
+      { t: 'p', x: '**Cumpleaños con año (opcional):** debajo del día y el mes, el cliente puede sumar su año de nacimiento (“Recibí un regalo en ese día 🎁”); con el año, la ficha del cliente guarda su fecha de nacimiento completa y muestra la edad que cumple. **Mesas que no alcanzan:** si todas las mesas libres de un salón piden más personas que las de la reserva (por ejemplo, reservás para 2 y son de 3 como mínimo), el sitio lo explica y sugiere subir la cantidad, probar otro horario u otra ubicación o pedir un asesor. **Cambiar solo la mesa:** desde el link de su reserva el cliente puede pedir otra mesa sin cambiar día ni hora.' },
       { t: 'lista', x: [
         '**Activo:** apagado, el enlace muestra “no encontrado”.',
         '**Sedes en el sitio** (si el negocio tiene sedes): por cada sede, si se ofrece en el sitio, sus propios horarios, si deja elegir mesa en el plano y su mensaje. Lo que quede vacío hereda lo del sitio. El WhatsApp de cada sede se carga en Sedes.',
@@ -202,6 +204,7 @@ export const MANUAL: SeccionManual[] = [
     id: 'clientes', grupo: 'Clientes y marketing', titulo: 'Clientes', modulo: 'clientes', resumen: 'Base de clientes, historial y etiquetas.',
     bloques: [
       { t: 'p', x: 'Cada persona que reservó, pidió o escribió queda como cliente, identificada por su **teléfono**. Podés buscar por nombre o teléfono y filtrar por **etiqueta** y por **origen** (de dónde llegó: WhatsApp, QR de la carta, Wifi…).' },
+      { t: 'p', x: '**Por sede:** si el negocio tiene sedes, un filtro **Sede** deja solo los clientes que reservaron en esa sede (también respeta la sede elegida arriba). Con una sede elegida, “Reservas” y “Última reserva” cuentan solo las de esa sede.' },
       { t: 'p', x: 'La **ficha del cliente** reúne su teléfono, origen, desde cuándo es cliente, su cumpleaños, su tarjeta de fidelidad, sus vouchers, sus reseñas y el **historial de reservas**. Desde ahí podés corregir su nombre y emitirle un voucher.' },
       { t: 'p', x: '**Etiquetas:** sirven para clasificar (por ejemplo “post visita”, “VIP”). Se crean en Configuración → Etiquetas de clientes. Si el negocio usa BotConversa, al etiquetar acá también se etiqueta allá.' },
     ],
@@ -280,6 +283,8 @@ export const MANUAL: SeccionManual[] = [
       { t: 'p', x: 'Elegís el período y ves los números de lo que use tu negocio: si tiene **Reservas** y **Pedidos**, aparecen dos pestañas arriba (**Reservas** y **Pedidos**); si usa solo uno, ves directamente ese. El período y la forma de agrupar la evolución valen para ambas.' },
       { t: 'p', x: '**Reservas:** promedio de personas por reserva, horario más reservado, evolución (por día, semana o mes), días más fuertes, horarios más reservados, reservas por estado (y por sede si hay varias) y clientes recurrentes (los que más vuelven).' },
       { t: 'p', x: '**Pedidos:** cantidad de pedidos, **ventas** (sin contar cancelados), **ticket promedio** y hora pico; evolución de pedidos y de ventas, días más fuertes, horas con más pedidos, **productos más pedidos**, pedidos por tipo (retiro, delivery, mesa), medios de pago, pedidos por estado y los clientes que más piden. Los pedidos no se registran por sede: con una sede elegida se ven los de todo el negocio.' },
+      { t: 'p', x: '**Período:** elegís los últimos 7 a 180 días o un **rango de fechas** (hasta un año; el final no puede ser futuro). El rango vale para Reservas y para Pedidos.' },
+      { t: 'p', x: '**Resumen con IA:** el botón arma un resumen del período que estás viendo y lo **compara con el período anterior** de igual largo: qué anda bien, qué mirar de cerca y acciones sugeridas. Usa solo números agregados (nada de nombres ni teléfonos) y puede equivocarse: revisalo antes de decidir.' },
     ],
   },
 

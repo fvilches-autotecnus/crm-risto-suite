@@ -23,7 +23,7 @@ const ORDENES = [
   { value: 'nombre', label: 'Nombre (A–Z)' },
 ]
 
-export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string; etiqueta?: string; origen?: string }> }) {
+export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string; orden?: string; pagina?: string; etiqueta?: string; origen?: string; sede?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.clientes) redirect('/')
   const { supabase, negocio } = ctx
@@ -40,20 +40,24 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const catalogo = (catalogoDb ?? []) as { id: string; nombre: string }[]
   const etiquetaSel = catalogo.some((e) => e.id === sp.etiqueta) ? sp.etiqueta! : ''
   const origenSel = ORIGENES.some((o) => o.value === sp.origen) ? sp.origen! : ''
+  // sede: la elegida acá, o la del selector de arriba; "todas" ignora el selector. Un cliente es de una sede si tiene reservas (no canceladas) en ella.
+  const sedesFiltro = ctx.sedes
+  const sedeSel = sp.sede === 'todas' ? '' : sedesFiltro.some((s) => s.id === sp.sede) ? sp.sede! : ctx.sede?.id ?? ''
   // 'filtro' deja solo los clientes con esa etiqueta (join interno); 'chips' trae todas sus etiquetas para mostrarlas
-  const columnas: string = `id, nombre, telefono, canal_origen, ultima_interaccion, ultima_reserva, creado_en, chips:cliente_etiquetas(etiquetas(nombre))${etiquetaSel ? ', filtro:cliente_etiquetas!inner(etiqueta_id)' : ''}`
+  const columnas: string = `id, nombre, telefono, canal_origen, ultima_interaccion, ultima_reserva, creado_en, chips:cliente_etiquetas(etiquetas(nombre))${etiquetaSel ? ', filtro:cliente_etiquetas!inner(etiqueta_id)' : ''}${sedeSel ? ', filtro_sede:reservas!inner(sucursal_id)' : ''}`
   let cq = supabase.from('clientes').select(columnas, { count: 'exact' }).eq('negocio_id', negocio.id)
   if (etiquetaSel) cq = cq.eq('filtro.etiqueta_id', etiquetaSel)
   if (origenSel) cq = cq.eq('canal_origen', origenSel)
+  if (sedeSel) cq = cq.eq('filtro_sede.sucursal_id', sedeSel).is('filtro_sede.eliminado_en', null).neq('filtro_sede.estado', 'cancelada')
   if (texto) cq = cq.or([`nombre.ilike.%${texto}%`, ...(digitos ? [`telefono.like.%${digitos}%`] : [])].join(','))
   const { data: clientes, count: totalClientes } = await cq.order(orden.startsWith('ultima_') ? 'ultima_reserva' : orden === 'actividad' ? 'ultima_interaccion' : orden === 'nombre' ? 'nombre' : 'creado_en', { ascending: orden === 'alta_asc' || orden === 'nombre' || orden === 'ultima_asc', nullsFirst: false }).order('id').range(desdeFila, desdeFila + POR_PAGINA - 1)
-  const { data: filas } = await supabase.rpc('resumen_reservas_clientes', { p_negocio: negocio.id })
+  const { data: filas } = await supabase.rpc('resumen_reservas_clientes', { p_negocio: negocio.id, p_sede: sedeSel || null })
 
   const resumen = new Map<string, { total: number; ultima: string | null }>(((filas ?? []) as { cliente_id: string; total: number; ultima: string | null }[]).map((f) => [f.cliente_id, { total: Number(f.total), ultima: f.ultima }] as const))
 
   const lista = (clientes ?? []) as unknown as FilaCliente[]
   // enlace del encabezado: conserva búsqueda y etiqueta, cambia el orden y vuelve a la primera página
-  const hrefOrden = (o: string) => { const u = new URLSearchParams(); if (texto) u.set('q', texto); if (etiquetaSel) u.set('etiqueta', etiquetaSel); u.set('orden', o); return `/clientes?${u.toString()}` }
+  const hrefOrden = (o: string) => { const u = new URLSearchParams(); if (texto) u.set('q', texto); if (etiquetaSel) u.set('etiqueta', etiquetaSel); if (sp.sede) u.set('sede', sp.sede); u.set('orden', o); return `/clientes?${u.toString()}` }
 
   return (
     <div className="space-y-4">
@@ -73,8 +77,14 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
           <option value="">Todos los orígenes</option>
           {ORIGENES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        {sedesFiltro.length > 0 && (
+          <select name="sede" defaultValue={sedeSel || 'todas'} aria-label="Filtrar por sede" className="input">
+            <option value="todas">Todas las sedes</option>
+            {sedesFiltro.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        )}
         <button className="btn">Buscar</button>
-        {(q || etiquetaSel || origenSel) && <Link href="/clientes" className="btn">Limpiar</Link>}
+        {(q || etiquetaSel || origenSel || sp.sede) && <Link href="/clientes" className="btn">Limpiar</Link>}
         <div className="ml-auto flex items-center gap-2">{ctx.puedeEscribir && <EtiquetarNumeroBtn catalogo={catalogo} esBotconversa={bc.activo} />}<OrdenSelect opciones={ORDENES} /></div>
       </form>
 
@@ -93,7 +103,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                   <td className="td text-rs-muted">{c.telefono ?? '—'}</td>
                   <td className="td"><div className="flex flex-wrap gap-1">{(c.chips ?? []).slice(0, 3).map((x, k) => x.etiquetas && <Chip key={k} nombre={x.etiquetas.nombre} />)}{(c.chips ?? []).length > 3 && <span className="text-xs text-rs-muted">+{c.chips.length - 3}</span>}</div></td>
                   <td className="td">{r?.total ?? 0}</td>
-                  <td className="td text-rs-muted">{(c.ultima_reserva ?? r?.ultima) ? fechaCorta((c.ultima_reserva ?? r?.ultima)!) : '—'}</td>
+                  <td className="td text-rs-muted">{((sedeSel ? r?.ultima : c.ultima_reserva ?? r?.ultima)) ? fechaCorta((sedeSel ? r?.ultima : c.ultima_reserva ?? r?.ultima)!) : '—'}</td>
                   <td className="td text-rs-muted">{labelOrigen(c.canal_origen)}</td>
                   <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en)}</td>
                 </tr>
