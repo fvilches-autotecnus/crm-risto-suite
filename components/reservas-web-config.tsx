@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/reservas-config'
 import { Copy, ExternalLink } from 'lucide-react'
 import { DIAS_SEMANA } from '@/components/config-calendario'
+import MarcaCampos from '@/components/marca-campos'
 import type { Marca } from '@/lib/marca'
 
 export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
@@ -113,14 +114,7 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
           <fieldset className="space-y-3 rounded-rs-lg border border-rs-border p-3 sm:col-span-2">
             <legend className="px-1 text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted">Marca del sitio (opcional)</legend>
             <p className="text-xs text-rs-muted">Para que el sitio se vea como tu local. Sin esto usa la identidad de Risto Suite; con esto mantiene su estilo oscuro y siempre firma “Reservas con Risto Suite”. Las imágenes van por dirección (https://… o /ruta).</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div><label className="label" htmlFor="rw_logo">Logo (dirección de la imagen)</label><input id="rw_logo" name="marca_logo_url" defaultValue={config.marca?.logo_url ?? ''} maxLength={300} placeholder="https://… (mejor si es redondo o cuadrado)" className="input w-full" /></div>
-              <div><label className="label" htmlFor="rw_orn">Adorno (dirección, PNG con fondo transparente)</label><input id="rw_orn" name="marca_ornamento_url" defaultValue={config.marca?.ornamento_url ?? ''} maxLength={300} placeholder="https://… (líneas claras con fondo transparente)" className="input w-full" /></div>
-              <div><label className="label" htmlFor="rw_cfondo">Color de fondo</label><input id="rw_cfondo" name="marca_color_fondo" defaultValue={config.marca?.color_fondo ?? ''} maxLength={7} placeholder="#3a442c" className="input w-full" /></div>
-              <div><label className="label" htmlFor="rw_cacento">Color de acento (botones y títulos)</label><input id="rw_cacento" name="marca_color_acento" defaultValue={config.marca?.color_acento ?? ''} maxLength={7} placeholder="#cfd03a" className="input w-full" /></div>
-              <div className="sm:col-span-2"><label className="label" htmlFor="rw_lema">Frase del local</label><input id="rw_lema" name="marca_lema" defaultValue={config.marca?.lema ?? ''} maxLength={120} placeholder="Algo bueno está por pasar" className="input w-full" /></div>
-            </div>
-            <p className="text-xs text-rs-muted">Los colores se escriben como #RRGGBB. El fondo se oscurece solo si hace falta para que el texto se lea. El logo y los colores también se usan en la miniatura que se ve al compartir el link.</p>
+            <MarcaCampos marca={config.marca} prefijo="rw" />
           </fieldset>
           <div><label className="label" htmlFor="rw_validez">Cuánto espera la solicitud (horas)</label><input id="rw_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Si el cliente no manda el mensaje de WhatsApp en ese tiempo, la solicitud vence.</p></div>
           <div><label className="label" htmlFor="rw_maxmesas">Máximo de mesas por reserva</label><input id="rw_maxmesas" name="max_mesas" type="number" min={1} max={12} defaultValue={config.max_mesas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Cuántas mesas móviles se pueden juntar para un grupo.</p></div>

@@ -1,5 +1,3 @@
-import { createAdminClient } from '@/lib/supabase/server'
-
 /** Marca propia del sitio de reservas de un local. Todo es opcional: sin datos, el sitio usa la identidad de Risto Suite. */
 export interface Marca { logo_url: string | null; ornamento_url: string | null; color_fondo: string | null; color_acento: string | null; lema: string | null }
 export const MARCA_VACIA: Marca = { logo_url: null, ornamento_url: null, color_fondo: null, color_acento: null, lema: null }
@@ -67,20 +65,12 @@ export const nombreSitio = (negocio: string, sede?: string) => {
   return n(sede).includes(n(negocio)) ? sede : `${negocio} ${sede}`
 }
 
-/** Lo mínimo para la ficha del sitio (título de la pestaña, ícono y miniatura al compartir el link). Null si la dirección no existe. */
-export async function cargarMarcaSitio(slug: string): Promise<{ nombre: string; subtitulo: string | null; marca: Marca } | null> {
-  if (!/^[a-z0-9-]{2,49}$/.test(slug)) return null
-  const admin = createAdminClient()
-  let { data: neg } = await admin.from('negocios').select('id, nombre').eq('slug', slug).eq('activo', true).maybeSingle()
-  let sede: string | undefined
-  if (!neg) {
-    const { data: s } = await admin.from('sucursales').select('nombre, activa, negocio_id').eq('alias_web', slug).maybeSingle()
-    if (!s || !s.activa) return null
-    sede = s.nombre as string
-    neg = (await admin.from('negocios').select('id, nombre').eq('id', s.negocio_id).eq('activo', true).maybeSingle()).data
-  }
-  if (!neg) return null
-  const { data: cfg } = await admin.from('reservas_web_config').select('activo, titulo, subtitulo, marca').eq('negocio_id', neg.id).maybeSingle()
-  if (!cfg?.activo) return null
-  return { nombre: (cfg.titulo as string | null) || nombreSitio(neg.nombre as string, sede), subtitulo: (cfg.subtitulo as string | null) ?? null, marca: normalizarMarca(cfg.marca) }
+/** Lee los campos de marca de un formulario (marca_logo_url, marca_ornamento_url, marca_color_fondo, marca_color_acento, marca_lema). */
+export function leerMarca(fd: FormData): { ok: true; marca: Partial<Marca> } | { ok: false; error: string } {
+  const g = (k: string) => String(fd.get(k) ?? '').trim()
+  const m = { logo_url: g('marca_logo_url'), ornamento_url: g('marca_ornamento_url'), color_fondo: g('marca_color_fondo'), color_acento: g('marca_color_acento'), lema: g('marca_lema') }
+  for (const [k, n] of [['logo_url', 'El logo'], ['ornamento_url', 'El adorno']] as const) if (m[k] && !urlValida(m[k])) return { ok: false, error: `${n} tiene que ser una dirección https://… o una ruta que empiece con / (sin espacios ni comillas)` }
+  for (const [k, n] of [['color_fondo', 'El color de fondo'], ['color_acento', 'El color de acento']] as const) if (m[k] && !colorValido(m[k])) return { ok: false, error: `${n} va como #RRGGBB (por ejemplo #3a442c)` }
+  if (m.lema.length > 120) return { ok: false, error: 'La frase del local puede tener hasta 120 letras' }
+  return { ok: true, marca: Object.fromEntries(Object.entries(m).filter(([, v]) => v)) as Partial<Marca> }
 }

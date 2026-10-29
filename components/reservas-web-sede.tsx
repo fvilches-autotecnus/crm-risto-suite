@@ -5,6 +5,7 @@ import { ExternalLink } from 'lucide-react'
 import { guardarReservasWebSede } from '@/app/(panel)/config-sedes-actions'
 import { useToast } from '@/components/feedback'
 import GrupoSede from '@/components/grupo-sede'
+import MarcaCampos from '@/components/marca-campos'
 import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import type { ConfigReservasWeb, SedeCfg } from '@/components/reservas-web-config'
@@ -112,6 +113,10 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
           <textarea id="ws_wa" name="texto_whatsapp" defaultValue={config.texto_whatsapp ?? ''} rows={7} maxLength={1200} placeholder={PLANTILLA_WA_DEFECTO} className="input w-full font-mono text-xs" />
           <p className="mt-1 text-xs text-rs-muted">Vacío = el mensaje original. Variables: {VARIABLES_WA.map(([v, d]) => <code key={v} title={d} className="mr-1 rounded bg-rs-raised px-1 font-mono text-rs-lime">{`{${v}}`}</code>)}. <b className="text-rs-text">Tiene que llevar {'{codigo}'}</b>.</p>
         </div>
+      </GrupoSede>
+
+      <GrupoSede id="marca" titulo="Marca del sitio (logo, colores, frase)" {...g('marca')}>
+        <MarcaCampos marca={config.marca} prefijo="ws" />
       </GrupoSede>
 
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}

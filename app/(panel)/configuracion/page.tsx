@@ -4,7 +4,9 @@ import ConfigTiposSede from '@/components/config-tipos-sede'
 import ConfigConfirmacionSede from '@/components/config-confirmacion-sede'
 import ModulosSedesForm from '@/components/modulos-sedes-form'
 import ReservasWebSede from '@/components/reservas-web-sede'
+import SitiosWeb, { type SitioWebCfg } from '@/components/sitios-web'
 import { GRUPOS_WEB, grupoPisado, paramsPisados } from '@/lib/config-sedes'
+import { normalizarMarca } from '@/lib/marca'
 import { aplicarSede } from '@/lib/modulos'
 import GestionUsuarios from '@/components/usuarios-ui'
 import { getContexto } from '@/lib/context'
@@ -77,6 +79,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   let webHorarios: string[] = []
   let filasTipos: FilaTipo[] = []
   let sedesWeb: SedeCfg[] = []
+  let sitiosAgrupados: SitioWebCfg[] = []
   let ambitos: AmbitoApertura[] = []
   let diasExtra: DiaExtraUI[] = []
   let confDefecto: ResultadoConfirmacion = 'nueva'
@@ -117,6 +120,10 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
       ])
       const conMesas = new Set((mesasW ?? []).map((m) => m.salon_id as string))
+      if (!sedeAmb && sedesActivas.length >= 2) {
+        const { data: sw } = await supabase.from('sitios_web').select('id, alias, nombre, titulo, subtitulo, sedes, marca, activo').eq('negocio_id', negocio.id).order('creado_en')
+        sitiosAgrupados = (sw ?? []).map((w) => ({ id: w.id as string, alias: w.alias as string, nombre: w.nombre as string, titulo: (w.titulo as string | null) ?? null, subtitulo: (w.subtitulo as string | null) ?? null, sedes: (w.sedes as string[]) ?? [], marca: normalizarMarca(w.marca), activo: w.activo as boolean }))
+      }
       sedesWeb = sedesActivas.map((x) => {
         const a = (ajustes ?? []).find((j) => j.sucursal_id === x.id)
         const propio = !!(x.whatsapp_nro ?? '').replace(/\D/g, '')
@@ -244,6 +251,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
       {webCfg && (
         <Seccion id="reservas-web" i={n++} titulo="Sitio de reservas (prueba)" texto="Una página pública para que los clientes reserven solos, eligiendo su mesa en el plano o dejando que un asesor la elija. Usa tus ubicaciones, aforo, fechas bloqueadas y planos de mesas.">
           <div className="mt-3">{sedeAmb && sedesWeb.find((x) => x.id === sedeAmb.id) ? <ReservasWebSede key={sedeAmb.id} sede={sedesWeb.find((x) => x.id === sedeAmb.id)!} config={{ ...webCfg, ...(ovSede?.web ?? {}) } as ConfigReservasWeb} pisados={Object.fromEntries(GRUPOS_WEB.map((g) => [g.id, grupoPisado(ovSede, g.id)]))} slug={negocio.slug} tiposDisponibles={webTipos} /> : <ReservasWebConfig config={webCfg} tieneWhatsapp={!!negocio.whatsapp_nro || sedesWeb.some((x) => !!x.whatsapp)} sedes={sedesWeb} slug={negocio.slug} tiposDisponibles={webTipos} horariosSugeridos={webHorarios} />}</div>
+          {!sedeAmb && sedesWeb.length >= 2 && <SitiosWeb sitios={sitiosAgrupados} sedes={sedesWeb.map((x) => ({ id: x.id, nombre: x.nombre }))} />}
         </Seccion>
       )}
 

@@ -5,6 +5,7 @@ import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import { guardarConfigSede } from '@/lib/config-sedes-servidor'
 import { CLAVES_PARAMS, GRUPOS_WEB, type TipoSedeOv } from '@/lib/config-sedes'
+import { leerMarca } from '@/lib/marca'
 import { MODULOS_POR_SEDE } from '@/lib/modulos'
 import { ESTADOS_BLOQUEO, MENSAJES_BOT, VARIABLES_WA } from '@/lib/reservas-config'
 import type { ActionResult } from './actions'
@@ -202,6 +203,7 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
     if (t.length > 40) return fail('El texto de “pocos lugares” puede tener hasta 40 letras')
     Object.assign(web, { escasez_modo: modo, escasez_umbral: umbral, escasez_texto: t || null })
   }
+  if (on('marca')) { const m = leerMarca(fd); if (!m.ok) return fail(m.error); Object.assign(web, { marca: m.marca }) }
   if (on('tipos')) Object.assign(web, { tipos: fd.getAll('tipos').map(String).filter((t) => /^[a-z0-9_]{1,40}$/.test(t)) })
   const err = await guardarConfigSede(ctx, sedeId, { web }); if (err) return fail(err)
   refrescar(ctx.negocio.slug)

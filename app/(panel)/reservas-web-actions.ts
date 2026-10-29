@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { colorValido, urlValida } from '@/lib/marca'
+import { leerMarca } from '@/lib/marca'
 import { VARIABLES_WA } from '@/lib/reservas-config'
 import type { ActionResult } from './actions'
 
@@ -38,10 +38,8 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const titulo = text(fd, 'titulo'), subtitulo = text(fd, 'subtitulo')
   if (titulo.length > 80) return fail('El título puede tener hasta 80 letras')
   if (subtitulo.length > 160) return fail('El subtítulo puede tener hasta 160 letras')
-  const marca = { logo_url: text(fd, 'marca_logo_url'), ornamento_url: text(fd, 'marca_ornamento_url'), color_fondo: text(fd, 'marca_color_fondo'), color_acento: text(fd, 'marca_color_acento'), lema: text(fd, 'marca_lema') }
-  for (const [k, n] of [['logo_url', 'El logo'], ['ornamento_url', 'El adorno']] as const) if (marca[k] && !urlValida(marca[k])) return fail(`${n} tiene que ser una dirección https://… o una ruta que empiece con / (sin espacios ni comillas)`)
-  for (const [k, n] of [['color_fondo', 'El color de fondo'], ['color_acento', 'El color de acento']] as const) if (marca[k] && !colorValido(marca[k])) return fail(`${n} va como #RRGGBB (por ejemplo #3a442c)`)
-  if (marca.lema.length > 120) return fail('La frase del local puede tener hasta 120 letras')
+  const marcaLeida = leerMarca(fd)
+  if (!marcaLeida.ok) return fail(marcaLeida.error)
   const textoCualquiera = text(fd, 'texto_cualquier_ubicacion')
   if (textoCualquiera.length > 60) return fail('El texto de “cualquier ubicación” puede tener hasta 60 letras')
   const escModo = ['off', 'pocos', 'cantidad'].includes(text(fd, 'escasez_modo')) ? text(fd, 'escasez_modo') : 'off'
@@ -88,7 +86,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(), horarios_dias: horariosDias,
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
     modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', pedir_cumple: fd.get('pedir_cumple') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
-    escasez_modo: escModo, escasez_umbral: escUmbral, escasez_texto: escTexto || null, marca: Object.fromEntries(Object.entries(marca).filter(([, v]) => v)),
+    escasez_modo: escModo, escasez_umbral: escUmbral, escasez_texto: escTexto || null, marca: marcaLeida.marca,
   })
   if (error) return fail('No se pudo guardar la configuración')
   if (filasSede.length) {

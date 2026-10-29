@@ -12,7 +12,7 @@ import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, t
 
 type Cfg = Props['cfg']
 interface Props {
-  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
   cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
 }
 
@@ -22,7 +22,7 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfgBase.personas_min), cfgBase.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
@@ -141,7 +141,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const urlWA = (r: Extract<ResultadoReserva, { ok: true }>) => {
     const tipoTxt = tipos.find((t) => t.value === tipo)?.label ?? ''
     const texto = renderPlantillaWA(cfg.texto_whatsapp?.trim() || PLANTILLA_WA_DEFECTO, {
-      negocio: cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre_pila: form.nombre.trim(), apellido: form.apellido.trim(), cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: unirNombre(form.nombre, form.apellido), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
+      negocio: tituloSitio || cfg.titulo || nombre, codigo: r.codigo, sede: r.sede ?? '', nombre_pila: form.nombre.trim(), apellido: form.apellido.trim(), cumple: form.cumple_dia && form.cumple_mes ? `${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}` : '', nombre: unirNombre(form.nombre, form.apellido), dia: fechaTxt(r.fecha), hora: r.hora, personas: String(r.personas),
       ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, mesa: r.mesas ? r.mesas : puedeElegir ? 'que la elija el local' : '', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
@@ -151,7 +151,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     return (
       <div className="relative isolate min-h-screen pb-10">
         <Adorno marca={marca} />
-        <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><MessageCircle size={28} /></div>
           <h1 className="text-xl font-bold">¡Último paso: mandá el mensaje por WhatsApp!</h1>
@@ -177,7 +177,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   return (
     <div className="relative isolate min-h-screen pb-10">
       <Adorno marca={marca} />
-      <Banner nombre={cfg.titulo || nombre} subtitulo={cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+      <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
         {cfg.mensaje && !sede?.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
 

@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { ImageResponse } from 'next/og'
-import { cargarMarcaSitio, origenCrm, tieneMarca, urlAbsoluta, variablesMarca } from '@/lib/marca'
+import { origenCrm, tieneMarca, urlAbsoluta, variablesMarca } from '@/lib/marca'
+import { cargarMarcaSitio } from '@/lib/sitio-reservas'
 
 // Miniatura que se ve al compartir el link del sitio de reservas (WhatsApp, redes): la marca del local y la de Risto Suite.
 export const alt = 'Reservá tu mesa'

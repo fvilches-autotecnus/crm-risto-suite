@@ -21,6 +21,7 @@ export const GRUPOS_WEB = [
   { id: 'cumple', titulo: 'Cumpleaños', claves: ['pedir_cumple'] },
   { id: 'escasez', titulo: 'Aviso de pocos lugares', claves: ['escasez_modo', 'escasez_umbral', 'escasez_texto'] },
   { id: 'tipos', titulo: 'Tipos de reserva que se ofrecen', claves: ['tipos'] },
+  { id: 'marca', titulo: 'Marca del sitio (logo, colores, frase)', claves: ['marca'] },
 ] as const
 export type GrupoWebId = (typeof GRUPOS_WEB)[number]['id']
 
