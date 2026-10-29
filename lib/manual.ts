@@ -83,6 +83,7 @@ export const MANUAL: SeccionManual[] = [
         'En cada reserva, la **tilde** la confirma y la **cruz** la cancela. El menú de estados permite elegir cualquier otro (pendiente de pago, revisar pago, no-show…).',
         'Según el estado puede abrirse una ventanita: para **pendiente de pago** pide el monto, para **cancelada** el motivo.',
         'Si el negocio tiene los avisos por WhatsApp activados para ese estado, la ventanita pregunta **“¿Avisamos al cliente?”**. Si decís que sí, el cliente recibe el mensaje automáticamente.',
+        '**Aviso para el equipo:** el mismo webhook (y la respuesta del bot cuando entra, se modifica o se cancela una reserva desde el sitio) trae un campo `notificacion_equipo` con un texto armado para que el local se entere de qué pasó, por ejemplo «🟢 NUEVA RESERVA · San Lorenzo / #5 Facundo Vilches / 📅 Sábado 31-10-2026 · 21:00 / 👥 6 personas / 📍 SALÓN». Se reenvía desde BotConversa a un contacto o grupo del equipo (ver la guía de conexión de BotConversa).',
         'Todo cambio de estado y toda eliminación tienen **Deshacer** durante unos segundos (en el aviso que aparece abajo).',
       ] },
       { t: 'p', x: '**Columnas de la tabla.** El número, el cliente, el estado y las acciones siempre se ven. Con el botón **Columnas** (arriba a la derecha de la tabla) elegís cuáles de las demás querés ver: teléfono, sede, fecha, hora, personas y mesa, tipo, ubicación, observaciones como columna aparte y fecha de alta. Se recuerda para vos. Por defecto las observaciones salen en letra chica debajo del nombre.' },

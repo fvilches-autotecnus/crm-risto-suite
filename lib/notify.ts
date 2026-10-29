@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/server'
 import { ESTADOS_AVISO, ESTADOS_AVISO_POR_DEFECTO, labelTipo, type EstadoAviso } from '@/lib/reservas'
+import { textoEquipo } from '@/lib/texto-equipo'
 
 /** A qué herramienta apunta el webhook: define el formato del JSON que se envía. */
 export type DestinoWebhook = 'n8n' | 'botconversa'
@@ -121,6 +122,11 @@ const diaSemana = (f: string | null) => {
 export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<string, unknown> {
   const telefono = soloDigitos(d.telefono)
   const extra = d.prueba ? { prueba: true } : {}
+  // Mensaje para el equipo del local (qué acaba de pasar), listo para reenviar: un campo más del webhook
+  const notificacion_equipo = (d.prueba ? '🧪 *AVISO DE PRUEBA*\n' : '') + textoEquipo({
+    evento: d.estado, estado: d.estado, numero: d.numero, nombre: d.clienteNombre, sede: d.sede, fecha: d.fecha, hora: d.hora, personas: d.cantidadPersonas,
+    ubicacion: d.ubicacion, tipo: d.tipoReserva ? (d.tipoEtiqueta || labelTipo(d.tipoReserva)) : null, telefono: d.telefono, monto: d.monto, observaciones: d.observaciones, motivo: d.motivoCancelacion,
+  })
   if (destino === 'botconversa') {
     return {
       evento: 'reserva_estado',
@@ -142,6 +148,7 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
       observaciones: d.observaciones ?? '',
       motivo_cancelacion: d.motivoCancelacion ?? '',
       sena: d.monto ?? 0,
+      notificacion_equipo,
       ...extra,
     }
   }
@@ -159,6 +166,7 @@ export function armarPayload(destino: DestinoWebhook, d: DatosAviso): Record<str
     sede: d.sede ?? null,
     motivoCancelacion: d.motivoCancelacion ?? null,
     monto: d.monto ?? null,
+    notificacion_equipo,
     ...extra,
   }
 }
