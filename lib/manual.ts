@@ -83,7 +83,7 @@ export const MANUAL: SeccionManual[] = [
         'En cada reserva, la **tilde** la confirma y la **cruz** la cancela. El menú de estados permite elegir cualquier otro (pendiente de pago, revisar pago, no-show…).',
         'Según el estado puede abrirse una ventanita: para **pendiente de pago** pide el monto, para **cancelada** el motivo.',
         'Si el negocio tiene los avisos por WhatsApp activados para ese estado, la ventanita pregunta **“¿Avisamos al cliente?”**. Si decís que sí, el cliente recibe el mensaje automáticamente.',
-        '**Aviso para el equipo:** el mismo webhook (y la respuesta del bot cuando entra, se modifica o se cancela una reserva desde el sitio) trae un campo `notificacion_equipo` con un texto armado para que el local se entere de qué pasó, por ejemplo «🟢 NUEVA RESERVA · San Lorenzo / #5 Facundo Vilches / 📅 Sábado 31-10-2026 · 21:00 / 👥 6 personas / 📍 SALÓN». Se reenvía desde BotConversa a un contacto o grupo del equipo (ver la guía de conexión de BotConversa).',
+        '**Aviso para el equipo:** cuando entra, se modifica o se cancela una reserva, el bot puede mandar a un contacto o grupo de WhatsApp de tu equipo un mensaje que cuenta qué pasó, por ejemplo «🟢 NUEVA RESERVA · San Lorenzo / #5 Facundo Vilches / 📅 Sábado 31-10-2026 · 21:00 / 👥 6 personas / 📍 SALÓN». Si querés recibirlo, pedile a Risto Suite que lo active.',
         'Todo cambio de estado y toda eliminación tienen **Deshacer** durante unos segundos (en el aviso que aparece abajo).',
       ] },
       { t: 'p', x: '**Columnas de la tabla.** El número, el cliente, el estado y las acciones siempre se ven. Con el botón **Columnas** (arriba a la derecha de la tabla) elegís cuáles de las demás querés ver: teléfono, sede, fecha, hora, personas y mesa, tipo, ubicación, observaciones como columna aparte y fecha de alta. Se recuerda para vos. Por defecto las observaciones salen en letra chica debajo del nombre.' },
@@ -111,33 +111,33 @@ export const MANUAL: SeccionManual[] = [
       { t: 'p', x: '**Sillas.** Cada mesa dibuja una silla por lugar (su capacidad máxima), repartidas por sus lados o alrededor si es redonda. En cada **salón** elegís el estilo de las sillas (redondas, cuadradas, con respaldo o sin sillas) y su color. En cada **mesa** podés **girarla** (de a 15° o 90°, o escribir los grados), sacarle las sillas de un lado (por ejemplo si está contra la pared) o quitárselas. Se ven igual en el servicio, al elegir mesa al cargar una reserva y en el sitio de reservas. El giro es solo el dibujo: el lugar que ocupa en el plano no cambia.' },
       { t: 'p', x: '**Planos activos e inactivos.** Podés tener varios planos guardados aunque no los uses (por ejemplo, el salón de invierno o una distribución para eventos). En modo editar, cada plano tiene el botón **Activar / Desactivar este plano**. Un plano **inactivo** conserva todas sus mesas, pero no aparece en el servicio, no se ofrece al asignar mesas ni en el sitio de reservas, y no entra en el QR de mesas. Cuando lo reactivás vuelve todo como estaba. Si el módulo Salón y mesas está apagado para el negocio, tampoco se usa ningún plano (siguen guardados).' },
       { t: 'p', x: '**Duración de la mesa:** cuánto tiempo se considera ocupada una mesa reservada (por defecto 120 minutos). Dos reservas chocan si caen a menos de esa duración una de otra.' },
-      { t: 'tip', x: '**Hoja de QR de las mesas** (/qr-mesas): imprime un QR por mesa que lleva a la carta con la mesa ya cargada, para pedir desde la mesa (necesita Carta y Pedidos).' },
+      { t: 'tip', x: '**Hoja de QR de las mesas** (botón **QR de mesas**): imprime un QR por mesa que lleva a la carta con la mesa ya cargada, para pedir desde la mesa (necesita Carta y Pedidos).' },
     ],
   },
   {
-    id: 'sitio-reservas', grupo: 'Operación diaria', titulo: 'Sitio de reservas (versión de prueba)', modulo: 'reservas', resumen: 'La página pública donde el cliente elige día y mesa, y la reserva se registra cuando escribe por WhatsApp.',
+    id: 'sitio-reservas', grupo: 'Operación diaria', titulo: 'Sitio de reservas', modulo: 'reservas', resumen: 'La página pública donde el cliente elige día y mesa, y la reserva se registra cuando escribe por WhatsApp.',
     bloques: [
-      { t: 'p', x: 'Es una página pública, sin login: **crm.ristosuite.app/reservar/club-fellini-bar** (cambia el final según el negocio). El enlace se puede compartir por Instagram, WhatsApp o un QR. Está marcada como **“Sitio de prueba”**. Necesita que el negocio tenga cargado su **WhatsApp** (Configuración → Negocio).' },
-      { t: 'p', x: '**La idea:** igual que los pedidos de Toque, el cliente no “reserva” en la web: **arma su solicitud y la termina de confirmar por WhatsApp**. La reserva real **no existe hasta que llega su mensaje**. Así no se acumulan reservas fantasma de gente que abandonó a la mitad, y el teléfono es el de quien escribe (por eso el formulario **no pide teléfono**).' },
-      { t: 'p', x: '**Si el negocio tiene sedes**, el primer paso es **“¿En qué sede?”** y cada sede se comporta como un negocio propio: usa **su WhatsApp** (si la sede no tiene, el del negocio), **sus ubicaciones** (las que cargaste para esa sede más las generales), **su aforo y sus fechas bloqueadas**, **su plano de mesas** (una sede puede tener plano y otra no: la que no tiene deja que un asesor elija la mesa), y opcionalmente **sus horarios y su mensaje**. La reserva queda en la sede elegida. Una sede se ofrece solo si está activa, no está apagada para la web y tiene un WhatsApp al que escribir. Si queda una sola sede, el sitio no pregunta. Cada sede tiene su enlace directo (`/reservar/<negocio>?sede=<nombre de la sede>`) que se copia en Configuración.' },
+      { t: 'p', x: 'Es una página pública, sin necesidad de iniciar sesión, con el nombre de tu negocio. El enlace se puede compartir por Instagram, WhatsApp o un QR. Necesita que el negocio tenga cargado su **WhatsApp** (Configuración → Negocio).' },
+      { t: 'p', x: '**La idea:** el cliente no “reserva” directamente en la web: **arma su solicitud y la termina de confirmar por WhatsApp**. La reserva real **no existe hasta que llega su mensaje**. Así no se acumulan reservas fantasma de gente que abandonó a la mitad, y el teléfono es el de quien escribe (por eso el formulario **no pide teléfono**).' },
+      { t: 'p', x: '**Si el negocio tiene sedes**, el primer paso es **“¿En qué sede?”** y cada sede se comporta como un negocio propio: usa **su WhatsApp** (si la sede no tiene, el del negocio), **sus ubicaciones** (las que cargaste para esa sede más las generales), **su aforo y sus fechas bloqueadas**, **su plano de mesas** (una sede puede tener plano y otra no: la que no tiene deja que un asesor elija la mesa), y opcionalmente **sus horarios y su mensaje**. La reserva queda en la sede elegida. Una sede se ofrece solo si está activa, no está apagada para la web y tiene un WhatsApp al que escribir. Si queda una sola sede, el sitio no pregunta. Cada sede tiene su enlace directo, que se copia en Configuración.' },
       { t: 'p', x: '**Cómo lo vive el cliente:**' },
       { t: 'pasos', x: [
         'Elige **día, cantidad de personas, ubicación, tipo de reserva y horario**. Todo sale de lo que tenés configurado en el CRM: las ubicaciones, los tipos, los horarios, el aforo y las fechas bloqueadas. Un horario completo o cerrado aparece como “Completo” o “Cerrado”.',
         'Elige su mesa **tocando el plano**, o toca **“Que un asesor la elija”**. Las mesas que no sirven para su grupo se ven “No apta”; las que ya tienen una reserva **confirmada, pendiente de pago o en revisión de pago** se ven “Reservada” y no se pueden tocar.',
         'Deja su nombre y comentarios, y toca **Reservar y enviar por WhatsApp**.',
-        'Se guarda la **solicitud en espera** (con un **código** de 6 caracteres) y se abre **WhatsApp con un mensaje ya escrito** (“SOLICITUD DE RESERVA…” con el código y todos los datos). El cliente tiene que **enviarlo sin cambiarlo**: ese es el paso que registra la reserva.',
+        'Se guarda la **solicitud en espera** (con un **código** corto) y se abre **WhatsApp con un mensaje ya escrito** (“SOLICITUD DE RESERVA…” con el código y todos los datos). El cliente tiene que **enviarlo sin cambiarlo**: ese es el paso que registra la reserva.',
       ] },
       { t: 'p', x: '**Qué pasa del lado del local:**' },
       { t: 'pasos', x: [
-        'Cuando el mensaje llega, **el bot** lo reconoce por la frase “SOLICITUD DE RESERVA” y su código, y **crea la reserva** con el teléfono de quien escribió. Aparece en **Reservas** como **Nueva**, con la marca “[Sitio de prueba]” en observaciones y las mesas ya asignadas si las eligió el cliente. El bot le contesta que la recibió.',
+        'Cuando el mensaje llega, **el bot** lo reconoce por su código y **crea la reserva** con el teléfono de quien escribió. Aparece en **Reservas** como **Nueva**, con las mesas ya asignadas si las eligió el cliente. El bot le contesta que la recibió.',
         'Hablás con el cliente y la **confirmás** (o la pasás a **Pendiente de pago** si pedís seña). Recién ahí la mesa queda **bloqueada** para los demás en el sitio.',
-        'Si el bot no la tomó (todavía no está configurada la regla, o el cliente escribió cambiando el texto), la solicitud queda en el bloque **“Solicitudes web esperando el WhatsApp”** de **Reservas**. Buscás su código en el chat de WhatsApp, tocás **“Registrar con su teléfono”**, escribís el número con el que te escribió y se crea la reserva.',
+        'Si el bot no la tomó (por ejemplo, porque el cliente cambió el texto del mensaje), la solicitud queda en el bloque **“Solicitudes web esperando el WhatsApp”** de **Reservas**. Buscás su código en el chat de WhatsApp, tocás **“Registrar con su teléfono”**, escribís el número con el que te escribió y se crea la reserva.',
         'Si el cliente nunca escribe, la solicitud no molesta: no ocupa mesa ni aforo, vence a las **48 horas** y se borra sola. También podés **descartarla** (el tachito).',
       ] },
-      { t: 'p', x: '**Cancelar o modificar una reserva desde un link.** Cada reserva tiene su propio link (`/reservar/<negocio>/r/<código>`) que el bot le manda al cliente junto con la confirmación. Ahí el cliente puede **cancelar** o **modificar** (día, hora o cantidad de personas, con los mismos horarios y aforo del sitio). Pedirlo **no cambia nada todavía**: se abre WhatsApp con un mensaje ya escrito (“CANCELACIÓN DE RESERVA - …” o “MODIFICACIÓN DE RESERVA - …”, con un código) y el cambio se aplica recién cuando ese mensaje llega **desde el mismo teléfono con el que se hizo la reserva**. Si lo manda otro número, no se toca nada y el chat se deriva a una persona: así nadie puede cancelar o cambiar reservas ajenas. Una modificación borra la mesa asignada (hay que reasignarla), deja una nota y, si el local revisa cada reserva, la vuelve a “Nueva”. Los textos que contesta el bot se editan en Configuración → Mensajes del bot.' },
+      { t: 'p', x: '**Cancelar o modificar una reserva desde un link.** Cada reserva tiene su propio link, que el bot le manda al cliente junto con la confirmación. Ahí el cliente puede **cancelar** o **modificar** (día, hora o cantidad de personas, con los mismos horarios y aforo del sitio). Pedirlo **no cambia nada todavía**: se abre WhatsApp con un mensaje ya escrito (“CANCELACIÓN DE RESERVA - …” o “MODIFICACIÓN DE RESERVA - …”, con un código) y el cambio se aplica recién cuando ese mensaje llega **desde el mismo teléfono con el que se hizo la reserva**. Si lo manda otro número, no se toca nada y el chat se deriva a una persona: así nadie puede cancelar o cambiar reservas ajenas. Una modificación borra la mesa asignada (hay que reasignarla), deja una nota y, si el local revisa cada reserva, la vuelve a “Nueva”. Los textos que contesta el bot los ajusta Risto Suite: si querés cambiar alguno, pedíselo.' },
       { t: 'ojo', x: 'Si entre que el cliente armó la solicitud y mandó el mensaje la mesa se ocupó o el horario se completó, **igual se crea la reserva** (el cliente ya escribió), pero **sin mesa** y con un aviso en las observaciones para que un asesor la resuelva con él.' },
       { t: 'ojo', x: 'Una reserva **“Nueva” no bloquea** la mesa: dos clientes pueden pedir la misma mientras ninguna esté confirmada. Si pasa, al asignar la segunda el sistema te avisa del choque y vos resolvés con el cliente.' },
-      { t: 'p', x: '**Configuración del sitio** (dueño, administrador): en **Configuración → Sitio de reservas (prueba)**.' },
+      { t: 'p', x: '**Configuración del sitio** (dueño, administrador): en **Configuración → Sitio de reservas**.' },
       { t: 'p', x: '**Cumpleaños con año (opcional):** en el mismo renglón que el día y el mes, el cliente puede sumar su año de nacimiento (“Recibí un regalo en ese día 🎁”; día de 1 a 31, mes de enero a diciembre y año desde el actual hasta 100 años atrás); con el año, la ficha del cliente guarda su fecha de nacimiento completa y muestra la edad que cumple. **El plano en el celular:** las mesas se ven a un tamaño cómodo para tocar; se desliza para recorrer el salón, se acerca y aleja pellizcando o con los botones **+ / −**, y **Ver todo** muestra el salón completo. Si preferís no usar el mapa, el cliente puede cambiar a **Lista** y elegir la mesa de ahí. **Mesas que no alcanzan:** si todas las mesas libres de un salón piden más personas que las de la reserva (por ejemplo, reservás para 2 y son de 3 como mínimo), el sitio lo explica y sugiere subir la cantidad, probar otro horario u otra ubicación o pedir un asesor. **Cambiar solo la mesa:** desde el link de su reserva el cliente puede pedir otra mesa sin cambiar día ni hora.' },
       { t: 'lista', x: [
         '**Activo:** apagado, el enlace muestra “no encontrado”.',
@@ -151,8 +151,7 @@ export const MANUAL: SeccionManual[] = [
         '**Días hacia adelante, anticipación mínima y rango de personas.** Y un **mensaje** que ve el cliente (por ejemplo: “Tolerancia de 15 minutos”).',
         '**Preguntar el cumpleaños:** agrega al formulario el día y el mes de cumpleaños, siempre **opcional** para el cliente (los dos o ninguno). Si lo completa, se guarda en la reserva y en su ficha para el módulo Cumpleaños, y va en el mensaje de WhatsApp.',
         '**Título y subtítulo** de la página (por defecto, el nombre del local y “Reservá tu mesa”).',
-        '**Cuánto espera la solicitud** (horas) y **máximo de mesas por reserva** (cuántas móviles se pueden juntar).',
-        '**Mensaje de WhatsApp:** el texto que se arma para el cliente. Podés cambiar las líneas y el orden con variables como {nombre} o {hora}; una línea cuyo dato esté vacío no se incluye. **Tiene que llevar {codigo}**. Abajo ves una vista previa.',
+        '**Máximo de mesas por reserva** (cuántas móviles se pueden juntar).',
       ] },
       { t: 'tip', x: 'Para probarlo: abrí el enlace desde tu celular, armá una solicitud con tu nombre, enviá el mensaje de WhatsApp y mirá cómo aparece la reserva en Reservas. Después cancelala.' },
     ],
@@ -166,7 +165,7 @@ export const MANUAL: SeccionManual[] = [
   {
     id: 'carta', grupo: 'Operación diaria', titulo: 'Carta digital', modulo: 'carta', resumen: 'El menú online: categorías, productos, fotos y precios.',
     bloques: [
-      { t: 'p', x: 'Armás la carta de tu negocio y los clientes la ven en una página pública: **crm.ristosuite.app/carta/<tu-negocio>**, sin necesidad de login. Funciona sola (solo para mirar) o junto con Pedidos.' },
+      { t: 'p', x: 'Armás la carta de tu negocio y los clientes la ven en una página pública con la marca de tu negocio, sin necesidad de iniciar sesión (el enlace y el QR salen de **Ajustes**). Funciona sola (solo para mirar) o junto con Pedidos.' },
       { t: 'pasos', x: [
         'Creá las **categorías** (Entradas, Platos, Postres…). Podés ordenarlas y ocultarlas.',
         'Agregá **productos**: nombre, descripción, precio (o **variantes** con su precio, por ejemplo Chico / Grande), **foto** y **etiquetas** (recomendado, vegano, sin TACC, picante…). Las fotos se achican solas.',
@@ -174,13 +173,13 @@ export const MANUAL: SeccionManual[] = [
         '**Importar texto:** pegás una lista con el formato “Categoría | Producto | Precio | Descripción” y se cargan todos juntos.',
         'En **Ajustes** elegís si se muestran precios, el título y un mensaje. Desde ahí sacás también el **QR** de la carta para imprimir.',
       ] },
-      { t: 'tip', x: 'El enlace de la carta se puede cargar en la variable del bot de BotConversa que usa el menú, para que el bot mande siempre la carta actualizada.' },
+      { t: 'tip', x: 'El enlace de la carta se puede usar en el menú del bot, para que mande siempre la carta actualizada (pedíselo a Risto Suite).' },
     ],
   },
   {
     id: 'pedidos', grupo: 'Operación diaria', titulo: 'Pedidos', modulo: 'pedidos', resumen: 'Pedidos de retiro, delivery y mesa que llegan desde la carta.',
     bloques: [
-      { t: 'p', x: 'Los clientes arman su pedido desde la carta pública (agregan productos, eligen retiro, delivery o mesa, forma de pago y dejan sus datos). **Los precios siempre los recalcula el servidor desde la carta**: el cliente no puede cambiarlos.' },
+      { t: 'p', x: 'Los clientes arman su pedido desde la carta pública (agregan productos, eligen retiro, delivery o mesa, forma de pago y dejan sus datos). **Los precios siempre salen de la carta**: el cliente no puede cambiarlos.' },
       { t: 'pasos', x: [
         'Activá **“Recibiendo pedidos”** (interruptor en la pantalla de Pedidos). Apagado, la carta sigue visible pero no se puede pedir.',
         'Cada pedido nuevo suena, avisa y aparece como tarjeta con sus ítems. Con el botón de **siguiente paso** lo avanzás: Aceptado → Preparando → Listo → (En camino) → Entregado.',
@@ -200,14 +199,14 @@ export const MANUAL: SeccionManual[] = [
       { t: 'p', x: 'Cada persona que reservó, pidió o escribió queda como cliente, identificada por su **teléfono**. Podés buscar por nombre o teléfono y filtrar por **etiqueta** y por **origen** (de dónde llegó: WhatsApp, QR de la carta, Wifi…).' },
       { t: 'p', x: '**Por sede:** si el negocio tiene sedes, un filtro **Sede** deja solo los clientes que reservaron en esa sede (también respeta la sede elegida arriba). Con una sede elegida, “Reservas” y “Última reserva” cuentan solo las de esa sede.' },
       { t: 'p', x: 'La **ficha del cliente** reúne su teléfono, origen, desde cuándo es cliente, su cumpleaños, su tarjeta de fidelidad, sus vouchers, sus reseñas y el **historial de reservas**. Desde ahí podés corregir su nombre y emitirle un voucher.' },
-      { t: 'p', x: '**Etiquetas:** sirven para clasificar (por ejemplo “post visita”, “VIP”). Se crean en Configuración → Etiquetas de clientes. Si el negocio usa BotConversa, al etiquetar acá también se etiqueta allá.' },
+      { t: 'p', x: '**Etiquetas:** sirven para clasificar (por ejemplo “post visita”, “VIP”). Se crean en Configuración → Etiquetas de clientes. Si tu negocio tiene el bot conectado, la etiqueta también se aplica en el chat del cliente.' },
     ],
   },
   {
     id: 'cumpleanos', grupo: 'Clientes y marketing', titulo: 'Cumpleaños', modulo: 'cumpleanos', resumen: 'Próximos cumpleaños y qué meses tienen más.',
     bloques: [
       { t: 'p', x: 'Lista los **próximos cumpleaños** de tus clientes (con la edad que cumplen). Se cargan solos cuando una reserva trae la fecha, o a mano con **Agregar cumpleaños**.' },
-      { t: 'p', x: 'El **gráfico de barras** muestra cuántos cumpleaños hay en cada mes, para anticipar cuándo conviene hacer promociones. El saludo y el voucher de cumpleaños los manda el flujo automático del bot.' },
+      { t: 'p', x: 'El **gráfico de barras** muestra cuántos cumpleaños hay en cada mes, para anticipar cuándo conviene hacer promociones. El saludo y el voucher de cumpleaños los manda el bot automáticamente.' },
     ],
   },
   {
@@ -233,7 +232,7 @@ export const MANUAL: SeccionManual[] = [
         'Desde ese momento los premios se emiten solos (cuando se carga o cambia una reserva, y todos los días a la mañana). El botón **Emitir premios** lo fuerza.',
         'Ves el ranking de clientes con sus visitas, los premios emitidos y, en cada ficha de cliente, su tarjeta de fidelidad.',
       ] },
-      { t: 'p', x: 'El **aviso al cliente** (“¡ganaste un premio!”) lo manda un flujo de n8n, que hoy está en modo de prueba.' },
+      { t: 'p', x: 'El **aviso al cliente** (“¡ganaste un premio!”) lo manda el bot; hoy está en etapa de prueba, así que consultá con Risto Suite si ya está activo en tu negocio.' },
     ],
   },
   {
@@ -248,13 +247,13 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Cuando un cliente escribe algo que el bot no resuelve (una consulta) o se queja (un reclamo), queda acá. Filtrás por **Pendientes / Resueltas** y por tipo.' },
       { t: 'pasos', x: ['Abrí el mensaje, respondé al cliente por WhatsApp y marcá la consulta como **Resuelta**.', 'Podés pedir un **Resumen con IA** para ver de qué se trata lo que más se repite.'] },
-      { t: 'p', x: '**Bot sin respuesta:** el bot puede tomar el mensaje **sin contestarle nada al cliente**. La respuesta del bot trae `responder: false`, `mensaje` vacío y un campo `notificacion_equipo` (por ejemplo «📩 NUEVA CONSULTA · San Lorenzo / +54… / ¿Tienen menú sin TACC?») para reenviarlo a un contacto o grupo del equipo desde BotConversa. La atención queda para vos, desde acá.' },
+      { t: 'p', x: '**Sin respuesta automática:** el bot puede tomar el mensaje **sin contestarle nada al cliente** y avisar al equipo por WhatsApp (por ejemplo «📩 NUEVA CONSULTA · San Lorenzo / +54… / ¿Tienen menú sin TACC?»). La atención queda para vos, desde acá.' },
     ],
   },
   {
     id: 'campanas', grupo: 'Clientes y marketing', titulo: 'Campañas', modulo: 'campanas', resumen: 'Seguimiento de a quién se le mandó cada campaña.',
     bloques: [
-      { t: 'p', x: 'Las campañas de marketing las **manda un flujo de n8n** (no se envían desde el CRM). Cada envío queda registrado acá: ves cada campaña y **a qué clientes se les envió**. Sirve para no repetirle la misma campaña a la misma persona y para medir resultados.' },
+      { t: 'p', x: 'Las campañas de marketing las **manda el bot de WhatsApp** (no se envían desde este panel). Cada envío queda registrado acá: ves cada campaña y **a qué clientes se les envió**. Sirve para no repetirle la misma campaña a la misma persona y para medir resultados.' },
     ],
   },
   {
@@ -264,7 +263,7 @@ export const MANUAL: SeccionManual[] = [
   {
     id: 'pausados', grupo: 'Clientes y marketing', titulo: 'Chats pausados, conversaciones y botón del bot', resumen: 'Cuando el bot le pasa el chat a una persona.',
     bloques: [
-      { t: 'p', x: '**Chats pausados** (para encargados y administradores): cuando el bot deriva a un cliente a una persona, su chat queda **pausado** para que el bot no se meta. Acá ves quiénes están esperando y podés **reactivar** el chat (uno por uno o todos juntos) cuando terminaste. Pasado un tiempo (que se configura), el bot vuelve a atender solo.' },
+      { t: 'p', x: '**Chats pausados** (para encargados y administradores): cuando el bot deriva a un cliente a una persona, su chat queda **pausado** para que el bot no se meta. Acá ves quiénes están esperando y podés **reactivar** el chat (uno por uno o todos juntos) cuando terminaste. Pasado un tiempo, el bot vuelve a atender solo.' },
       { t: 'p', x: '**Conversaciones** (si está encendido): muestra los chats del bot de WhatsApp para leerlos.' },
       { t: 'p', x: 'El botón **Bot encendido / apagado** (arriba a la derecha, si tu negocio lo tiene) apaga al bot por completo: no responde ni registra mensajes. Una barra roja avisa mientras está apagado.' },
     ],
@@ -292,7 +291,7 @@ export const MANUAL: SeccionManual[] = [
         '**Sedes:** si el negocio tiene varias, cada una con su aforo, fechas bloqueadas y WhatsApp.',
         '**Aforo:** cuántas personas entran. Podés poner un máximo general y **reglas por ubicación y franja horaria** (por ejemplo, SALÓN de 20:00 a 23:00: 60 personas). Avisa al llegar al 90 % y al cargar una reserva que lo supera. El sitio de reservas respeta estas reglas. Cada regla puede valer **solo ciertos días de la semana** o **solo un rango de fechas**: así tenés, por ejemplo, 120 personas los viernes y sábados y 60 de lunes a jueves, o un aforo especial para la semana de fin de año. Una reserva cuenta en todas las reglas que le corresponden, por eso para tener un aforo distinto por día cargás una regla por grupo de días (y no una general que las pise).',
         '**Días de apertura:** si el negocio (o una sede) **no abre todos los días**, marcás los días de la semana que abre habitualmente (por ejemplo jueves a sábado). El sitio de reservas muestra los demás días cerrados, no se pueden elegir, y el bot tampoco los ofrece. Cada sede puede tener sus propios días o usar los del negocio. Para una **semana especial** en que abre un día que normalmente no abre, lo sumás en “Días especiales que abre”. Para **cerrar un día puntual** que normalmente abre, usás “Fechas bloqueadas”.',
-        '**Configurar por sede:** si el negocio tiene sedes, arriba de la pantalla elegís qué estás configurando: **Todo el negocio** o una **sede**. En una sede cada ajuste hereda lo del negocio hasta que lo **personalices** (casillero “Personalizar para esta sede”): ves el valor del negocio, no se puede editar, y al marcarlo la sede usa el suyo. Se puede personalizar por sede: **tipos de reserva** (si la sede los ofrece y en qué días), **confirmación** (cómo entran sus reservas), **parámetros** (alerta de aforo, turnos, estados que bloquean), **sitio de reservas** (días hacia adelante, anticipación, personas, validez, textos, cumpleaños, cualquier ubicación, aviso de pocos lugares, tipos ofrecidos, horarios y mesa), **mensajes del bot** y la **duración de las mesas**. El aforo, los días de apertura, las fechas bloqueadas, las ubicaciones, los planos y la numeración ya eran por sede. Los usuarios, las etiquetas y la conexión con el bot son del negocio.',
+        '**Configurar por sede:** si el negocio tiene sedes, arriba de la pantalla elegís qué estás configurando: **Todo el negocio** o una **sede**. En una sede cada ajuste hereda lo del negocio hasta que lo **personalices** (casillero “Personalizar para esta sede”): ves el valor del negocio, no se puede editar, y al marcarlo la sede usa el suyo. Se puede personalizar por sede: **tipos de reserva** (si la sede los ofrece y en qué días), **confirmación** (cómo entran sus reservas), **parámetros** (alerta de aforo, turnos, estados que bloquean), **sitio de reservas** (días hacia adelante, anticipación, personas, textos, cumpleaños, cualquier ubicación, aviso de pocos lugares, tipos ofrecidos, horarios y mesa) y la **duración de las mesas**. El aforo, los días de apertura, las fechas bloqueadas, las ubicaciones, los planos y la numeración ya eran por sede. Los usuarios y las etiquetas son del negocio.',
         '**Si tu usuario tiene acceso a algunas sedes:** en Configuración ves y cambiás solamente esas sedes (no aparecen las demás ni la configuración de todo el negocio, como Usuarios o Etiquetas).',
         '**Fechas bloqueadas:** días (o franjas) en los que no se aceptan reservas, por ejemplo un feriado o un evento privado.',
         '**Tipos de reserva:** los que se ofrecen al cargar una reserva y en el sitio (Común, Cumpleaños, Cena show…). Cambiás el nombre, el orden, agregás los tuyos y desactivás los que no uses. Cada tipo tiene su **disponibilidad**: todos los días, solo ciertos días de la semana (por ejemplo Cena show, viernes y sábado) o solo fechas particulares (por ejemplo Cena de Año Nuevo, 31/12); fuera de esos días el sitio no lo ofrece. Si el bot crea un tipo nuevo, aparece como “Sin configurar” para que le pongas nombre.',
@@ -307,7 +306,7 @@ export const MANUAL: SeccionManual[] = [
     ],
   },
   {
-    id: 'que-se-configura', grupo: 'Administración', titulo: 'Qué podés configurar vos (sin pedir cambios)', solo: 'admin', resumen: 'Dónde se cambia cada cosa. Nada de esto requiere tocar código.',
+    id: 'que-se-configura', grupo: 'Administración', titulo: 'Qué podés configurar vos (sin pedir cambios)', solo: 'admin', resumen: 'Dónde se cambia cada cosa desde el panel, sin pedir ayuda.',
     bloques: [
       { t: 'tabla', cab: ['Quiero cambiar…', 'Dónde'], filas: [
         ['Los tipos de reserva (nombre, orden, activos y en qué días se ofrecen)', 'Configuración → Tipos de reserva'],
@@ -323,7 +322,7 @@ export const MANUAL: SeccionManual[] = [
         ['Usuarios, roles y sedes', 'Configuración → Usuarios'],
         ['Etiquetas de clientes', 'Configuración → Etiquetas'],
       ] },
-      { t: 'p', x: '**Todavía necesita ayuda técnica** (se cambia en n8n o en la base, no desde el panel): los textos y beneficios de los flujos de reseñas, cumpleaños y vouchers (por ejemplo “25 % OFF”), las campañas de retorno (días, vencimiento, plantillas de WhatsApp) y la redacción de los avisos de estado por BotConversa. Si necesitás cambiar alguno con frecuencia, avisá y se pasa al panel.' },
+      { t: 'p', x: '**Esto lo cambia Risto Suite por vos** (no se hace desde el panel): los textos y beneficios de las reseñas, los cumpleaños y los vouchers (por ejemplo “25 % OFF”), las campañas de retorno (cada cuánto, hasta cuándo vence y qué mensaje se manda) y la redacción de los mensajes que el bot manda al cambiar el estado de una reserva. Pedíselo cuando lo necesites; si es algo que cambiás seguido, avisá y se pasa al panel.' },
     ],
   },
 
@@ -363,7 +362,7 @@ export const MANUAL: SeccionManual[] = [
         ['Derivada', 'Reserva que toma el bot pero administra otra producción.'],
         ['Sede', 'Cada local de un negocio que tiene varios.'],
         ['Módulo', 'Cada parte del CRM que se enciende o apaga por negocio.'],
-        ['Webhook', 'Dirección a la que un sistema le avisa a otro que pasó algo (así hablan BotConversa y n8n con el CRM).'],
+        ['Bot', 'El asistente de WhatsApp del negocio: toma reservas, consultas y pedidos, y le pasa el chat a una persona cuando hace falta.'],
       ] },
     ],
   },
