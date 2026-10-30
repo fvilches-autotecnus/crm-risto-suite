@@ -89,7 +89,6 @@ export default function ManualUI({ secciones, grupos }: { secciones: SeccionVist
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-base font-bold sm:text-lg">{s.titulo}</h3>
                         {s.inactivo && <span className="rounded-full bg-rs-raised px-2 py-0.5 text-[11px] font-semibold text-rs-muted">No activo en este negocio</span>}
-                        {s.solo === 'superadmin' && <span className="rounded-full bg-rs-raised px-2 py-0.5 text-[11px] font-semibold text-rs-lime">Solo superadmin</span>}
                         {s.solo === 'admin' && <span className="rounded-full bg-rs-raised px-2 py-0.5 text-[11px] font-semibold text-rs-lime">Dueño y administrador</span>}
                       </div>
                       <p className="mt-0.5 text-sm text-rs-muted/80">{s.resumen}</p>

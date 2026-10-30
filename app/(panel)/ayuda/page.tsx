@@ -10,7 +10,7 @@ export const metadata = { title: 'Ayuda · RistoSuite' }
 export default async function AyudaPage() {
   const ctx = await getContexto()
   const secciones: SeccionVista[] = MANUAL
-    .filter((s) => (s.solo === 'superadmin' ? ctx.esSuperadmin : s.solo === 'admin' ? ctx.puedeAdministrar : true))
+    .filter((s) => (s.solo === 'admin' ? ctx.puedeAdministrar : true))
     .map((s) => ({ ...s, inactivo: !!s.modulo && ctx.modulosActivos[s.modulo] !== true }))
   return (
     <div className="space-y-4">

@@ -20,8 +20,8 @@ export interface SeccionManual {
   titulo: string
   resumen: string
   modulo?: ModuloClave
-  /** admin = dueño, administrador o superadmin; superadmin = solo superadmin */
-  solo?: 'admin' | 'superadmin'
+  /** admin = solo quienes administran el negocio (dueño y administrador) */
+  solo?: 'admin'
   bloques: Bloque[]
 }
 
@@ -34,7 +34,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Se entra desde **crm.ristosuite.app** con tu **usuario** (no es un email) y tu contraseña. Si no tenés usuario, pedíselo al dueño o administrador del negocio.' },
       { t: 'p', x: 'Arriba a la izquierda ves el nombre del negocio. Si tu usuario trabaja en **más de un negocio** o el negocio tiene **sedes**, aparecen selectores para cambiar de uno a otro: todo lo que ves (reservas, clientes, vouchers…) es del negocio y la sede elegidos.' },
-      { t: 'p', x: 'La barra de pestañas muestra **solo los módulos que tu negocio tiene encendidos**. Si falta algo que esperabas ver, no es un error: ese módulo está apagado y lo enciende el superadmin (ver “Módulos”).' },
+      { t: 'p', x: 'La barra de pestañas muestra **solo los módulos que tu negocio tiene encendidos**. Si falta algo que esperabas ver, no es un error: ese módulo no está activado en tu negocio. Consultalo con Risto Suite.' },
       { t: 'p', x: 'Para salir, usá el botón **Salir** (arriba a la derecha). Si dejaste la pantalla abierta mucho tiempo, igual cierra la sesión.' },
       { t: 'tip', x: 'En el celular la barra de pestañas se desliza hacia los costados, y las tablas se convierten en tarjetas.' },
       { t: 'tip', x: 'Todas las fechas se ven y se escriben **día-mes-año** (por ejemplo 26-10-2026). En los campos de fecha podés escribir solo los números (26102026) o tocar el calendario, que empieza en lunes.' },
@@ -50,7 +50,6 @@ export const MANUAL: SeccionManual[] = [
         ['Encargado', 'Opera las reservas y puede apagar o encender el bot. También arma el plano del salón.'],
         ['Staff', 'Carga y edita reservas, pedidos y el trabajo del día a día.'],
         ['Solo lectura', 'Mira todo, no cambia nada (los botones de acción no aparecen).'],
-        ['Superadmin', 'Es el rol de Risto Suite: ve todos los negocios, crea negocios y usuarios, y enciende o apaga los módulos de cada uno.'],
       ] },
       { t: 'p', x: 'Un usuario puede tener un rol distinto en cada negocio, y puede estar limitado a algunas sedes.' },
     ],
@@ -166,7 +165,7 @@ export const MANUAL: SeccionManual[] = [
   {
     id: 'shows', grupo: 'Operación diaria', titulo: 'Shows', modulo: 'shows', resumen: 'Cartelera y cupos de shows (en preparación).',
     bloques: [
-      { t: 'p', x: 'La carpeta del módulo existe y se enciende desde Administración, pero **todavía no tiene pantallas completas**. Está pensado para la cartelera de shows y eventos, con entradas y cupos. Mientras tanto, las cenas show se manejan como un **tipo de reserva** (“Cena show”).' },
+      { t: 'p', x: 'Este módulo **todavía no tiene pantallas completas**. Está pensado para la cartelera de shows y eventos, con entradas y cupos. Mientras tanto, las cenas show se manejan como un **tipo de reserva** (“Cena show”).' },
     ],
   },
   {
@@ -213,7 +212,7 @@ export const MANUAL: SeccionManual[] = [
     id: 'cumpleanos', grupo: 'Clientes y marketing', titulo: 'Cumpleaños', modulo: 'cumpleanos', resumen: 'Próximos cumpleaños y qué meses tienen más.',
     bloques: [
       { t: 'p', x: 'Lista los **próximos cumpleaños** de tus clientes (con la edad que cumplen). Se cargan solos cuando una reserva trae la fecha, o a mano con **Agregar cumpleaños**.' },
-      { t: 'p', x: 'El **gráfico de barras** muestra cuántos cumpleaños hay en cada mes, para anticipar cuándo conviene hacer promociones. El saludo y el voucher de cumpleaños los manda el flujo automático del bot (ver “Automatizaciones”).' },
+      { t: 'p', x: 'El **gráfico de barras** muestra cuántos cumpleaños hay en cada mes, para anticipar cuándo conviene hacer promociones. El saludo y el voucher de cumpleaños los manda el flujo automático del bot.' },
     ],
   },
   {
@@ -239,7 +238,7 @@ export const MANUAL: SeccionManual[] = [
         'Desde ese momento los premios se emiten solos (cuando se carga o cambia una reserva, y todos los días a la mañana). El botón **Emitir premios** lo fuerza.',
         'Ves el ranking de clientes con sus visitas, los premios emitidos y, en cada ficha de cliente, su tarjeta de fidelidad.',
       ] },
-      { t: 'p', x: 'El **aviso al cliente** (“¡ganaste un premio!”) lo manda un flujo de n8n, que hoy está en modo de prueba (ver “Automatizaciones”).' },
+      { t: 'p', x: 'El **aviso al cliente** (“¡ganaste un premio!”) lo manda un flujo de n8n, que hoy está en modo de prueba.' },
     ],
   },
   {
@@ -254,7 +253,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Cuando un cliente escribe algo que el bot no resuelve (una consulta) o se queja (un reclamo), queda acá. Filtrás por **Pendientes / Resueltas** y por tipo.' },
       { t: 'pasos', x: ['Abrí el mensaje, respondé al cliente por WhatsApp y marcá la consulta como **Resuelta**.', 'Podés pedir un **Resumen con IA** para ver de qué se trata lo que más se repite.'] },
-      { t: 'p', x: '**Bot sin respuesta:** el bot puede tomar el mensaje **sin contestarle nada al cliente**. La respuesta del bot trae `responder: false`, `mensaje` vacío y un campo `notificacion_equipo` (por ejemplo «📩 NUEVA CONSULTA · San Lorenzo / Cami / +54… / ¿Tienen menú sin TACC?») para reenviarlo a un contacto o grupo del equipo desde BotConversa. La atención queda para vos, desde acá.' },
+      { t: 'p', x: '**Bot sin respuesta:** el bot puede tomar el mensaje **sin contestarle nada al cliente**. La respuesta del bot trae `responder: false`, `mensaje` vacío y un campo `notificacion_equipo` (por ejemplo «📩 NUEVA CONSULTA · San Lorenzo / +54… / ¿Tienen menú sin TACC?») para reenviarlo a un contacto o grupo del equipo desde BotConversa. La atención queda para vos, desde acá.' },
     ],
   },
   {
@@ -327,75 +326,10 @@ export const MANUAL: SeccionManual[] = [
         ['El plano: salones, mesas fijas o móviles, capacidades, duración de la mesa', 'Salón y mesas → Editar plano'],
         ['La carta y los pedidos (precios, fotos, envío, medios de pago)', 'Carta y Pedidos → Ajustes'],
         ['Premios por visitas', 'Fidelización → Ajustes y reglas'],
-        ['A quién avisar y con qué estados cuando cambia una reserva', 'Configuración → Funciones del negocio (superadmin)'],
-        ['Qué módulos tiene el negocio', 'Configuración → Funciones del negocio / Administración (superadmin)'],
         ['Usuarios, roles y sedes', 'Configuración → Usuarios'],
         ['Etiquetas de clientes y pausa automática de chats', 'Configuración → Etiquetas y Chats pausados'],
       ] },
       { t: 'p', x: '**Todavía necesita ayuda técnica** (se cambia en n8n o en la base, no desde el panel): los textos y beneficios de los flujos de reseñas, cumpleaños y vouchers (por ejemplo “25 % OFF”), las campañas de retorno (días, vencimiento, plantillas de WhatsApp) y la redacción de los avisos de estado por BotConversa. Si necesitás cambiar alguno con frecuencia, avisá y se pasa al panel.' },
-    ],
-  },
-  {
-    id: 'usuarios', grupo: 'Administración', titulo: 'Administración: negocios y usuarios', solo: 'superadmin', resumen: 'Crear negocios y usuarios y asignar módulos (superadmin).',
-    bloques: [
-      { t: 'p', x: 'La pestaña **Administración** (solo superadmin) tiene dos lugares:' },
-      { t: 'lista', x: [
-        '**Negocios:** crear un negocio nuevo (nombre, identificador —es el que va en las direcciones públicas, por ejemplo /carta/club-fellini-bar—, WhatsApp), activarlo o desactivarlo y elegir sus **módulos**.',
-        '**Usuarios:** crear usuarios (usuario, nombre y contraseña), asignarles uno o más negocios con un **rol** en cada uno y, si hace falta, limitarlos a ciertas sedes. También se pueden desactivar.',
-      ] },
-      { t: 'tip', x: 'Un usuario nuevo entra con su usuario y contraseña en la pantalla de ingreso. Si olvidó la contraseña, la cambiás vos desde Administración → Usuarios.' },
-    ],
-  },
-  {
-    id: 'modulos', grupo: 'Administración', titulo: 'Módulos: encender y apagar', solo: 'superadmin', resumen: 'Qué módulos tiene cada negocio y cuáles “conviene” juntar.',
-    bloques: [
-      { t: 'p', x: 'Cada negocio tiene **solo los módulos que vos le enciendas**. Un módulo apagado desaparece del menú y su dirección redirige al inicio. Se maneja desde Administración → Negocios (al crear o editar) y desde Configuración → **Funciones del negocio**.' },
-      { t: 'p', x: '**Módulos por sede.** El negocio define qué módulos tiene y **cada sede puede apagar los que no usa** (por ejemplo, una sede sin plano de mesas, o sin pedidos). Una sede **nunca** puede tener un módulo que el negocio no tiene. Se elige en Configuración → Funciones del negocio → **Módulos por sede** (una grilla con las sedes y los módulos del negocio). Al mirar esa sede (selector de sede de arriba) el módulo desaparece del menú y su dirección redirige al inicio; el sitio de reservas deja de ofrecer la sede si apagó Reservas, o el plano si apagó Salón y mesas. Con “todas las sedes” se ve un módulo si lo usa alguna. Solo se pueden apagar por sede los módulos operativos (Reservas, Salón y mesas, Shows, Carta, Pedidos, Consultas y Derivadas); Clientes, Cumpleaños, Vouchers y el resto son del negocio entero.' },
-      { t: 'p', x: 'Hay **atajos** para configurar de un clic (“Solo reservas”, “Reservas con carta”, “Reservas y pedidos”, “Todo”…), y después ajustás casilla por casilla. Cada módulo es independiente, pero algunos **“conviene”** con otros: al encenderlo se tildan también los que lo acompañan, y la pantalla explica por qué. Podés destildarlos.' },
-      { t: 'tabla', cab: ['Módulo', 'Conviene con', 'Por qué'], filas: [
-        ['Salón y mesas', 'Reservas', 'Las mesas se asignan a las reservas.'],
-        ['Pedidos', 'Carta', 'Los pedidos se arman con productos de la carta. Carta sirve sola (menú para mirar) pero Pedidos sin Carta obliga a escribir cada pedido a mano.'],
-        ['Fidelización', 'Reservas, Clientes, Vouchers', 'Las visitas salen de las reservas y el premio es un voucher asociado al cliente.'],
-        ['Cumpleaños, Vouchers, Reseñas, Campañas', 'Clientes', 'Cada dato se asocia a un cliente y se ve en su ficha.'],
-        ['Métricas, Derivadas', 'Reservas', 'Se calculan con las reservas.'],
-      ] },
-    ],
-  },
-  {
-    id: 'funciones', grupo: 'Administración', titulo: 'Funciones del negocio: bot, BotConversa y avisos', solo: 'superadmin', resumen: 'Apagado del bot, conexión con BotConversa y avisos al cliente.',
-    bloques: [
-      { t: 'p', x: 'En Configuración → **Funciones del negocio** (solo superadmin):' },
-      { t: 'lista', x: [
-        '**Botón de apagar el bot:** muestra u oculta el interruptor del encabezado.',
-        '**BotConversa:** activa la sincronización de etiquetas con BotConversa (se guarda la clave de forma segura).',
-        '**Avisos al cliente:** a dónde se manda el aviso cuando alguien cambia el estado de una reserva (BotConversa o un webhook de n8n), con qué estados avisa (por ejemplo confirmada, pendiente de pago y cancelada) y, si hay sedes, un destino propio por sede.',
-        '**Módulos:** las casillas de cada módulo.',
-      ] },
-    ],
-  },
-  {
-    id: 'automatizaciones', grupo: 'Administración', titulo: 'Automatizaciones (n8n y BotConversa)', solo: 'superadmin', resumen: 'Qué hace cada flujo, cómo se corre y qué cuidar.',
-    bloques: [
-      { t: 'p', x: 'El CRM es la base de datos y el panel. Los mensajes de WhatsApp los mandan **BotConversa** (el bot de cada negocio) y **n8n** (los flujos automáticos). Se hablan llamando a **funciones de la base** (`bot_crear_reserva`, `bot_emitir_voucher`, `bot_reserva_web_confirmar`…). El detalle técnico de cada una está en el documento **docs/bot-scripts.md** del repositorio de la base.' },
-      { t: 'tabla', cab: ['Flujo', 'Para qué', 'Cómo se dispara'], filas: [
-        ['Origen del cliente / Calificación / Respuesta negativa / Emitir voucher (Fellini)', 'Los cuatro pasos de la encuesta de reseña: registran de dónde vino el cliente, su puntaje, su queja y emiten el voucher si calificó bien.', 'Los llama BotConversa por webhook (automático).'],
-        ['Confirmar reserva web (Fellini)', 'Cuando el cliente manda “SOLICITUD DE RESERVA … Código: XXXXXX” desde el sitio de reservas, crea la reserva con su teléfono y devuelve el texto para contestarle.', 'Webhook (BotConversa, por palabra clave). Hoy está inactivo: se activa en n8n cuando esté lista la regla.'],
-        ['Confirmar reserva web (Nenina)', 'Lo mismo para Nenina: sirve a las tres sedes (la sede ya viene guardada en la solicitud).', 'Webhook (BotConversa, por palabra clave). Hoy está inactivo: se activa en n8n cuando esté lista la regla.'],
-        ['Emitir voucher de retorno (BotConversa)', 'Entrega el voucher de la campaña de retorno al cliente que responde.', 'Webhook (automático).'],
-        ['Campaña de marketing de retorno (Fellini)', 'Manda la difusión a clientes cuya última reserva confirmada fue hace entre 10 y 60 días, con o sin voucher, hasta un límite por corrida.', 'Manual: lo corrés vos desde n8n.'],
-        ['Avisar premios de fidelidad (Fellini)', 'Avisa a los clientes que ganaron un premio de Fidelización.', 'Manual (hoy inactivo, modo de prueba).'],
-        ['Cumpleaños y encuestas (otros negocios)', 'Saludos de cumpleaños y encuestas de reseña.', 'Automático por horario.'],
-      ] },
-      { t: 'p', x: '**Correr la campaña de retorno:**' },
-      { t: 'pasos', x: [
-        'Abrí el flujo en n8n y mirá el nodo **Configuración**: `crear_voucher` (con o sin voucher), `desde_dias` y `hasta_dias`, `vence_fecha` (DD-MM-AAAA), `beneficio`, `limite_envios` (50 por defecto; 0 = sin límite) y las plantillas de WhatsApp.',
-        'Dejá **modo_prueba = true** la primera vez: arma todo pero no manda mensajes reales. Revisá el resultado.',
-        'Cuando esté bien, poné modo_prueba en false y ejecutá. Los que ya recibieron la campaña se saltean solos, así que podés correr de nuevo mañana con otro lote de 50 u 80 sin repetir a nadie.',
-        'Cada envío queda en **Campañas** y cada voucher en **Vouchers**.',
-      ] },
-      { t: 'ojo', x: 'Antes de modificar un flujo por API o desde el editor de n8n, **asegurate de que nadie lo tenga abierto en otra pestaña**: si alguien guarda una copia vieja, pisa tus cambios sin avisar. Después de cada cambio, recargá y verificá.' },
-      { t: 'ojo', x: 'Para que los mensajes de plantilla funcionen, el nombre de cada plantilla tiene que existir y estar aprobado en WhatsApp. Algunos flujos tienen un nombre provisorio (por ejemplo `fellini_retorno` o `fellini_premio`) que hay que reemplazar por el real.' },
-      { t: 'p', x: '**Reserva del sitio web → WhatsApp.** Cuando el cliente manda “SOLICITUD DE RESERVA … Código: XXXXXX”, el bot tiene que llamar a `bot_reserva_web_confirmar` con el negocio, el teléfono de quien escribe y el texto del mensaje. Eso **crea la reserva** (antes de eso solo existe una solicitud en espera) y devuelve sus datos para que el bot conteste. En Fellini está armado el flujo de n8n **“Fellini - Confirmar reserva web (BotConversa)”**: en BotConversa solo hay que crear una regla por palabra clave **SOLICITUD DE RESERVA** que lo llame (situación 29 de docs/bot-scripts.md).' },
     ],
   },
 
@@ -404,7 +338,7 @@ export const MANUAL: SeccionManual[] = [
     id: 'problemas', grupo: 'Ayuda', titulo: 'Problemas frecuentes', resumen: 'Qué mirar cuando algo no aparece o no anda.',
     bloques: [
       { t: 'tabla', cab: ['Me pasa…', 'Qué hacer'], filas: [
-        ['No veo un módulo en el menú', 'Está apagado en tu negocio. Pedile al superadmin que lo encienda (Configuración → Funciones del negocio).'],
+        ['No veo un módulo en el menú', 'Ese módulo no está activado en tu negocio. Consultalo con Risto Suite.'],
         ['No veo los botones de acción', 'Tu usuario es de “solo lectura”, o no tiene permiso para esa pantalla.'],
         ['Cargué algo y no aparece', 'Mirá los filtros de arriba (período, estado, ubicación): puede estar filtrado. Probá recargar.'],
         ['El sitio de reservas dice “no encontrado”', 'Está apagado (Configuración → Sitio de reservas → Activo) o el negocio no tiene el módulo Reservas.'],
@@ -433,7 +367,6 @@ export const MANUAL: SeccionManual[] = [
         ['Voucher', 'Código de beneficio con vencimiento, asociado a un cliente y a una campaña.'],
         ['Campaña', 'Una acción de marketing o un motivo de voucher (reseña, cumpleaños, retorno, fidelidad…).'],
         ['Derivada', 'Reserva que toma el bot pero administra otra producción.'],
-        ['Superadmin', 'Usuario de Risto Suite que administra todos los negocios y sus módulos.'],
         ['Sede', 'Cada local de un negocio que tiene varios.'],
         ['Módulo', 'Cada parte del CRM que se enciende o apaga por negocio.'],
         ['Webhook', 'Dirección a la que un sistema le avisa a otro que pasó algo (así hablan BotConversa y n8n con el CRM).'],
