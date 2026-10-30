@@ -3,6 +3,7 @@
 import { unirNombre } from '@/lib/nombres'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
+import type { Marca } from '@/lib/marca'
 import { crearPedidoPublico, type ResultadoPedidoPublico } from '@/app/carta/[slug]/actions'
 import { etiquetaDe, formatearPrecio, textoPrecio, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import { MEDIOS_PAGO, TIPOS, dinero, labelPago, labelTipo } from '@/lib/pedidos'
@@ -13,7 +14,7 @@ interface Linea { producto_id: string; nombre: string; variante: string | null; 
 const clave = (producto: string, variante: string | null) => `${producto}|${variante ?? ''}`
 
 /** Carta pública. Si el negocio tiene Pedidos encendido, cada producto se puede agregar a un pedido y confirmarlo sin salir de la página. */
-export default function CartaPublica({ slug, nombre, config, categorias, pedidos }: { slug: string; nombre: string; config: ConfigCarta; categorias: CategoriaPublica[]; pedidos: PedidosPublicos | null }) {
+export default function CartaPublica({ slug, nombre, config, categorias, pedidos, marca }: { slug: string; nombre: string; config: ConfigCarta; categorias: CategoriaPublica[]; pedidos: PedidosPublicos | null; marca?: Marca }) {
   const puedePedir = !!pedidos?.recibe
   const [carrito, setCarrito] = useState<Record<string, Linea>>({})
   const [abierto, setAbierto] = useState(false)
@@ -47,7 +48,11 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   return (
     <div className="min-h-screen">
       <header className="border-b border-rs-raised bg-rs-header px-4 pb-4 pt-8 text-center">
-        <h1 className="text-2xl font-bold text-rs-lime">{config.titulo || nombre}</h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {marca?.logo_url && (marca.logo_forma === 'redondo'
+          ? <img src={marca.logo_url} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-1 ring-rs-lime/30" />
+          : <img src={marca.logo_url} alt="" className="mx-auto mb-3 h-auto max-h-32 w-auto max-w-[75%] object-contain" />)}
+        <h1 className={marca?.logo_url && marca.logo_forma !== 'redondo' ? 'sr-only' : 'text-2xl font-bold text-rs-lime'}>{config.titulo || nombre}</h1>
         <p className="mt-1 text-sm text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'}</p>
         {config.mensaje && <p className="mx-auto mt-3 max-w-xl whitespace-pre-line text-sm">{config.mensaje}</p>}
         {pedidos && !pedidos.recibe && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Por el momento no estamos tomando pedidos online.{pedidos.mensaje ? ` ${pedidos.mensaje}` : ''}</p>}
