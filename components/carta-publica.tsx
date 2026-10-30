@@ -6,13 +6,13 @@ import { Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import type { Marca } from '@/lib/marca'
 import { crearPedidoPublico, type ResultadoPedidoPublico } from '@/app/carta/[slug]/actions'
 import { etiquetaDe, formatearPrecio, textoPrecio, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
-import { CONFIG_PEDIDOS_POR_DEFECTO, MEDIOS_PAGO, TIPOS, dinero, labelPago, labelTipo, type ConfigPedidos, type TipoPedido } from '@/lib/pedidos'
+import { CONFIG_PEDIDOS_POR_DEFECTO, dinero, labelPago, labelTipo, type ConfigPedidos, type EntregaPedido, type MedioPedido } from '@/lib/pedidos'
 import { costoEnvioFinal, estadoPedidos, mediosDisponibles } from '@/lib/pedidos-horarios'
 
 export interface CategoriaPublica { id: string; nombre: string; descripcion: string | null; productos: (ProductoCarta & { img: string | null })[] }
 /** Lo que la carta pública sabe de los pedidos del negocio (no incluye los datos para transferir: se muestran recién al hacer el pedido). */
-export interface PedidosPublicos extends Omit<ConfigPedidos, 'datos_pago' | 'instrucciones_pago' | 'aceptar_auto'> { tipos: string[]; instrucciones: { efectivo?: string; tarjeta?: string }; ahora: string }
-const configDe = (p: PedidosPublicos): ConfigPedidos => ({ ...CONFIG_PEDIDOS_POR_DEFECTO, ...p, datos_pago: null, instrucciones_pago: p.instrucciones, aceptar_auto: false })
+export interface PedidosPublicos extends Omit<ConfigPedidos, 'aceptar_auto' | 'medios'> { medios: (Omit<MedioPedido, 'datos'> & { tieneDatos: boolean })[]; ahora: string }
+const configDe = (p: PedidosPublicos): ConfigPedidos => ({ ...CONFIG_PEDIDOS_POR_DEFECTO, ...p, aceptar_auto: false, medios: p.medios.map((m) => ({ ...m, datos: null })) })
 interface Linea { producto_id: string; nombre: string; variante: string | null; precio: number; cantidad: number }
 const clave = (producto: string, variante: string | null) => `${producto}|${variante ?? ''}`
 
@@ -22,10 +22,10 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   const [ahora, setAhora] = useState(() => (pedidos ? new Date(pedidos.ahora) : new Date()))
   useEffect(() => { setAhora(new Date()); const t = setInterval(() => setAhora(new Date()), 30_000); return () => clearInterval(t) }, [])
   const cfgPed = pedidos ? configDe(pedidos) : null
-  const estados = cfgPed ? TIPOS.filter((t) => cfgPed[t.value]).map((t) => ({ ...t, ...estadoPedidos(cfgPed, t.value, ahora) })) : []
-  const tiposAbiertos = estados.filter((e) => e.abierto).map((e) => e.value as string)
-  const fuera = estados.filter((e) => !e.abierto && (e.motivo === 'horario' || e.motivo === 'fecha'))
-  const puedePedir = !!pedidos?.recibe && tiposAbiertos.length > 0
+  const estados = cfgPed ? cfgPed.entregas.filter((e) => e.activo).map((e) => ({ e, ...estadoPedidos(cfgPed, e, ahora) })) : []
+  const abiertas: EntregaPedido[] = estados.filter((x) => x.abierto).map((x) => x.e)
+  const fuera = estados.filter((x) => !x.abierto && (x.motivo === 'horario' || x.motivo === 'fecha'))
+  const puedePedir = !!pedidos?.recibe && abiertas.length > 0
   const [carrito, setCarrito] = useState<Record<string, Linea>>({})
   const [abierto, setAbierto] = useState(false)
   const [listo, setListo] = useState(false)
@@ -78,11 +78,11 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         {pedidos && !pedidos.recibe && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Por el momento no estamos tomando pedidos online.{pedidos.mensaje ? ` ${pedidos.mensaje}` : ''}</p>}
         {pedidos?.recibe && !puedePedir && fuera.length > 0 && (
           <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">
-            {fuera.every((e) => e.motivo === 'fecha') ? 'Hoy no estamos tomando pedidos online.' : 'Ahora estamos fuera del horario de pedidos.'}{fuera[0].proxima ? ` Volvemos a tomar pedidos ${fuera[0].proxima}.` : ''}{pedidos.mensaje_cerrado ? ` ${pedidos.mensaje_cerrado}` : ''}
+            {fuera.every((x) => x.motivo === 'fecha') ? 'Hoy no estamos tomando pedidos online.' : 'Ahora estamos fuera del horario de pedidos.'}{fuera[0].proxima ? ` Volvemos a tomar pedidos ${fuera[0].proxima}.` : ''}{pedidos.mensaje_cerrado ? ` ${pedidos.mensaje_cerrado}` : ''}
           </p>
         )}
-        {puedePedir && fuera.length > 0 && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{fuera.map((e) => e.corto).join(' y ')} no {fuera.length > 1 ? 'están' : 'está'} disponible{fuera.length > 1 ? 's' : ''} en este momento{fuera[0].proxima ? ` (vuelve ${fuera[0].proxima})` : ''}.</p>}
-        {puedePedir && (pedidos!.tiempo_estimado || pedidos!.tiempo_delivery) && <p className="mt-2 text-xs text-rs-muted">{pedidos!.tiempo_estimado && pedidos!.tiempo_delivery ? `Demora estimada: ${pedidos!.tiempo_estimado} (delivery: ${pedidos!.tiempo_delivery})` : pedidos!.tiempo_estimado ? `Demora estimada: ${pedidos!.tiempo_estimado}` : `Demora estimada del delivery: ${pedidos!.tiempo_delivery}`}</p>}
+        {puedePedir && fuera.length > 0 && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{fuera.map((x) => x.e.etiqueta).join(' y ')} no {fuera.length > 1 ? 'están disponibles' : 'está disponible'} en este momento{fuera[0].proxima ? ` (vuelve ${fuera[0].proxima})` : ''}.</p>}
+        {puedePedir && pedidos!.tiempo_estimado && <p className="mt-2 text-xs text-rs-muted">Demora estimada: {pedidos!.tiempo_estimado}</p>}
       </header>
 
       {categorias.length > 1 && (
@@ -152,7 +152,7 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         </div>
       )}
       {abierto && pedidos && (
-        <Pedido slug={slug} nombre={nombre} pedidos={pedidos} cfg={cfgPed!} tiposAbiertos={tiposAbiertos} moneda={config.moneda} lineas={lineas} subtotal={subtotal} exito={exito}
+        <Pedido slug={slug} nombre={nombre} pedidos={pedidos} cfg={cfgPed!} pub={pedidos.medios} abiertas={abiertas} moneda={config.moneda} lineas={lineas} subtotal={subtotal} exito={exito}
           onCerrar={() => setAbierto(false)} onCambiar={(l, d) => setCarrito((c) => { const k = clave(l.producto_id, l.variante), n = Math.max(0, Math.min(99, (c[k]?.cantidad ?? 0) + d)); const { [k]: _q, ...resto } = c; void _q; return n === 0 ? resto : { ...resto, [k]: { ...l, cantidad: n } } })}
           onExito={(r) => { setExito(r); setCarrito({}) }} />
       )}
@@ -160,23 +160,26 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   )
 }
 
-function Pedido({ slug, nombre, pedidos, cfg, tiposAbiertos, moneda, lineas, subtotal, exito, onCerrar, onCambiar, onExito }: {
-  slug: string; nombre: string; pedidos: PedidosPublicos; cfg: ConfigPedidos; tiposAbiertos: string[]; moneda: string; lineas: Linea[]; subtotal: number; exito: Extract<ResultadoPedidoPublico, { ok: true }> | null
+function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, subtotal, exito, onCerrar, onCambiar, onExito }: {
+  slug: string; nombre: string; pedidos: PedidosPublicos; cfg: ConfigPedidos; pub: PedidosPublicos['medios']; abiertas: EntregaPedido[]; moneda: string; lineas: Linea[]; subtotal: number; exito: Extract<ResultadoPedidoPublico, { ok: true }> | null
   onCerrar: () => void; onCambiar: (l: Linea, d: number) => void; onExito: (r: Extract<ResultadoPedidoPublico, { ok: true }>) => void
 }) {
-  const tiposDisp = TIPOS.filter((t) => tiposAbiertos.includes(t.value))
+  const sinTipo = abiertas.length === 0
   const mesaUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mesa') ?? '' : ''
-  const [tipo, setTipo] = useState<string>(mesaUrl && tiposAbiertos.includes('mesa') ? 'mesa' : tiposDisp[0]?.value ?? 'retiro')
-  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', direccion: '', mesa: pedidos.tipos.includes('mesa') ? mesaUrl : '', medio_pago: mediosDisponibles(cfg, (mesaUrl && tiposAbiertos.includes('mesa') ? 'mesa' : tiposDisp[0]?.value ?? 'retiro') as TipoPedido)[0] ?? 'efectivo', observaciones: '', web: '' })
+  const [tipo, setTipo] = useState<string>((mesaUrl && abiertas.find((e) => e.base === 'mesa')?.clave) || abiertas[0]?.clave || '')
+  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', direccion: '', mesa: abiertas.some((e) => e.base === 'mesa') ? mesaUrl : '', medio_pago: mediosDisponibles(cfg, (mesaUrl && abiertas.find((e) => e.base === 'mesa')) || abiertas[0] || { medios: null })[0]?.clave ?? '', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
   const arriba = useRef<HTMLDivElement>(null)
-  const envio = tipo === 'delivery' ? costoEnvioFinal(cfg, subtotal) : 0
-  const medios = mediosDisponibles(cfg, tipo as TipoPedido)
+  const ent = abiertas.find((e) => e.clave === tipo) ?? abiertas[0]
+  const base = ent?.base ?? 'retiro'
+  const envio = ent ? costoEnvioFinal(ent, subtotal) : 0
+  const medios = ent ? mediosDisponibles(cfg, ent) : []
+  const medioElegido = pub.find((m) => m.clave === form.medio_pago)
   // si cambia la forma de entrega (o se cierra una por horario), el tipo y el medio de pago elegidos siguen siendo válidos
-  useEffect(() => { if (!tiposAbiertos.includes(tipo) && tiposDisp[0]) setTipo(tiposDisp[0].value) }, [tiposAbiertos.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (medios.length && !medios.includes(form.medio_pago as never)) setForm((f) => ({ ...f, medio_pago: medios[0] })) }, [medios.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
-  const faltaGratis = tipo === 'delivery' && cfg.envio_gratis_desde && cfg.costo_envio > 0 && subtotal < cfg.envio_gratis_desde ? cfg.envio_gratis_desde - subtotal : 0
+  useEffect(() => { if (!abiertas.some((e) => e.clave === tipo) && abiertas[0]) setTipo(abiertas[0].clave) }, [abiertas.map((e) => e.clave).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (medios.length && !medios.some((m) => m.clave === form.medio_pago)) setForm((f) => ({ ...f, medio_pago: medios[0].clave })) }, [medios.map((m) => m.clave).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  const faltaGratis = ent && base === 'delivery' && ent.envio_gratis_desde && ent.costo_envio > 0 && subtotal < ent.envio_gratis_desde ? ent.envio_gratis_desde - subtotal : 0
   const faltaMinimo = pedidos.pedido_minimo > 0 && subtotal < pedidos.pedido_minimo
   const campo = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
   useEffect(() => { document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = '' } }, [])
@@ -190,7 +193,7 @@ function Pedido({ slug, nombre, pedidos, cfg, tiposAbiertos, moneda, lineas, sub
     })
   }
 
-  const textoWA = exito ? `Hola, soy ${unirNombre(form.nombre, form.apellido)}. Hice el pedido #${exito.numero} por ${dinero(exito.total, moneda)} (${labelTipo(exito.tipo)}). ¡Gracias!` : ''
+  const textoWA = exito ? `Hola, soy ${unirNombre(form.nombre, form.apellido)}. Hice el pedido #${exito.numero} por ${dinero(exito.total, moneda)} (${exito.entrega_nombre || labelTipo(exito.tipo)}). ¡Gracias!` : ''
   return (
     <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
       <div role="dialog" aria-modal="true" aria-label="Mi pedido" className="flex max-h-[94vh] w-full max-w-lg animate-scale-in flex-col rounded-t-rs-lg border border-rs-control bg-rs-card shadow-2xl sm:rounded-rs-lg">
@@ -199,11 +202,11 @@ function Pedido({ slug, nombre, pedidos, cfg, tiposAbiertos, moneda, lineas, sub
           {exito ? (
             <div className="space-y-4 text-center">
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-ok/15 text-rs-ok"><Check size={28} /></div>
-              <div><p className="text-3xl font-bold tabular-nums text-rs-lime">#{exito.numero}</p><p className="text-sm text-rs-muted">{nombre} recibió tu pedido · {labelTipo(exito.tipo)} · {exito.unidades} producto{exito.unidades === 1 ? '' : 's'}</p></div>
-              <p className="text-xl font-bold">{dinero(exito.total, moneda)} <span className="text-sm font-normal text-rs-muted">· {labelPago(exito.medio_pago)}</span></p>
+              <div><p className="text-3xl font-bold tabular-nums text-rs-lime">#{exito.numero}</p><p className="text-sm text-rs-muted">{nombre} recibió tu pedido · {exito.entrega_nombre || labelTipo(exito.tipo)} · {exito.unidades} producto{exito.unidades === 1 ? '' : 's'}</p></div>
+              <p className="text-xl font-bold">{dinero(exito.total, moneda)} <span className="text-sm font-normal text-rs-muted">· {labelPago(exito.medio_pago, exito.medio_pago_nombre)}</span></p>
               {exito.tiempo_estimado && <p className="text-sm">Demora estimada: <span className="font-semibold">{exito.tiempo_estimado}</span></p>}
               {exito.instrucciones && <p className="rounded-md bg-rs-raised/50 p-3 text-left text-sm text-rs-muted">{exito.instrucciones}</p>}
-              {exito.datos_pago && <div className="rounded-md border border-rs-lime/30 bg-rs-lime/5 p-3 text-left text-sm"><p className="font-semibold">Datos para transferir</p><p className="mt-1 whitespace-pre-line text-rs-muted">{exito.datos_pago}</p></div>}
+              {exito.datos_pago && <div className="rounded-md border border-rs-lime/30 bg-rs-lime/5 p-3 text-left text-sm"><p className="font-semibold">Datos para pagar</p><p className="mt-1 whitespace-pre-line text-rs-muted">{exito.datos_pago}</p></div>}
               {exito.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{exito.mensaje}</p>}
               {exito.whatsapp && <a href={`https://wa.me/${exito.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(textoWA)}`} target="_blank" rel="noopener noreferrer" className="btn btn-primary w-full">Avisar por WhatsApp</a>}
               <button type="button" onClick={onCerrar} className="btn w-full">Volver a la carta</button>
@@ -226,26 +229,27 @@ function Pedido({ slug, nombre, pedidos, cfg, tiposAbiertos, moneda, lineas, sub
               </ul>
 
               <fieldset><legend className="label">¿Cómo lo querés?</legend>
-                <div className="flex flex-wrap gap-2">{tiposDisp.map((t) => <label key={t.value} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="tipo" value={t.value} checked={tipo === t.value} onChange={() => setTipo(t.value)} className="sr-only" />{t.corto}</label>)}</div>
+                <div className="flex flex-wrap gap-2">{abiertas.map((t) => <label key={t.clave} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="tipo" value={t.clave} checked={tipo === t.clave} onChange={() => setTipo(t.clave)} className="sr-only" />{t.etiqueta}</label>)}</div>
               </fieldset>
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_nombre">Tu nombre {tipo === 'mesa' ? '' : '*'}</label><input id="pp_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required={tipo !== 'mesa'} /></div>
-                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_apellido">Tu apellido {tipo === 'mesa' ? '' : '*'}</label><input id="pp_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required={tipo !== 'mesa'} /></div>
-                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {tipo === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
-                {tipo === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pp_dir">Dirección de entrega *</label><input id="pp_dir" value={form.direccion} onChange={campo('direccion')} maxLength={200} autoComplete="street-address" placeholder="Calle, número, piso/depto, referencias" className="input w-full" required /></div>}
-                {tipo === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_mesa">Número de mesa *</label><input id="pp_mesa" value={form.mesa} onChange={campo('mesa')} maxLength={20} className="input w-full" required /></div>}
+                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_nombre">Tu nombre {base === 'mesa' ? '' : '*'}</label><input id="pp_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required={tipo !== 'mesa'} /></div>
+                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_apellido">Tu apellido {base === 'mesa' ? '' : '*'}</label><input id="pp_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required={tipo !== 'mesa'} /></div>
+                <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
+                {base === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pp_dir">Dirección de entrega *</label><input id="pp_dir" value={form.direccion} onChange={campo('direccion')} maxLength={200} autoComplete="street-address" placeholder="Calle, número, piso/depto, referencias" className="input w-full" required /></div>}
+                {base === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_mesa">Número de mesa *</label><input id="pp_mesa" value={form.mesa} onChange={campo('mesa')} maxLength={20} className="input w-full" required /></div>}
               </div>
               <fieldset><legend className="label">Forma de pago</legend>
-                <div className="flex flex-wrap gap-2">{MEDIOS_PAGO.filter((m) => medios.includes(m.value)).map((m) => <label key={m.value} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="pago" value={m.value} checked={form.medio_pago === m.value} onChange={campo('medio_pago')} className="sr-only" />{m.label}</label>)}</div>
+                <div className="flex flex-wrap gap-2">{medios.map((m) => <label key={m.clave} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="pago" value={m.clave} checked={form.medio_pago === m.clave} onChange={campo('medio_pago')} className="sr-only" />{m.etiqueta}</label>)}</div>
               </fieldset>
-              {(form.medio_pago === 'efectivo' || form.medio_pago === 'tarjeta') && pedidos.instrucciones[form.medio_pago] && <p className="-mt-2 text-xs text-rs-muted">{pedidos.instrucciones[form.medio_pago]}</p>}
-              {form.medio_pago === 'transferencia' && <p className="-mt-2 text-xs text-rs-muted">Al confirmar el pedido te mostramos los datos para transferir.</p>}
+              {medioElegido?.aviso && <p className="-mt-2 text-xs text-rs-muted">{medioElegido.aviso}</p>}
+              {medioElegido?.tieneDatos && <p className="-mt-2 text-xs text-rs-muted">Al confirmar el pedido te mostramos los datos para pagar.</p>}
               <div><label className="label" htmlFor="pp_obs">Aclaraciones (opcional)</label><textarea id="pp_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={500} rows={2} placeholder="Alergias, sin cebolla, timbre que no anda…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
 
               <div className="space-y-1 border-t border-rs-border pt-3 text-sm">
                 <div className="flex justify-between text-rs-muted"><span>Subtotal</span><span className="tabular-nums">{dinero(subtotal, moneda)}</span></div>
-                {tipo === 'delivery' && <div className="flex justify-between text-rs-muted"><span>Envío</span><span className="tabular-nums">{envio > 0 ? dinero(envio, moneda) : 'Gratis'}</span></div>}
+                {base === 'delivery' && <div className="flex justify-between text-rs-muted"><span>Envío</span><span className="tabular-nums">{envio > 0 ? dinero(envio, moneda) : 'Gratis'}</span></div>}
+                {(ent?.tiempo || pedidos.tiempo_estimado) && <p className="text-xs text-rs-muted">Demora estimada: {ent?.tiempo || pedidos.tiempo_estimado}</p>}
                 {faltaGratis > 0 && <p className="text-xs text-rs-ok">Sumá {dinero(faltaGratis, moneda)} más y el envío es gratis.</p>}
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="tabular-nums text-rs-lime">{dinero(subtotal + envio, moneda)}</span></div>
               </div>

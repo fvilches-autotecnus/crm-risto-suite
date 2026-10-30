@@ -28,8 +28,9 @@ import ConfigParametrosReservas from '@/components/config-parametros-reservas'
 import { cargarConfigReservas, cargarTiposReserva } from '@/lib/config-reservas-servidor'
 import type { ConfigReservas } from '@/lib/reservas-config'
 import { sumarDias } from '@/lib/fechas'
-import { PedidosGeneral, PedidosHorarios, PedidosPagos } from '@/components/config-pedidos'
-import { COLS_CONFIG_PEDIDOS, leerConfigPedidos } from '@/lib/pedidos'
+import { CatalogosPedidos, PedidosEntregas, PedidosGeneral, PedidosHorarios, PedidosMedios } from '@/components/config-pedidos'
+import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
+import { CONFIG_PEDIDOS_POR_DEFECTO } from '@/lib/pedidos'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
 
@@ -90,7 +91,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   const [webhook, bc, { data: etiquetasDb }] = await Promise.all([pWebhook, pBc, pEtiquetas])
   // Pedidos: ajustes del negocio entero (no de una sede), para dueños, administradores y encargados con acceso a todas las sedes
   const veAjustesPedidos = mods.pedidos && (ctx.puedeAdministrar || ctx.rol === 'encargado') && !restringido && !esSede
-  const cfgPedidos = leerConfigPedidos(veAjustesPedidos ? (await supabase.from('pedidos_config').select(COLS_CONFIG_PEDIDOS).eq('negocio_id', negocio.id).maybeSingle()).data : null)
+  const cfgPedidos = veAjustesPedidos ? (await cargarConfigPedidos(supabase, negocio.id)).config : CONFIG_PEDIDOS_POR_DEFECTO
   // Sitio público de reservas: su configuración, los tipos de reserva que ya existen y los horarios que más se usan
   let webCfg: ConfigReservasWeb | null = null
   let webTipos: { value: string; label: string }[] = []
@@ -188,7 +189,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
       ...(hay.confirmacion ? [{ id: 'confirmacion', label: 'Confirmación' }] : []), ...(hay.parametros ? [{ id: 'parametros', label: 'Parámetros' }] : []),
     ] },
     { id: 'g-web', titulo: 'Sitio de reservas', texto: 'La página donde tus clientes reservan solos.', items: hay.web ? [{ id: 'reservas-web', label: 'Sitio de reservas' }] : [] },
-    { id: 'g-pedidos', titulo: 'Pedidos', texto: 'Cuándo y cómo se reciben los pedidos de la carta y del bot.', items: hay.pedidos ? [{ id: 'pedidos-general', label: 'Recepción' }, { id: 'pedidos-horarios', label: 'Horarios de pedidos' }, { id: 'pedidos-pagos', label: 'Medios de pago' }] : [] },
+    { id: 'g-pedidos', titulo: 'Pedidos', texto: 'Cuándo y cómo se reciben los pedidos de la carta y del bot.', items: hay.pedidos ? [{ id: 'pedidos-general', label: 'Recepción' }, { id: 'pedidos-entregas', label: 'Formas de entrega' }, { id: 'pedidos-horarios', label: 'Horarios de pedidos' }, { id: 'pedidos-pagos', label: 'Medios de pago' }] : [] },
     { id: 'g-clientes', titulo: 'Clientes', texto: 'Cómo clasificás a tus clientes.', items: hay.etiquetas ? [{ id: 'etiquetas', label: 'Etiquetas' }] : [] },
     { id: 'g-equipo', titulo: 'Equipo', texto: 'Quién entra al sistema y con qué permisos.', items: hay.usuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : [] },
     { id: 'g-tecnico', titulo: 'Técnico', texto: 'Conexiones y módulos del negocio.', items: [...(hay.funciones ? [{ id: 'funciones', label: 'Funciones y módulos' }] : []), ...(hay.pausas ? [{ id: 'pausas', label: 'Pausa de chats' }] : [])] },
@@ -297,17 +298,20 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
 
         {enc('g-pedidos')}
         {hay.pedidos && (
-          <>
-            <Seccion id="pedidos-general" i={n++} titulo="Recepción de pedidos" texto="Si se reciben pedidos, con qué formas de entrega, cuánto cuesta el envío y qué se le avisa al cliente.">
+          <CatalogosPedidos entregas={cfgPedidos.entregas} medios={cfgPedidos.medios} horariosGenerales={cfgPedidos.horarios}>
+            <Seccion id="pedidos-general" i={n++} titulo="Recepción de pedidos" texto="Si se reciben pedidos, el pedido mínimo, el tiempo estimado y qué se le avisa al cliente.">
               <PedidosGeneral config={cfgPedidos} />
+            </Seccion>
+            <Seccion id="pedidos-entregas" i={n++} titulo="Formas de entrega" texto="Cómo reciben el pedido tus clientes (retiro, delivery, en mesa…). Podés cambiar los nombres, ordenarlas, desactivarlas y agregar las tuyas; cada una tiene su costo de envío, tiempo, horarios y medios de pago.">
+              <PedidosEntregas />
             </Seccion>
             <Seccion id="pedidos-horarios" i={n++} titulo="Horarios de pedidos" texto="En qué días y horas se toman pedidos, y los días en que no (feriados, vacaciones).">
               <PedidosHorarios config={cfgPedidos} />
             </Seccion>
-            <Seccion id="pedidos-pagos" i={n++} titulo="Medios de pago" texto="Cómo pueden pagar tus clientes, en qué formas de entrega vale cada medio y qué se les avisa.">
-              <PedidosPagos config={cfgPedidos} />
+            <Seccion id="pedidos-pagos" i={n++} titulo="Medios de pago" texto="Cómo pueden pagar tus clientes. Podés cambiar los nombres, ordenarlos, desactivarlos y agregar los tuyos (Mercado Pago, débito, un QR…).">
+              <PedidosMedios />
             </Seccion>
-          </>
+          </CatalogosPedidos>
         )}
 
         {enc('g-clientes')}

@@ -134,7 +134,8 @@ export async function resumirMetricas(f: { desde: string; hasta: string }): Prom
   }
 
   if (mod.pedidos) {
-    const [{ m, productos }, { m: a }] = await Promise.all([cargarPedidos(ctx, f.desde, f.hasta), cargarPedidos(ctx, antDesde, antHasta)])
+    const [{ m, productos }, { m: a }, { data: mediosCat }] = await Promise.all([cargarPedidos(ctx, f.desde, f.hasta), cargarPedidos(ctx, antDesde, antHasta), ctx.supabase.from('pedido_medios').select('clave, etiqueta').eq('negocio_id', ctx.negocio.id)])
+    const nombresMedios = Object.fromEntries((mediosCat ?? []).map((x) => [x.clave as string, x.etiqueta as string]))
     if (m.total > 0 || m.cancelados > 0) {
       usados.push('pedidos')
       const serie = serieEvolucion(m.porDia, modo).map((p) => ({ etiqueta: p.etiqueta, valor: p.valor }))
@@ -143,7 +144,7 @@ export async function resumirMetricas(f: { desde: string; hasta: string }): Prom
         `Ventas: ${dinero(m.ventas)} (${variacion(m.ventas, a.ventas)}). Ticket promedio: ${m.total ? dinero(m.ticket) : '—'} (antes ${a.total ? dinero(a.ticket) : '—'}). Hora pico: ${m.horaTop ?? '—'}.`,
         `Pedidos ${cadaUno}: ${lista(serie)}`, `Ventas ${cadaUno} (en pesos): ${lista(ventas)}`, `Por día de la semana: ${lista(m.porDiaSemana)}`, `Horas con más pedidos: ${lista(m.porHora)}`,
         `Productos más pedidos (unidades): ${lista(productos.map((p) => ({ etiqueta: p.etiqueta, valor: p.valor })))}`,
-        `Por tipo: ${m.porTipo.map((x) => `${labelTipo(x.tipo)} ${x.valor}`).join(' · ') || 'sin datos'}`, `Medios de pago: ${m.porPago.map((x) => `${labelPago(x.medio)} ${x.valor}`).join(' · ') || 'sin datos'}`,
+        `Por tipo: ${m.porTipo.map((x) => `${labelTipo(x.tipo)} ${x.valor}`).join(' · ') || 'sin datos'}`, `Medios de pago: ${m.porPago.map((x) => `${labelPago(x.medio, null, nombresMedios)} ${x.valor}`).join(' · ') || 'sin datos'}`,
         `Por estado: ${m.porEstado.map((x) => `${labelEstadoPedido(x.estado)} ${x.valor}`).join(' · ') || 'sin datos'}`,
         `Clientes: ${m.pctRecurrentes}% recurrentes (${m.recurrentes} recurrentes, ${m.nuevos} nuevos; antes ${a.pctRecurrentes}%).`].join('\n'))
     }

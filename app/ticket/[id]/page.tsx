@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { notFound } from 'next/navigation'
 import { getContexto } from '@/lib/context'
-import { dinero, labelPago, labelTipo } from '@/lib/pedidos'
+import { dinero, labelEntrega, labelPago } from '@/lib/pedidos'
 import BotonImprimir from './boton-imprimir'
 
 export const metadata: Metadata = { title: 'Ticket de pedido', robots: { index: false } }
@@ -14,7 +14,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
   const ctx = await getContexto()
   if (!ctx.modulosActivos.pedidos) notFound()
   const { data: p } = await ctx.supabase.from('pedidos')
-    .select('numero, nombre, telefono, tipo, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal)')
+    .select('numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal)')
     .eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!p) notFound()
   const items = (p.items ?? []) as { id: string; nombre: string; variante: string | null; cantidad: number; observaciones: string | null; subtotal: number }[]
@@ -27,7 +27,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
         <p className="text-center text-2xl font-bold">PEDIDO #{p.numero}</p>
         <p className="text-center">{fecha}</p>
         <hr className="my-2 border-dashed border-black" />
-        <p className="text-lg font-bold">{labelTipo(p.tipo).toUpperCase()}{p.tipo === 'mesa' && p.mesa ? ` ${p.mesa}` : ''}</p>
+        <p className="text-lg font-bold">{labelEntrega(p).toUpperCase()}{p.tipo === 'mesa' && p.mesa ? ` ${p.mesa}` : ''}</p>
         <p>{p.nombre}{p.telefono ? ` · ${p.telefono}` : ''}</p>
         {p.direccion && <p>Dirección: {p.direccion}</p>}
         <hr className="my-2 border-dashed border-black" />
@@ -40,7 +40,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
         <hr className="my-2 border-dashed border-black" />
         {Number(p.envio) > 0 && <><div className="flex justify-between"><span>Subtotal</span><span>{dinero(Number(p.subtotal))}</span></div><div className="flex justify-between"><span>Envío</span><span>{dinero(Number(p.envio))}</span></div></>}
         <div className="flex justify-between text-lg font-bold"><span>TOTAL</span><span>{dinero(Number(p.total))}</span></div>
-        <p>Pago: {labelPago(p.medio_pago)}</p>
+        <p>Pago: {labelPago(p.medio_pago, p.medio_pago_nombre)}</p>
         {p.observaciones && <><hr className="my-2 border-dashed border-black" /><p className="font-bold">NOTAS: {p.observaciones}</p></>}
       </div>
     </div>

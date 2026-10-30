@@ -8,11 +8,12 @@ import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
 import { estadoPedidos } from '@/lib/pedidos-horarios'
-import { COLS_CONFIG_PEDIDOS, ESTADOS_ACTIVOS, dinero, leerConfigPedidos, type ConfigPedidos, type Pedido } from '@/lib/pedidos'
+import { ESTADOS_ACTIVOS, dinero, type ConfigPedidos, type Pedido } from '@/lib/pedidos'
+import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
 
 const TABS = [{ v: 'activos', l: 'En curso' }, { v: 'entregados', l: 'Entregados' }, { v: 'cancelados', l: 'Cancelados' }, { v: 'todos', l: 'Todos' }]
 const PERIODOS = [{ v: 'hoy', l: 'Hoy' }, { v: '7', l: '7 días' }, { v: '30', l: '30 días' }, { v: 'todos', l: 'Todo' }]
-const COLS = 'id, numero, nombre, telefono, tipo, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, motivo_cancelacion, origen, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
+const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, motivo_cancelacion, origen, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
 
 export default async function PedidosPage({ searchParams }: { searchParams: Promise<{ tab?: string; periodo?: string; q?: string; pagina?: string }> }) {
   const ctx = await getContexto()
@@ -32,13 +33,12 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
   if (tab !== 'activos' && desde(periodo)) consulta = consulta.gte('creado_en', desde(periodo)!)
   if (q) { const n = Number(q.replace('#', '')); consulta = Number.isInteger(n) && n > 0 ? consulta.or(`numero.eq.${n},nombre.ilike.%${q}%,telefono.ilike.%${q}%`) : consulta.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`) }
 
-  const [{ data }, { data: cfg }, { data: hoyRows }, { data: prods }] = await Promise.all([
+  const [{ data }, { config, hayConfig }, { data: hoyRows }, { data: prods }] = await Promise.all([
     consulta.order('creado_en', { ascending: tab === 'activos' }).limit(300),
-    supabase.from('pedidos_config').select(COLS_CONFIG_PEDIDOS).eq('negocio_id', negocio.id).maybeSingle(),
+    cargarConfigPedidos(supabase, negocio.id),
     supabase.from('pedidos').select('estado, total').eq('negocio_id', negocio.id).gte('creado_en', `${hoy}T00:00:00-03:00`).limit(2000),
     supabase.from('carta_productos').select('id, nombre, precio, variantes, categoria:carta_categorias(nombre, visible, orden)').eq('negocio_id', negocio.id).eq('visible', true).eq('disponible', true).order('orden').limit(3000),
   ])
-  const config: ConfigPedidos = leerConfigPedidos(cfg as Record<string, unknown> | null)
   const pedidos: Pedido[] = (data ?? []).map((p) => ({ ...p, subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), items: ((p as unknown as { items: Pedido['items'] }).items ?? []).map((i) => ({ ...i, precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal) })) })) as unknown as Pedido[]
 
   const catalogo: OpcionCatalogo[] = []
@@ -49,9 +49,8 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
   }
 
   // ¿ahora se reciben pedidos? Según los horarios y los días sin pedidos que se configuraron (cada forma de entrega puede tener los suyos)
-  const entregas = (['retiro', 'delivery', 'mesa'] as const).filter((t) => config[t]).map((t) => ({ t, ...estadoPedidos(config, t) }))
+  const entregas = config.entregas.filter((e) => e.activo).map((e) => ({ e, ...estadoPedidos(config, e) }))
   const cerradas = config.recibe ? entregas.filter((e) => !e.abierto && (e.motivo === 'horario' || e.motivo === 'fecha')) : []
-  const NOMBRE = { retiro: 'El retiro', delivery: 'El delivery', mesa: 'El pedido en mesa' } as const
   const delDia = hoyRows ?? []
   const enCurso = delDia.filter((r) => ESTADOS_ACTIVOS.includes(r.estado as never)).length
   const nuevos = delDia.filter((r) => r.estado === 'nuevo').length
@@ -68,16 +67,16 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><ShoppingBag className="text-rs-lime" size={22} />Pedidos</h1>
           <p className="text-sm text-rs-muted">Retiro, delivery y pedidos en mesa, armados desde la carta</p>
         </div>
-        <BotonesPedidos config={config} catalogo={catalogo} slug={negocio.slug} puedeEscribir={ctx.puedeEscribir} puedeAjustes={ctx.puedeAdministrar || ctx.rol === 'encargado'} hayConfig={!!cfg} />
+        <BotonesPedidos config={config} catalogo={catalogo} slug={negocio.slug} puedeEscribir={ctx.puedeEscribir} puedeAjustes={ctx.puedeAdministrar || ctx.rol === 'encargado'} hayConfig={hayConfig} />
       </div>
 
-      {!cfg ? (
+      {!hayConfig ? (
         <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Todavía no configuraste los pedidos. {ctx.puedeAdministrar || ctx.rol === 'encargado' ? 'Entrá a Ajustes: elegí formas de entrega y medios de pago y encendé “Recibiendo pedidos”.' : 'Pedile a un administrador que lo configure.'}</p>
       ) : !config.recibe ? (
         <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Los pedidos están en pausa: la carta pública y el bot no aceptan pedidos nuevos (los que cargues a mano sí).</p>
       ) : cerradas.length > 0 ? (
         <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">
-          {cerradas.length === entregas.length ? 'Ahora estás fuera del horario de pedidos' : `${cerradas.map((e) => NOMBRE[e.t]).join(' y ')} ${cerradas.length > 1 ? 'están' : 'está'} fuera del horario de pedidos`}
+          {cerradas.length === entregas.length ? 'Ahora estás fuera del horario de pedidos' : `${cerradas.map((x) => x.e.etiqueta).join(' y ')}: fuera del horario de pedidos`}
           {cerradas[0].proxima ? ` (se vuelve a recibir ${cerradas[0].proxima})` : ''}: la carta y el bot no aceptan pedidos nuevos hasta entonces (los que cargues a mano sí).
         </p>
       ) : null}

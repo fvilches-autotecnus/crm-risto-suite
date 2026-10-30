@@ -1,4 +1,4 @@
-import type { ConfigPedidos, HorariosSemana, MedioPago, TipoPedido, Turno } from '@/lib/pedidos'
+import type { ConfigPedidos, EntregaPedido, HorariosSemana, MedioPedido, Turno } from '@/lib/pedidos'
 
 /**
  * Horarios de pedidos: cuándo se reciben pedidos y por qué, si no, la carta o el bot no los toman.
@@ -22,29 +22,29 @@ export function ahoraAR(d: Date = new Date()) {
 }
 const sumarDias = (fecha: string, n: number) => { const x = new Date(fecha + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
 
-/** Las franjas que valen para esa forma de entrega (el delivery puede tener las suyas). */
-export const horariosDe = (cfg: Pick<ConfigPedidos, 'horarios' | 'horarios_delivery'>, tipo: TipoPedido): HorariosSemana => (tipo === 'delivery' && cfg.horarios_delivery ? cfg.horarios_delivery : cfg.horarios)
+/** Las franjas que valen para esa forma de entrega (la propia, si tiene horarios propios, o las generales). */
+export const horariosDe = (cfg: Pick<ConfigPedidos, 'horarios'>, entrega: Pick<EntregaPedido, 'horarios'>): HorariosSemana => entrega.horarios ?? cfg.horarios
 
 export type MotivoCierre = 'pausa' | 'tipo' | 'fecha' | 'horario'
 export interface EstadoPedidos { abierto: boolean; motivo: MotivoCierre | null; /** "hoy a las 19:00", "mañana a las 12:00", "el jueves a las 19:00" */ proxima: string | null }
 
 /** ¿Se reciben pedidos de ese tipo en este momento? Si no, por qué y cuándo vuelven. */
-export function estadoPedidos(cfg: ConfigPedidos, tipo: TipoPedido, ahora: Date = new Date()): EstadoPedidos {
+export function estadoPedidos(cfg: ConfigPedidos, entrega: EntregaPedido, ahora: Date = new Date()): EstadoPedidos {
   const a = ahoraAR(ahora)
   if (!cfg.recibe) return { abierto: false, motivo: 'pausa', proxima: null }
-  if (!cfg[tipo]) return { abierto: false, motivo: 'tipo', proxima: null }
+  if (!entrega.activo) return { abierto: false, motivo: 'tipo', proxima: null }
   const cerradaHoy = cfg.fechas_cerradas.includes(a.fecha)
-  if (!cerradaHoy && (!cfg.usar_horarios || (horariosDe(cfg, tipo)[String(a.dow) as '0'] ?? []).some(([d, h]) => a.min >= aMin(d) && a.min < aMin(h)))) return { abierto: true, motivo: null, proxima: null }
-  return { abierto: false, motivo: cerradaHoy ? 'fecha' : 'horario', proxima: proximaApertura(cfg, tipo, a) }
+  if (!cerradaHoy && (!cfg.usar_horarios || (horariosDe(cfg, entrega)[String(a.dow) as '0'] ?? []).some(([d, h]) => a.min >= aMin(d) && a.min < aMin(h)))) return { abierto: true, motivo: null, proxima: null }
+  return { abierto: false, motivo: cerradaHoy ? 'fecha' : 'horario', proxima: proximaApertura(cfg, entrega, a) }
 }
 
-function proximaApertura(cfg: ConfigPedidos, tipo: TipoPedido, a: ReturnType<typeof ahoraAR>): string | null {
+function proximaApertura(cfg: ConfigPedidos, entrega: EntregaPedido, a: ReturnType<typeof ahoraAR>): string | null {
   if (!cfg.usar_horarios) {
     // sin horarios, solo una fecha cerrada lo impide: se abre el primer día que no lo está
     for (let d = 1; d <= 14; d++) if (!cfg.fechas_cerradas.includes(sumarDias(a.fecha, d))) return d === 1 ? 'mañana' : `el ${DIAS_SEMANA.find((x) => x.n === String(new Date(sumarDias(a.fecha, d) + 'T12:00:00Z').getUTCDay()))?.largo}`
     return null
   }
-  const h = horariosDe(cfg, tipo)
+  const h = horariosDe(cfg, entrega)
   for (let d = 0; d <= 14; d++) {
     const fecha = sumarDias(a.fecha, d); if (cfg.fechas_cerradas.includes(fecha)) continue
     const dow = new Date(fecha + 'T12:00:00Z').getUTCDay()
@@ -54,15 +54,14 @@ function proximaApertura(cfg: ConfigPedidos, tipo: TipoPedido, a: ReturnType<typ
   return null
 }
 
-/** Medios de pago que se ofrecen para una forma de entrega: lo habilitado, recortado por lo que se haya elegido para esa entrega. */
-export function mediosDisponibles(cfg: Pick<ConfigPedidos, 'medios_pago' | 'medios_por_tipo'>, tipo: TipoPedido): MedioPago[] {
-  const propios = cfg.medios_por_tipo?.[tipo]
-  return Array.isArray(propios) ? cfg.medios_pago.filter((m) => propios.includes(m)) : cfg.medios_pago
+/** Medios de pago que se ofrecen para una forma de entrega: los activos, recortados por los que esa forma acepta (si eligió algunos). */
+export function mediosDisponibles(cfg: Pick<ConfigPedidos, 'medios'>, entrega: Pick<EntregaPedido, 'medios'>): MedioPedido[] {
+  return cfg.medios.filter((m) => m.activo && (!entrega.medios || entrega.medios.includes(m.clave)))
 }
 
 /** Costo de envío de un pedido de delivery según el subtotal (gratis desde cierto monto). */
-export const costoEnvioFinal = (cfg: Pick<ConfigPedidos, 'costo_envio' | 'envio_gratis_desde'>, subtotal: number) =>
-  cfg.envio_gratis_desde !== null && cfg.envio_gratis_desde > 0 && subtotal >= cfg.envio_gratis_desde ? 0 : cfg.costo_envio
+export const costoEnvioFinal = (entrega: Pick<EntregaPedido, 'base' | 'costo_envio' | 'envio_gratis_desde'>, subtotal: number) =>
+  entrega.base !== 'delivery' ? 0 : entrega.envio_gratis_desde !== null && entrega.envio_gratis_desde > 0 && subtotal >= entrega.envio_gratis_desde ? 0 : entrega.costo_envio
 
 /** "12:00 a 15:00 y 20:00 a 23:30" */
 export const resumenDia = (turnos: Turno[] | undefined) => (turnos?.length ? turnos.map(([d, h]) => `${d} a ${h}`).join(' y ') : 'Cerrado')

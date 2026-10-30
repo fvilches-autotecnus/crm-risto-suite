@@ -160,7 +160,8 @@ const COLOR_PAGO: Record<string, string> = { efectivo: '#5ecc6e', transferencia:
 async function MetricasDePedidos({ p }: { p: Periodo }) {
   const { ctx, dias, hoy, desde, modo, nombreModo, rotulo } = p
   const { supabase, negocio, sede } = ctx
-  const { m, productos } = await cargarPedidos(ctx, desde, hoy)
+  const [{ m, productos }, { data: mediosCat }] = await Promise.all([cargarPedidos(ctx, desde, hoy), supabase.from('pedido_medios').select('clave, etiqueta').eq('negocio_id', negocio.id)])
+  const nombresMedios = Object.fromEntries((mediosCat ?? []).map((x) => [x.clave as string, x.etiqueta as string]))
   const serie = serieEvolucion(m.porDia, modo)
   const serieVentas = serieEvolucion(m.ventasPorDia, modo)
 
@@ -205,8 +206,8 @@ async function MetricasDePedidos({ p }: { p: Periodo }) {
         <TarjetaGrafico i={9} titulo={`Pedidos por tipo — ${rotulo}`} vacio={m.porTipo.length === 0} columnas={['Tipo', 'Pedidos']} filas={m.porTipo.map((d) => [labelTipo(d.tipo), d.valor])}>
           <BarraApilada datos={m.porTipo.map((d) => ({ etiqueta: labelTipo(d.tipo), valor: d.valor, color: COLOR_TIPO[d.tipo] ?? '#7a9050' }))} />
         </TarjetaGrafico>
-        <TarjetaGrafico i={10} titulo={`Medios de pago — ${rotulo}`} vacio={m.porPago.length === 0} columnas={['Medio', 'Pedidos']} filas={m.porPago.map((d) => [labelPago(d.medio), d.valor])}>
-          <BarraApilada datos={m.porPago.map((d) => ({ etiqueta: labelPago(d.medio), valor: d.valor, color: COLOR_PAGO[d.medio] ?? '#7a9050' }))} />
+        <TarjetaGrafico i={10} titulo={`Medios de pago — ${rotulo}`} vacio={m.porPago.length === 0} columnas={['Medio', 'Pedidos']} filas={m.porPago.map((d) => [labelPago(d.medio, null, nombresMedios), d.valor])}>
+          <BarraApilada datos={m.porPago.map((d) => ({ etiqueta: labelPago(d.medio, null, nombresMedios), valor: d.valor, color: COLOR_PAGO[d.medio] ?? '#7a9050' }))} />
         </TarjetaGrafico>
         <TarjetaGrafico i={11} titulo={`Pedidos por estado — ${rotulo}`} vacio={m.porEstado.length === 0} columnas={['Estado', 'Pedidos']} filas={m.porEstado.map((d) => [labelEstadoPedido(d.estado), d.valor])}>
           <BarraApilada datos={m.porEstado.map((d) => ({ etiqueta: labelEstadoPedido(d.estado), valor: d.valor, color: COLOR_ESTADO_PEDIDO[d.estado] ?? '#7a9050' }))} />

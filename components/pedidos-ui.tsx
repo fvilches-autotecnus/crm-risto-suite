@@ -14,7 +14,7 @@ import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { costoEnvioFinal } from '@/lib/pedidos-horarios'
 import {
-  ESTADOS_PEDIDO, MEDIOS_PAGO, TIPOS, dinero, labelPago, labelTipo, linkWhatsApp, mensajeWhatsApp, siguientePaso,
+  ESTADOS_PEDIDO, dinero, labelEntrega, labelPago, linkWhatsApp, mensajeWhatsApp, siguientePaso,
   type ConfigPedidos, type Pedido,
 } from '@/lib/pedidos'
 
@@ -105,7 +105,7 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-lg font-bold tabular-nums">#{p.numero}</span>
                   <span className={'badge ' + est.color}><span className={'h-1.5 w-1.5 rounded-full ' + est.punto} />{est.label}</span>
-                  <span className="badge bg-rs-raised text-rs-text">{labelTipo(p.tipo)}{p.tipo === 'mesa' && p.mesa ? ` ${p.mesa}` : ''}</span>
+                  <span className="badge bg-rs-raised text-rs-text">{labelEntrega(p)}{p.tipo === 'mesa' && p.mesa ? ` ${p.mesa}` : ''}</span>
                   {p.origen !== 'web' && <span className="badge bg-rs-raised text-rs-muted">{p.origen === 'bot' ? 'Bot' : 'Manual'}</span>}
                 </div>
                 <span className="text-xs text-rs-muted" title={new Date(p.creado_en).toLocaleString('es-AR')}>{hora(p.creado_en)} · {hace(p.creado_en)}</span>
@@ -128,7 +128,7 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
               {p.observaciones && <p className="rounded-md border border-rs-warn/30 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">📝 {p.observaciones}</p>}
               {p.estado === 'cancelado' && p.motivo_cancelacion && <p className="text-sm text-rs-danger">Motivo: {p.motivo_cancelacion}</p>}
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-rs-muted">{labelPago(p.medio_pago)}{p.envio > 0 ? ` · envío ${dinero(p.envio)}` : ''}</span>
+                <span className="text-rs-muted">{labelPago(p.medio_pago, p.medio_pago_nombre)}{p.envio > 0 ? ` · envío ${dinero(p.envio)}` : ''}</span>
                 <span className="text-lg font-bold tabular-nums text-rs-lime">{dinero(p.total)}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-rs-border/60 pt-3">
@@ -156,21 +156,24 @@ interface LineaManual { clave: string; cantidad: number }
 function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; config: ConfigPedidos; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(crearPedidoManual)
   useCerrarAlGuardar(state, 'Pedido creado', onDone)
-  const [tipo, setTipo] = useState<string>('retiro')
+  const entregas = config.entregas.filter((e) => e.activo).length ? config.entregas.filter((e) => e.activo) : config.entregas
+  const [tipo, setTipo] = useState<string>(entregas[0]?.clave ?? 'retiro')
+  const ent = entregas.find((e) => e.clave === tipo) ?? entregas[0]
+  const base = ent?.base ?? 'retiro'
   const [lineas, setLineas] = useState<LineaManual[]>([{ clave: '', cantidad: 1 }])
   const porClave = useMemo(() => new Map(catalogo.map((o) => [o.clave, o])), [catalogo])
   const items = lineas.filter((l) => porClave.has(l.clave)).map((l) => ({ producto_id: porClave.get(l.clave)!.producto_id, variante: porClave.get(l.clave)!.variante, cantidad: l.cantidad }))
   const subtotal = lineas.reduce((s, l) => s + (porClave.get(l.clave)?.precio ?? 0) * l.cantidad, 0)
-  const envio = tipo === 'delivery' ? costoEnvioFinal(config, subtotal) : 0
+  const envio = ent ? costoEnvioFinal(ent, subtotal) : 0
   const grupos = useMemo(() => { const m = new Map<string, OpcionCatalogo[]>(); for (const o of catalogo) m.set(o.categoria, [...(m.get(o.categoria) ?? []), o]); return [...m] }, [catalogo])
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       <input type="hidden" name="items" value={JSON.stringify(items)} />
-      <div className="col-span-2"><span className="label">Tipo</span><div className="flex flex-wrap gap-2">{TIPOS.map((t) => <label key={t.value} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="radio" name="tipo" value={t.value} checked={tipo === t.value} onChange={() => setTipo(t.value)} className="sr-only" />{t.corto}</label>)}</div></div>
-      <div className="col-span-2"><NombreApellidoInput id="pm_nombre" name="nombre" nombreRequerido={tipo !== 'mesa'} /></div>
-      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_tel">Teléfono {tipo === 'mesa' ? '' : '*'}</label><input id="pm_tel" name="telefono" inputMode="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
-      {tipo === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pm_dir">Dirección *</label><input id="pm_dir" name="direccion" maxLength={200} className="input w-full" required /></div>}
-      {tipo === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_mesa">Mesa *</label><input id="pm_mesa" name="mesa" maxLength={20} className="input w-full" required /></div>}
+      <div className="col-span-2"><span className="label">Tipo</span><div className="flex flex-wrap gap-2">{entregas.map((t) => <label key={t.clave} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="radio" name="tipo" value={t.clave} checked={tipo === t.clave} onChange={() => setTipo(t.clave)} className="sr-only" />{t.etiqueta}</label>)}</div></div>
+      <div className="col-span-2"><NombreApellidoInput id="pm_nombre" name="nombre" nombreRequerido={base !== 'mesa'} /></div>
+      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pm_tel" name="telefono" inputMode="tel" placeholder="Ej. 341 6582156" className="input w-full" required={base !== 'mesa'} /></div>
+      {base === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pm_dir">Dirección *</label><input id="pm_dir" name="direccion" maxLength={200} className="input w-full" required /></div>}
+      {base === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_mesa">Mesa *</label><input id="pm_mesa" name="mesa" maxLength={20} className="input w-full" required /></div>}
       <div className="col-span-2">
         <span className="label">Productos</span>
         <ul className="space-y-2">
@@ -187,7 +190,7 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
         </ul>
         <button type="button" onClick={() => setLineas((x) => [...x, { clave: '', cantidad: 1 }])} className="btn btn-sm mt-2"><Plus size={12} />Agregar producto</button>
       </div>
-      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_pago">Medio de pago</label><select id="pm_pago" name="medio_pago" className="input w-full">{MEDIOS_PAGO.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+      <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_pago">Medio de pago</label><select id="pm_pago" name="medio_pago" className="input w-full">{(config.medios.some((m) => m.activo) ? config.medios.filter((m) => m.activo) : config.medios).map((m) => <option key={m.clave} value={m.clave}>{m.etiqueta}</option>)}</select></div>
       <div className="col-span-2 sm:col-span-1 self-end text-right text-sm"><span className="text-rs-muted">Subtotal {dinero(subtotal)}{envio ? ` + envío ${dinero(envio)}` : ''}</span><div className="text-lg font-bold text-rs-lime">{dinero(subtotal + envio)}</div></div>
       <div className="col-span-2"><label className="label" htmlFor="pm_obs">Observaciones</label><textarea id="pm_obs" name="observaciones" rows={2} maxLength={500} placeholder="Aclaraciones del pedido" className="input w-full" /></div>
       {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}

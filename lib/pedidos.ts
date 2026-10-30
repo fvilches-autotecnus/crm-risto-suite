@@ -9,45 +9,79 @@ export type Turno = [string, string]
 /** Por día de la semana (0 = domingo … 6 = sábado): las franjas en que se reciben pedidos. Un día sin franjas está cerrado. */
 export type HorariosSemana = Partial<Record<'0' | '1' | '2' | '3' | '4' | '5' | '6', Turno[]>>
 
+/**
+ * Forma de entrega del negocio (catálogo propio, como los tipos de reserva). `base` define qué datos se piden y cómo se cobra:
+ * retiro (teléfono) · delivery (teléfono, dirección y costo de envío) · mesa (número de mesa).
+ */
+export interface EntregaPedido {
+  clave: string; etiqueta: string; base: TipoPedido; activo: boolean; orden: number
+  costo_envio: number; envio_gratis_desde: number | null
+  /** null = usa el tiempo general. */
+  tiempo: string | null
+  /** null = usa los horarios generales. */
+  horarios: HorariosSemana | null
+  /** Claves de los medios de pago que acepta (null = todos los activos). */
+  medios: string[] | null
+}
+/** Medio de pago del negocio. `aviso` se ve al elegirlo y al confirmar; `datos` (alias, CBU, link) solo al confirmar el pedido. */
+export interface MedioPedido { clave: string; etiqueta: string; aviso: string | null; datos: string | null; activo: boolean; orden: number }
+
 export interface ConfigPedidos {
-  recibe: boolean; retiro: boolean; delivery: boolean; mesa: boolean
-  costo_envio: number; pedido_minimo: number; envio_gratis_desde: number | null
-  tiempo_estimado: string | null; tiempo_delivery: string | null
-  medios_pago: MedioPago[]; datos_pago: string | null
-  /** Qué medios se ofrecen en cada forma de entrega (si no figura, vale todo lo habilitado). */
-  medios_por_tipo: Partial<Record<TipoPedido, MedioPago[]>>
-  /** Qué se le dice al cliente según el medio que elige (la transferencia usa datos_pago). */
-  instrucciones_pago: Partial<Record<MedioPago, string>>
+  recibe: boolean; pedido_minimo: number; tiempo_estimado: string | null
   mensaje: string | null; mensaje_cerrado: string | null
   aceptar_auto: boolean
-  usar_horarios: boolean; horarios: HorariosSemana; horarios_delivery: HorariosSemana | null; fechas_cerradas: string[]
+  usar_horarios: boolean; horarios: HorariosSemana; fechas_cerradas: string[]
+  entregas: EntregaPedido[]; medios: MedioPedido[]
 }
+/** Formas de entrega y medios de pago con los que arranca un negocio (iguales a lo que se siembra en la base). */
+export const ENTREGAS_POR_DEFECTO: EntregaPedido[] = [
+  { clave: 'retiro', etiqueta: 'Retiro en el local', base: 'retiro', activo: true, orden: 1, costo_envio: 0, envio_gratis_desde: null, tiempo: null, horarios: null, medios: null },
+  { clave: 'delivery', etiqueta: 'Delivery', base: 'delivery', activo: false, orden: 2, costo_envio: 0, envio_gratis_desde: null, tiempo: null, horarios: null, medios: null },
+  { clave: 'mesa', etiqueta: 'En mesa', base: 'mesa', activo: false, orden: 3, costo_envio: 0, envio_gratis_desde: null, tiempo: null, horarios: null, medios: null },
+]
+export const MEDIOS_POR_DEFECTO: MedioPedido[] = [
+  { clave: 'efectivo', etiqueta: 'Efectivo', aviso: null, datos: null, activo: true, orden: 1 },
+  { clave: 'transferencia', etiqueta: 'Transferencia', aviso: null, datos: null, activo: false, orden: 2 },
+  { clave: 'tarjeta', etiqueta: 'Tarjeta', aviso: null, datos: null, activo: false, orden: 3 },
+]
 export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = {
-  recibe: false, retiro: true, delivery: false, mesa: false, costo_envio: 0, pedido_minimo: 0, envio_gratis_desde: null, tiempo_estimado: null, tiempo_delivery: null,
-  medios_pago: ['efectivo'], datos_pago: null, medios_por_tipo: {}, instrucciones_pago: {}, mensaje: null, mensaje_cerrado: null, aceptar_auto: false,
-  usar_horarios: false, horarios: {}, horarios_delivery: null, fechas_cerradas: [],
+  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false,
+  usar_horarios: false, horarios: {}, fechas_cerradas: [], entregas: ENTREGAS_POR_DEFECTO, medios: MEDIOS_POR_DEFECTO,
 }
-/** Columnas de pedidos_config que se leen en el panel y en la carta pública. */
-export const COLS_CONFIG_PEDIDOS = 'recibe, retiro, delivery, mesa, costo_envio, pedido_minimo, envio_gratis_desde, tiempo_estimado, tiempo_delivery, medios_pago, datos_pago, medios_por_tipo, instrucciones_pago, mensaje, mensaje_cerrado, aceptar_auto, usar_horarios, horarios, horarios_delivery, fechas_cerradas'
-/** Convierte lo que devuelve la base (números como texto, jsonb nulos…) en una configuración lista para usar. */
-export function leerConfigPedidos(raw: Record<string, unknown> | null | undefined): ConfigPedidos {
-  const r = (raw ?? {}) as Partial<Record<keyof ConfigPedidos, unknown>>
-  const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
-  const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+/** Columnas de cada tabla que se leen en el panel y en la carta pública. */
+export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, usar_horarios, horarios, fechas_cerradas'
+export const COLS_ENTREGAS = 'clave, etiqueta, base, activo, orden, costo_envio, envio_gratis_desde, tiempo, horarios, medios'
+export const COLS_MEDIOS = 'clave, etiqueta, aviso, datos, activo, orden'
+
+type Fila = Record<string, unknown>
+const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null)
+const numONull = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+export const leerEntregas = (filas: Fila[] | null | undefined): EntregaPedido[] => (filas ?? []).map((f) => ({
+  clave: String(f.clave), etiqueta: String(f.etiqueta), base: (['retiro', 'delivery', 'mesa'].includes(String(f.base)) ? f.base : 'retiro') as TipoPedido, activo: f.activo !== false, orden: Number(f.orden ?? 0),
+  costo_envio: Number(f.costo_envio ?? 0), envio_gratis_desde: numONull(f.envio_gratis_desde), tiempo: (f.tiempo as string | null) || null,
+  horarios: obj(f.horarios) as HorariosSemana | null, medios: Array.isArray(f.medios) ? (f.medios as string[]) : null,
+})).sort((a, b) => a.orden - b.orden || a.clave.localeCompare(b.clave))
+export const leerMedios = (filas: Fila[] | null | undefined): MedioPedido[] => (filas ?? []).map((f) => ({
+  clave: String(f.clave), etiqueta: String(f.etiqueta), aviso: (f.aviso as string | null) || null, datos: (f.datos as string | null) || null, activo: f.activo !== false, orden: Number(f.orden ?? 0),
+})).sort((a, b) => a.orden - b.orden || a.clave.localeCompare(b.clave))
+/** Junta lo que devuelve la base (la fila de configuración y los dos catálogos) en una configuración lista para usar. */
+export function leerConfigPedidos(cfg: Fila | null | undefined, entregas?: Fila[] | null, medios?: Fila[] | null): ConfigPedidos {
+  const r = cfg ?? {}
+  const e = leerEntregas(entregas), m = leerMedios(medios)
   return {
-    ...CONFIG_PEDIDOS_POR_DEFECTO, ...(r as Partial<ConfigPedidos>),
-    costo_envio: Number(r.costo_envio ?? 0), pedido_minimo: Number(r.pedido_minimo ?? 0), envio_gratis_desde: num(r.envio_gratis_desde),
-    medios_pago: (Array.isArray(r.medios_pago) ? r.medios_pago : CONFIG_PEDIDOS_POR_DEFECTO.medios_pago) as MedioPago[],
-    medios_por_tipo: obj(r.medios_por_tipo) as ConfigPedidos['medios_por_tipo'], instrucciones_pago: obj(r.instrucciones_pago) as ConfigPedidos['instrucciones_pago'],
-    horarios: obj(r.horarios) as HorariosSemana, horarios_delivery: r.horarios_delivery && typeof r.horarios_delivery === 'object' ? (r.horarios_delivery as HorariosSemana) : null,
-    fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
+    recibe: r.recibe === true, pedido_minimo: Number(r.pedido_minimo ?? 0), tiempo_estimado: (r.tiempo_estimado as string | null) || null,
+    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true,
+    usar_horarios: r.usar_horarios === true, horarios: (obj(r.horarios) ?? {}) as HorariosSemana, fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
+    entregas: e.length ? e : ENTREGAS_POR_DEFECTO, medios: m.length ? m : MEDIOS_POR_DEFECTO,
   }
 }
+/** "retiro" → "retiro_en_el_local": identificador estable a partir de un nombre. */
+export const claveDeNombre = (nombre: string) => nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'otro'
 
 export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number }
 export interface Pedido {
   id: string; numero: number; nombre: string; telefono: string | null; tipo: TipoPedido; mesa: string | null; direccion: string | null; observaciones: string | null
-  medio_pago: MedioPago; estado: EstadoPedido; subtotal: number; envio: number; total: number; motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'
+  medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number; motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'
   creado_en: string; aceptado_en: string | null; listo_en: string | null; entregado_en: string | null; cancelado_en: string | null
   items: ItemPedido[]
 }
@@ -61,7 +95,10 @@ export const MEDIOS_PAGO: { value: MedioPago; label: string }[] = [
   { value: 'efectivo', label: 'Efectivo' }, { value: 'transferencia', label: 'Transferencia' }, { value: 'tarjeta', label: 'Tarjeta (al retirar o recibir)' },
 ]
 export const labelTipo = (t: string) => TIPOS.find((x) => x.value === t)?.corto ?? t
-export const labelPago = (m: string) => MEDIOS_PAGO.find((x) => x.value === m)?.label.split(' (')[0] ?? m
+/** Nombre de un medio de pago: el que se guardó con el pedido, el del catálogo o, si no hay ninguno, la clave bien escrita. */
+export const labelPago = (m: string, nombre?: string | null, catalogo?: Record<string, string>) => nombre || catalogo?.[m] || MEDIOS_PAGO.find((x) => x.value === m)?.label.split(' (')[0] || m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, ' ')
+/** Nombre de la forma de entrega de un pedido (la propia del negocio, o la base de siempre). */
+export const labelEntrega = (p: { tipo: string; entrega_nombre?: string | null }) => p.entrega_nombre || labelTipo(p.tipo)
 
 export const ESTADOS_PEDIDO: { value: EstadoPedido; label: string; color: string; punto: string }[] = [
   { value: 'nuevo', label: 'Nuevo', color: 'bg-rs-lav/15 text-rs-lav', punto: 'bg-rs-lav' },
