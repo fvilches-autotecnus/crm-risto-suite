@@ -40,7 +40,9 @@ export function useAutoGuardar(valor: string, guardar: () => Promise<{ ok: boole
   const enCurso = useRef(false)
   const valorRef = useRef(valor); valorRef.current = valor
   useEffect(() => {
-    if (!activo || valor === ultimo.current) return
+    if (!activo) return
+    // se volvió al último valor guardado (por ejemplo, tras corregir un dato inválido): no hay nada pendiente ni con error
+    if (valor === ultimo.current) { setEstado((e) => (e === 'error' || e === 'sucio' ? 'guardado' : e)); return }
     setEstado('sucio')
     const t = setTimeout(async function intentar() {
       if (enCurso.current) { setTimeout(intentar, 250); return }

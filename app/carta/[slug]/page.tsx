@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import CartaPublica, { type CategoriaPublica, type PedidosPublicos } from '@/components/carta-publica'
 import { CONFIG_POR_DEFECTO, leerVariantes, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import { normalizarMarca, origenCrm, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
+import { COLS_CONFIG_PEDIDOS, leerConfigPedidos } from '@/lib/pedidos'
 import { resolverModulos } from '@/lib/modulos'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -20,14 +21,18 @@ async function cargar(slug: string) {
     admin.from('carta_categorias').select('id, nombre, descripcion, orden, visible').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en'),
     admin.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, orden').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en').limit(5000),
     admin.from('reservas_web_config').select('marca').eq('negocio_id', negocio.id).maybeSingle(),
-    modulos.pedidos ? admin.from('pedidos_config').select('recibe, retiro, delivery, mesa, costo_envio, pedido_minimo, tiempo_estimado, medios_pago, mensaje').eq('negocio_id', negocio.id).maybeSingle() : Promise.resolve({ data: null }),
+    modulos.pedidos ? admin.from('pedidos_config').select(COLS_CONFIG_PEDIDOS).eq('negocio_id', negocio.id).maybeSingle() : Promise.resolve({ data: null }),
   ])
   const config = { ...CONFIG_POR_DEFECTO, ...(cfg ?? {}) } as ConfigCarta
   if (!config.publica) return null
   const productos: ProductoCarta[] = (prods ?? []).map((p) => ({ ...p, precio: p.precio === null ? null : Number(p.precio), variantes: leerVariantes(p.variantes), etiquetas: p.etiquetas ?? [] }))
   const categorias: CategoriaPublica[] = ((cats ?? []) as CategoriaCarta[]).map((c) => ({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, productos: productos.filter((p) => p.categoria_id === c.id).map((p) => ({ ...p, img: urlImagen(p.imagen_path) })) })).filter((c) => c.productos.length > 0)
   // Pedidos: solo se ofrecen si el módulo está encendido y el negocio ya los configuró
-  const pedidos: PedidosPublicos | null = ped ? { recibe: ped.recibe === true, tipos: [ped.retiro && 'retiro', ped.delivery && 'delivery', ped.mesa && 'mesa'].filter(Boolean) as string[], costo_envio: Number(ped.costo_envio), pedido_minimo: Number(ped.pedido_minimo), medios_pago: ped.medios_pago ?? [], tiempo_estimado: ped.tiempo_estimado, mensaje: ped.mensaje } : null
+  const pedidos: PedidosPublicos | null = ped ? (() => {
+    const c = leerConfigPedidos(ped as Record<string, unknown>)
+    const { datos_pago: _d, instrucciones_pago, aceptar_auto: _a, ...publico } = c; void _d; void _a
+    return { ...publico, tipos: [c.retiro && 'retiro', c.delivery && 'delivery', c.mesa && 'mesa'].filter(Boolean) as string[], instrucciones: { efectivo: instrucciones_pago.efectivo, tarjeta: instrucciones_pago.tarjeta }, ahora: new Date().toISOString() }
+  })() : null
   const m = normalizarMarca(web?.marca)
   // La marca del local (logo y colores) es la misma del sitio de reservas: se carga una sola vez, en Configuración
   const marca: Marca = { ...m, logo_url: urlAbsoluta(m.logo_url), ornamento_url: urlAbsoluta(m.ornamento_url) }

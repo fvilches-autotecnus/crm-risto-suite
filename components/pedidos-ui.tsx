@@ -2,15 +2,17 @@
 import { NombreApellidoInput } from '@/components/inputs'
 import { diaMesDe } from '@/lib/fechas'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { Check, ExternalLink, MessageCircle, Phone, Plus, Power, Printer, Settings, ShoppingBag, Trash2, X } from 'lucide-react'
-import { alternarRecibePedidos, cambiarEstadoPedido, crearPedidoManual, guardarConfigPedidos } from '@/app/(panel)/pedidos-actions'
+import { alternarRecibePedidos, cambiarEstadoPedido, crearPedidoManual } from '@/app/(panel)/pedidos-actions'
 import { useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
+import { costoEnvioFinal } from '@/lib/pedidos-horarios'
 import {
   ESTADOS_PEDIDO, MEDIOS_PAGO, TIPOS, dinero, labelPago, labelTipo, linkWhatsApp, mensajeWhatsApp, siguientePaso,
   type ConfigPedidos, type Pedido,
@@ -150,34 +152,6 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
 // ---------------------------------------------------------------------------
 // Ajustes y pedido manual
 // ---------------------------------------------------------------------------
-function FormAjustes({ config, onDone }: { config: ConfigPedidos; onDone: () => void }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarConfigPedidos)
-  useCerrarAlGuardar(state, 'Ajustes guardados', onDone)
-  const check = (name: string, label: string, on: boolean, texto?: string) => <label className="flex items-start gap-2 text-sm"><input type="checkbox" name={name} defaultChecked={on} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">{label}</span>{texto && <span className="block text-xs text-rs-muted">{texto}</span>}</span></label>
-  return (
-    <form {...formProps} className="space-y-4">
-      {check('recibe', 'Recibiendo pedidos', config.recibe, 'Interruptor general. Apagado, la carta pública y el bot no aceptan pedidos nuevos.')}
-      <fieldset className="space-y-2"><legend className="label">Formas de entrega</legend>
-        {check('retiro', 'Retiro en el local', config.retiro)}
-        {check('delivery', 'Delivery (envío a domicilio)', config.delivery)}
-        {check('mesa', 'En mesa', config.mesa, 'Para pedir desde la mesa con el QR (la carta se abre con ?mesa=5).')}
-      </fieldset>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label" htmlFor="pc_envio">Costo de envío ($)</label><input id="pc_envio" name="costo_envio" inputMode="decimal" defaultValue={config.costo_envio || ''} placeholder="Gratis" className="input w-full" /></div>
-        <div><label className="label" htmlFor="pc_min">Pedido mínimo ($)</label><input id="pc_min" name="pedido_minimo" inputMode="decimal" defaultValue={config.pedido_minimo || ''} placeholder="Sin mínimo" className="input w-full" /></div>
-      </div>
-      <div><label className="label" htmlFor="pc_tiempo">Tiempo estimado (se muestra al cliente)</label><input id="pc_tiempo" name="tiempo_estimado" defaultValue={config.tiempo_estimado ?? ''} maxLength={60} placeholder="Ej. 30 a 40 minutos" className="input w-full" /></div>
-      <fieldset className="space-y-2"><legend className="label">Medios de pago</legend>
-        {MEDIOS_PAGO.map((m) => <div key={m.value}>{check('medio_' + m.value, m.label, config.medios_pago.includes(m.value))}</div>)}
-      </fieldset>
-      <div><label className="label" htmlFor="pc_datos">Datos para transferir</label><textarea id="pc_datos" name="datos_pago" defaultValue={config.datos_pago ?? ''} maxLength={300} rows={2} placeholder="Alias, CBU, titular… (se muestra al cliente que elige transferencia)" className="input w-full" /></div>
-      <div><label className="label" htmlFor="pc_msg">Mensaje para el cliente</label><textarea id="pc_msg" name="mensaje" defaultValue={config.mensaje ?? ''} maxLength={300} rows={2} placeholder="Ej. Pedidos hasta las 23:30. Avisanos si tenés alguna alergia." className="input w-full" /></div>
-      {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
-      <Acciones pending={pending} texto="Guardar" onCancel={onDone} />
-    </form>
-  )
-}
-
 interface LineaManual { clave: string; cantidad: number }
 function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; config: ConfigPedidos; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(crearPedidoManual)
@@ -187,7 +161,7 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
   const porClave = useMemo(() => new Map(catalogo.map((o) => [o.clave, o])), [catalogo])
   const items = lineas.filter((l) => porClave.has(l.clave)).map((l) => ({ producto_id: porClave.get(l.clave)!.producto_id, variante: porClave.get(l.clave)!.variante, cantidad: l.cantidad }))
   const subtotal = lineas.reduce((s, l) => s + (porClave.get(l.clave)?.precio ?? 0) * l.cantidad, 0)
-  const envio = tipo === 'delivery' ? config.costo_envio : 0
+  const envio = tipo === 'delivery' ? costoEnvioFinal(config, subtotal) : 0
   const grupos = useMemo(() => { const m = new Map<string, OpcionCatalogo[]>(); for (const o of catalogo) m.set(o.categoria, [...(m.get(o.categoria) ?? []), o]); return [...m] }, [catalogo])
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
@@ -224,7 +198,7 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
 
 export function BotonesPedidos({ config, catalogo, slug, puedeEscribir, puedeAjustes, hayConfig }: { config: ConfigPedidos; catalogo: OpcionCatalogo[]; slug: string; puedeEscribir: boolean; puedeAjustes: boolean; hayConfig: boolean }) {
   const toast = useToast()
-  const [modal, setModal] = useState<'ajustes' | 'manual' | null>(null)
+  const [modal, setModal] = useState<'manual' | null>(null)
   const [pend, start] = useTransition()
   const alternar = () => start(async () => { const r = await alternarRecibePedidos(); toast(r.ok ? { texto: config.recibe ? 'Pedidos en pausa' : 'Ya se reciben pedidos' } : { tipo: 'error', texto: r.error ?? 'Error' }) })
   return (
@@ -237,10 +211,9 @@ export function BotonesPedidos({ config, catalogo, slug, puedeEscribir, puedeAju
           </button>
         )}
         <a href={`/carta/${slug}`} target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={14} />Ver carta</a>
-        {puedeAjustes && <button type="button" onClick={() => setModal('ajustes')} className="btn"><Settings size={14} />Ajustes</button>}
+        {puedeAjustes && <Link href="/configuracion#pedidos-general" className="btn"><Settings size={14} />Ajustes</Link>}
         {puedeEscribir && <button type="button" onClick={() => setModal('manual')} disabled={catalogo.length === 0} title={catalogo.length === 0 ? 'Cargá productos con precio en la Carta primero' : undefined} className="btn btn-primary"><Plus size={14} />Nuevo pedido</button>}
       </div>
-      {modal === 'ajustes' && <Modal titulo="Ajustes de pedidos" onClose={() => setModal(null)} ancho="max-w-xl"><FormAjustes config={config} onDone={() => setModal(null)} /></Modal>}
       {modal === 'manual' && <Modal titulo="Nuevo pedido" onClose={() => setModal(null)} ancho="max-w-2xl"><FormManual catalogo={catalogo} config={config} onDone={() => setModal(null)} /></Modal>}
     </>
   )

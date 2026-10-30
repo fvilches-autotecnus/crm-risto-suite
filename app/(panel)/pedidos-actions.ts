@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { ESTADOS_PEDIDO, MEDIOS_PAGO, mensajeError } from '@/lib/pedidos'
+import { ESTADOS_PEDIDO, MEDIOS_PAGO, mensajeError, type HorariosSemana } from '@/lib/pedidos'
+import { validarHorarios } from '@/lib/pedidos-horarios'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { ActionResult } from './actions'
 
@@ -38,26 +39,71 @@ export async function cambiarEstadoPedido(id: string, estado: string, motivo?: s
   return { ok: true }
 }
 
-export async function guardarConfigPedidos(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  const { ctx, error } = await permiso(true); if (error) return fail(error)
-  const costo = leerMonto(text(fd, 'costo_envio')), minimo = leerMonto(text(fd, 'pedido_minimo'))
-  if (Number.isNaN(costo)) return fail('El costo de envío no es válido (ej. 1500)')
-  if (Number.isNaN(minimo)) return fail('El pedido mínimo no es válido (ej. 5000)')
-  const tiempo = text(fd, 'tiempo_estimado'), datos = text(fd, 'datos_pago'), mensaje = text(fd, 'mensaje')
-  if (tiempo.length > 60) return fail('El tiempo estimado puede tener hasta 60 letras')
-  if (datos.length > 300 || mensaje.length > 300) return fail('Los textos pueden tener hasta 300 letras')
-  const medios = MEDIOS_PAGO.map((m) => m.value).filter((v) => fd.get('medio_' + v) === 'on')
-  const retiro = fd.get('retiro') === 'on', delivery = fd.get('delivery') === 'on', mesa = fd.get('mesa') === 'on'
-  const recibe = fd.get('recibe') === 'on'
-  if (recibe && !(retiro || delivery || mesa)) return fail('Para recibir pedidos elegí al menos una forma de entrega')
-  if (recibe && medios.length === 0) return fail('Para recibir pedidos elegí al menos un medio de pago')
-  const { error: e } = await ctx.supabase.from('pedidos_config').upsert({
-    negocio_id: ctx.negocio.id, recibe, retiro, delivery, mesa, costo_envio: costo, pedido_minimo: minimo, tiempo_estimado: tiempo || null,
-    medios_pago: medios.length ? medios : ['efectivo'], datos_pago: datos || null, mensaje: mensaje || null,
-  })
+/** Los ajustes de pedidos son del negocio entero (no de una sede): solo los cambia quien tiene todas las sedes. */
+async function permisoAjustes() {
+  const r = await permiso(true)
+  if (!r.error && !r.ctx.sinRestriccionSede) return { ...r, error: 'Los ajustes de pedidos son de todo el negocio: tu usuario tiene acceso a algunas sedes solamente' }
+  return r
+}
+const guardar = async (ctx: Awaited<ReturnType<typeof permiso>>['ctx'], cambios: Record<string, unknown>): Promise<ActionResult> => {
+  const { error: e } = await ctx.supabase.from('pedidos_config').upsert({ negocio_id: ctx.negocio.id, ...cambios })
   if (e) return fail('No se pudieron guardar los ajustes')
   refrescar(ctx.negocio.slug)
   return { ok: true }
+}
+const limpio = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n)
+const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
+
+export interface AjustesGenerales { recibe: boolean; retiro: boolean; delivery: boolean; mesa: boolean; costo_envio: string; envio_gratis_desde: string; pedido_minimo: string; tiempo_estimado: string; tiempo_delivery: string; mensaje: string; aceptar_auto: boolean }
+/** Recepción de pedidos: interruptor general, formas de entrega, costos, tiempos y mensaje para el cliente. */
+export async function guardarPedidosGeneral(d: AjustesGenerales): Promise<ActionResult> {
+  const { ctx, error } = await permisoAjustes(); if (error) return fail(error)
+  const costo = leerMonto(limpio(d.costo_envio, 20)), minimo = leerMonto(limpio(d.pedido_minimo, 20)), gratis = leerMonto(limpio(d.envio_gratis_desde, 20))
+  if (Number.isNaN(costo)) return fail('El costo de envío no es válido (ej. 1500)')
+  if (Number.isNaN(minimo)) return fail('El pedido mínimo no es válido (ej. 5000)')
+  if (Number.isNaN(gratis)) return fail('El monto para envío gratis no es válido (ej. 20000)')
+  if (gratis > 0 && costo === 0) return fail('El envío ya es gratis: borrá el monto para envío gratis o poné un costo de envío')
+  if (d.recibe && !(d.retiro || d.delivery || d.mesa)) return fail('Para recibir pedidos elegí al menos una forma de entrega')
+  const tiempo = limpio(d.tiempo_estimado, 61), tdel = limpio(d.tiempo_delivery, 61), mensaje = limpio(d.mensaje, 301)
+  if (tiempo.length > 60 || tdel.length > 60) return fail('Los tiempos pueden tener hasta 60 letras')
+  if (mensaje.length > 300) return fail('El mensaje puede tener hasta 300 letras')
+  return guardar(ctx, { recibe: !!d.recibe, retiro: !!d.retiro, delivery: !!d.delivery, mesa: !!d.mesa, costo_envio: costo, pedido_minimo: minimo, envio_gratis_desde: gratis > 0 ? gratis : null,
+    tiempo_estimado: tiempo || null, tiempo_delivery: tdel || null, mensaje: mensaje || null, aceptar_auto: !!d.aceptar_auto })
+}
+
+export interface AjustesHorarios { usar_horarios: boolean; horarios: unknown; delivery_propio: boolean; horarios_delivery: unknown; fechas_cerradas: string[]; mensaje_cerrado: string }
+/** Cuándo se reciben pedidos: franjas por día de la semana (y las del delivery si son distintas) y los días en que no se toman. */
+export async function guardarPedidosHorarios(d: AjustesHorarios): Promise<ActionResult> {
+  const { ctx, error } = await permisoAjustes(); if (error) return fail(error)
+  const gen = validarHorarios(d.horarios); if (!gen.ok) return fail(gen.error)
+  let delHorarios: HorariosSemana | null = null
+  if (d.delivery_propio) { const r = validarHorarios(d.horarios_delivery); if (!r.ok) return fail('Horarios del delivery: ' + r.error); delHorarios = r.horarios }
+  if (d.usar_horarios && Object.keys(gen.horarios).length === 0) return fail('Cargá al menos una franja horaria, o apagá “Recibir pedidos solo en ciertos horarios”')
+  if (d.usar_horarios && delHorarios && Object.keys(delHorarios).length === 0) return fail('Cargá al menos una franja para el delivery, o desactivá sus horarios propios')
+  const fechas = [...new Set((Array.isArray(d.fechas_cerradas) ? d.fechas_cerradas : []).map((f) => String(f)))]
+  if (fechas.length > 120 || fechas.some((f) => !RE_FECHA.test(f) || Number.isNaN(Date.parse(f + 'T12:00:00Z')))) return fail('Alguna de las fechas sin pedidos no es válida')
+  const cerrado = limpio(d.mensaje_cerrado, 301); if (cerrado.length > 300) return fail('El mensaje de “fuera de horario” puede tener hasta 300 letras')
+  return guardar(ctx, { usar_horarios: !!d.usar_horarios, horarios: gen.horarios, horarios_delivery: delHorarios, fechas_cerradas: fechas.sort(), mensaje_cerrado: cerrado || null })
+}
+
+export interface AjustesPagos { medios: string[]; datos_pago: string; instrucciones: { efectivo: string; tarjeta: string }; por_tipo: Record<string, string[]> }
+/** Medios de pago: cuáles se ofrecen, cuáles en cada forma de entrega y qué se le dice al cliente según el medio que elige. */
+export async function guardarPedidosPagos(d: AjustesPagos): Promise<ActionResult> {
+  const { ctx, error } = await permisoAjustes(); if (error) return fail(error)
+  const validos = MEDIOS_PAGO.map((m) => m.value)
+  const medios = validos.filter((v) => (Array.isArray(d.medios) ? d.medios : []).includes(v))
+  const { data: actual } = await ctx.supabase.from('pedidos_config').select('recibe, retiro, delivery, mesa').eq('negocio_id', ctx.negocio.id).maybeSingle()
+  if (medios.length === 0 && actual?.recibe) return fail('Mientras recibís pedidos tiene que haber al menos un medio de pago')
+  const datos = limpio(d.datos_pago, 301); if (datos.length > 300) return fail('Los datos para transferir pueden tener hasta 300 letras')
+  const ef = limpio(d.instrucciones?.efectivo, 201), ta = limpio(d.instrucciones?.tarjeta, 201)
+  if (ef.length > 200 || ta.length > 200) return fail('Los avisos de cada medio pueden tener hasta 200 letras')
+  const porTipo: Record<string, string[]> = {}
+  for (const t of ['retiro', 'delivery', 'mesa'] as const) {
+    const sel = validos.filter((v) => (d.por_tipo?.[t] ?? medios).includes(v) && medios.includes(v))
+    if (actual?.[t] && sel.length === 0 && medios.length > 0) return fail(`Elegí al menos un medio de pago para ${t === 'retiro' ? 'retiro' : t === 'delivery' ? 'delivery' : 'pedidos en mesa'}`)
+    if (sel.length !== medios.length) porTipo[t] = sel   // solo se guarda lo que se aparta de “todos los medios”
+  }
+  return guardar(ctx, { medios_pago: medios.length ? medios : ['efectivo'], datos_pago: datos || null, instrucciones_pago: { ...(ef ? { efectivo: ef } : {}), ...(ta ? { tarjeta: ta } : {}) }, medios_por_tipo: porTipo })
 }
 
 /** Interruptor rápido "Recibiendo pedidos" (pausa o reanuda los pedidos de la carta pública y del bot). */

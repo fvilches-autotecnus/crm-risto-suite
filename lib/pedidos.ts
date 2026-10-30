@@ -4,12 +4,45 @@ export type TipoPedido = 'retiro' | 'delivery' | 'mesa'
 export type EstadoPedido = 'nuevo' | 'aceptado' | 'preparando' | 'listo' | 'en_camino' | 'entregado' | 'cancelado'
 export type MedioPago = 'efectivo' | 'transferencia' | 'tarjeta'
 
+/** Franja horaria "desde-hasta" ("12:00", "15:00"); "24:00" vale para el cierre a medianoche. */
+export type Turno = [string, string]
+/** Por día de la semana (0 = domingo … 6 = sábado): las franjas en que se reciben pedidos. Un día sin franjas está cerrado. */
+export type HorariosSemana = Partial<Record<'0' | '1' | '2' | '3' | '4' | '5' | '6', Turno[]>>
+
 export interface ConfigPedidos {
   recibe: boolean; retiro: boolean; delivery: boolean; mesa: boolean
-  costo_envio: number; pedido_minimo: number; tiempo_estimado: string | null
-  medios_pago: MedioPago[]; datos_pago: string | null; mensaje: string | null
+  costo_envio: number; pedido_minimo: number; envio_gratis_desde: number | null
+  tiempo_estimado: string | null; tiempo_delivery: string | null
+  medios_pago: MedioPago[]; datos_pago: string | null
+  /** Qué medios se ofrecen en cada forma de entrega (si no figura, vale todo lo habilitado). */
+  medios_por_tipo: Partial<Record<TipoPedido, MedioPago[]>>
+  /** Qué se le dice al cliente según el medio que elige (la transferencia usa datos_pago). */
+  instrucciones_pago: Partial<Record<MedioPago, string>>
+  mensaje: string | null; mensaje_cerrado: string | null
+  aceptar_auto: boolean
+  usar_horarios: boolean; horarios: HorariosSemana; horarios_delivery: HorariosSemana | null; fechas_cerradas: string[]
 }
-export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = { recibe: false, retiro: true, delivery: false, mesa: false, costo_envio: 0, pedido_minimo: 0, tiempo_estimado: null, medios_pago: ['efectivo'], datos_pago: null, mensaje: null }
+export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = {
+  recibe: false, retiro: true, delivery: false, mesa: false, costo_envio: 0, pedido_minimo: 0, envio_gratis_desde: null, tiempo_estimado: null, tiempo_delivery: null,
+  medios_pago: ['efectivo'], datos_pago: null, medios_por_tipo: {}, instrucciones_pago: {}, mensaje: null, mensaje_cerrado: null, aceptar_auto: false,
+  usar_horarios: false, horarios: {}, horarios_delivery: null, fechas_cerradas: [],
+}
+/** Columnas de pedidos_config que se leen en el panel y en la carta pública. */
+export const COLS_CONFIG_PEDIDOS = 'recibe, retiro, delivery, mesa, costo_envio, pedido_minimo, envio_gratis_desde, tiempo_estimado, tiempo_delivery, medios_pago, datos_pago, medios_por_tipo, instrucciones_pago, mensaje, mensaje_cerrado, aceptar_auto, usar_horarios, horarios, horarios_delivery, fechas_cerradas'
+/** Convierte lo que devuelve la base (números como texto, jsonb nulos…) en una configuración lista para usar. */
+export function leerConfigPedidos(raw: Record<string, unknown> | null | undefined): ConfigPedidos {
+  const r = (raw ?? {}) as Partial<Record<keyof ConfigPedidos, unknown>>
+  const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+  const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+  return {
+    ...CONFIG_PEDIDOS_POR_DEFECTO, ...(r as Partial<ConfigPedidos>),
+    costo_envio: Number(r.costo_envio ?? 0), pedido_minimo: Number(r.pedido_minimo ?? 0), envio_gratis_desde: num(r.envio_gratis_desde),
+    medios_pago: (Array.isArray(r.medios_pago) ? r.medios_pago : CONFIG_PEDIDOS_POR_DEFECTO.medios_pago) as MedioPago[],
+    medios_por_tipo: obj(r.medios_por_tipo) as ConfigPedidos['medios_por_tipo'], instrucciones_pago: obj(r.instrucciones_pago) as ConfigPedidos['instrucciones_pago'],
+    horarios: obj(r.horarios) as HorariosSemana, horarios_delivery: r.horarios_delivery && typeof r.horarios_delivery === 'object' ? (r.horarios_delivery as HorariosSemana) : null,
+    fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
+  }
+}
 
 export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number }
 export interface Pedido {
@@ -76,6 +109,8 @@ export const ERRORES_PEDIDO: Record<string, string> = {
   negocio_no_encontrado: 'No encontramos este negocio.',
   modulo_apagado: 'Este negocio no está tomando pedidos por este medio.',
   pedidos_cerrados: 'Por el momento no estamos tomando pedidos. Probá de nuevo más tarde.',
+  fuera_de_horario: 'En este momento estamos fuera del horario de pedidos.',
+  dia_cerrado: 'Hoy no estamos tomando pedidos.',
   tipo_invalido: 'Elegí cómo querés recibir el pedido.',
   tipo_no_disponible: 'Esa forma de entrega no está disponible.',
   falta_nombre: 'Escribí tu nombre.',

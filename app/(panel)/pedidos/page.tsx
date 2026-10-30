@@ -7,7 +7,8 @@ import { BotonesPedidos, ListaPedidos, PedidosEnVivo, type OpcionCatalogo } from
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
-import { CONFIG_PEDIDOS_POR_DEFECTO, ESTADOS_ACTIVOS, dinero, type ConfigPedidos, type Pedido } from '@/lib/pedidos'
+import { estadoPedidos } from '@/lib/pedidos-horarios'
+import { COLS_CONFIG_PEDIDOS, ESTADOS_ACTIVOS, dinero, leerConfigPedidos, type ConfigPedidos, type Pedido } from '@/lib/pedidos'
 
 const TABS = [{ v: 'activos', l: 'En curso' }, { v: 'entregados', l: 'Entregados' }, { v: 'cancelados', l: 'Cancelados' }, { v: 'todos', l: 'Todos' }]
 const PERIODOS = [{ v: 'hoy', l: 'Hoy' }, { v: '7', l: '7 días' }, { v: '30', l: '30 días' }, { v: 'todos', l: 'Todo' }]
@@ -33,11 +34,11 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
 
   const [{ data }, { data: cfg }, { data: hoyRows }, { data: prods }] = await Promise.all([
     consulta.order('creado_en', { ascending: tab === 'activos' }).limit(300),
-    supabase.from('pedidos_config').select('recibe, retiro, delivery, mesa, costo_envio, pedido_minimo, tiempo_estimado, medios_pago, datos_pago, mensaje').eq('negocio_id', negocio.id).maybeSingle(),
+    supabase.from('pedidos_config').select(COLS_CONFIG_PEDIDOS).eq('negocio_id', negocio.id).maybeSingle(),
     supabase.from('pedidos').select('estado, total').eq('negocio_id', negocio.id).gte('creado_en', `${hoy}T00:00:00-03:00`).limit(2000),
     supabase.from('carta_productos').select('id, nombre, precio, variantes, categoria:carta_categorias(nombre, visible, orden)').eq('negocio_id', negocio.id).eq('visible', true).eq('disponible', true).order('orden').limit(3000),
   ])
-  const config: ConfigPedidos = { ...CONFIG_PEDIDOS_POR_DEFECTO, ...(cfg ?? {}), costo_envio: Number(cfg?.costo_envio ?? 0), pedido_minimo: Number(cfg?.pedido_minimo ?? 0) } as ConfigPedidos
+  const config: ConfigPedidos = leerConfigPedidos(cfg as Record<string, unknown> | null)
   const pedidos: Pedido[] = (data ?? []).map((p) => ({ ...p, subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), items: ((p as unknown as { items: Pedido['items'] }).items ?? []).map((i) => ({ ...i, precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal) })) })) as unknown as Pedido[]
 
   const catalogo: OpcionCatalogo[] = []
@@ -47,6 +48,10 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
     else if (p.precio !== null) catalogo.push({ clave: p.id, producto_id: p.id, variante: null, label: p.nombre, precio: Number(p.precio), categoria: p.categoria.nombre })
   }
 
+  // ¿ahora se reciben pedidos? Según los horarios y los días sin pedidos que se configuraron (cada forma de entrega puede tener los suyos)
+  const entregas = (['retiro', 'delivery', 'mesa'] as const).filter((t) => config[t]).map((t) => ({ t, ...estadoPedidos(config, t) }))
+  const cerradas = config.recibe ? entregas.filter((e) => !e.abierto && (e.motivo === 'horario' || e.motivo === 'fecha')) : []
+  const NOMBRE = { retiro: 'El retiro', delivery: 'El delivery', mesa: 'El pedido en mesa' } as const
   const delDia = hoyRows ?? []
   const enCurso = delDia.filter((r) => ESTADOS_ACTIVOS.includes(r.estado as never)).length
   const nuevos = delDia.filter((r) => r.estado === 'nuevo').length
@@ -70,6 +75,11 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
         <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Todavía no configuraste los pedidos. {ctx.puedeAdministrar || ctx.rol === 'encargado' ? 'Entrá a Ajustes: elegí formas de entrega y medios de pago y encendé “Recibiendo pedidos”.' : 'Pedile a un administrador que lo configure.'}</p>
       ) : !config.recibe ? (
         <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Los pedidos están en pausa: la carta pública y el bot no aceptan pedidos nuevos (los que cargues a mano sí).</p>
+      ) : cerradas.length > 0 ? (
+        <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">
+          {cerradas.length === entregas.length ? 'Ahora estás fuera del horario de pedidos' : `${cerradas.map((e) => NOMBRE[e.t]).join(' y ')} ${cerradas.length > 1 ? 'están' : 'está'} fuera del horario de pedidos`}
+          {cerradas[0].proxima ? ` (se vuelve a recibir ${cerradas[0].proxima})` : ''}: la carta y el bot no aceptan pedidos nuevos hasta entonces (los que cargues a mano sí).
+        </p>
       ) : null}
       {!ctx.modulosActivos.carta && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">El módulo Carta está apagado: los clientes no pueden armar pedidos desde la carta pública. Podés encenderlo desde Configuración → Funciones.</p>}
 
