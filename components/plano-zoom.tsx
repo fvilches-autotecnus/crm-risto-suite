@@ -3,15 +3,13 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Maximize2, Minus, Plus } from 'lucide-react'
 
-/** Píxeles por casillero con los que una mesa se lee y se toca cómodo en el celular. */
-const CELDA_COMODA = 28
 const RELLENO = 24   // p-3 a cada lado
 /** Con casilleros así de grandes el plano ya se ve de sobra: no hacen falta los botones de zoom. */
 const CELDA_SOBRADA = 40
 
 /**
- * Marco del plano de mesas para pantallas chicas: arranca con las mesas a un tamaño que se toca bien (se desliza para recorrer),
- * se acerca y aleja con los botones + / − o pellizcando, y "Ver todo" lo ajusta al ancho de la pantalla.
+ * Marco del plano de mesas para pantallas chicas: arranca mostrando el salón entero, ajustado al ancho de la pantalla,
+ * se acerca y aleja con los botones + / − o pellizcando (y se desliza para recorrerlo), y "Ver todo" vuelve a la vista completa.
  * Los hijos se ubican en porcentajes sobre un cuadro con la proporción del salón (y su tipografía se escala con el cuadro).
  */
 export default function PlanoZoom({ ancho, alto, children }: { ancho: number; alto: number; children: React.ReactNode }) {
@@ -19,7 +17,6 @@ export default function PlanoZoom({ ancho, alto, children }: { ancho: number; al
   const [disp, setDisp] = useState(0)   // ancho del marco en píxeles
   const [z, setZ] = useState(1)         // 1 = todo el ancho del salón entra en el marco
   const zRef = useRef(1); zRef.current = z
-  const iniciado = useRef(false)
   const pellizco = useRef<{ dist: number; z: number } | null>(null)
   const foco = useRef<{ fx: number; fy: number; cx: number; cy: number } | null>(null)   // punto que debe quedar quieto al cambiar el zoom
 
@@ -36,12 +33,6 @@ export default function PlanoZoom({ ancho, alto, children }: { ancho: number; al
     const ro = new ResizeObserver(medir); ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  // primera medición: las mesas arrancan a un tamaño cómodo (si el salón es chico, ya entra entero)
-  useLayoutEffect(() => {
-    if (iniciado.current || ajuste <= 0) return
-    iniciado.current = true
-    setZ(Math.max(1, Math.min(CELDA_COMODA / ajuste, 90 / ajuste)))
-  }, [ajuste])
   // al cambiar el zoom, el punto de interés (centro del pellizco o de la pantalla) se queda donde estaba
   useLayoutEffect(() => {
     const f = foco.current, el = caja.current
