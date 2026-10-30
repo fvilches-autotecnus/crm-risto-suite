@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { falloAlcance } from '@/lib/config-tecnica'
 import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { ReglaConfirmacion, ResultadoConfirmacion } from '@/lib/confirmacion'
@@ -16,6 +17,7 @@ export async function guardarConfirmacion(defecto: ResultadoConfirmacion, reglas
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar la confirmación de reservas')
+  { const e = falloAlcance(ctx); if (e) return fail(e) }
   if (!RES.includes(defecto)) return fail('El resultado por defecto no es válido')
   if (!Array.isArray(reglas) || reglas.length > 60) return fail('Hasta 60 excepciones')
   const filas: Record<string, unknown>[] = []
@@ -49,6 +51,6 @@ export async function guardarConfirmacion(defecto: ResultadoConfirmacion, reglas
   if (e2) return fail('No se pudo guardar el resultado por defecto')
   const ids = (viejas ?? []).map((v) => v.id as string)
   if (ids.length > 0) await ctx.supabase.from('reservas_confirmacion_reglas').delete().in('id', ids)   // recién ahora, así nunca queda sin reglas
-  revalidatePath('/configuracion')
+  revalidatePath('/reservas')
   return { ok: true }
 }

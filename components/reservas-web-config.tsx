@@ -2,7 +2,7 @@
 
 import { guardarReservasWeb } from '@/app/(panel)/reservas-web-actions'
 import { useToast } from '@/components/feedback'
-import { Spinner } from '@/components/ui'
+import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { useEffect, useMemo, useState } from 'react'
 import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/reservas-config'
@@ -18,14 +18,14 @@ export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipo
 export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean; horarios_dias?: Record<string, string[]>; alias_web?: string | null }
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
-export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp, sedes = [] }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; sedes?: SedeCfg[]; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[] }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarReservasWeb)
+export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp, sedes = [], tecnico = false }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; sedes?: SedeCfg[]; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[]; tecnico?: boolean }) {
+  const f = useAccionFormulario(guardarReservasWeb, { auto: true })
+  const { state, formProps } = f
   const toast = useToast()
   const [origen, setOrigen] = useState('')
   const [plantilla, setPlantilla] = useState(config.texto_whatsapp ?? '')
   const vista = useMemo(() => renderPlantillaWA(plantilla.trim() || PLANTILLA_WA_DEFECTO, { negocio: 'Tu local', codigo: '3FA09C', nombre: 'Ana Pérez', nombre_pila: 'Ana', apellido: 'Pérez', dia: 'sábado 31 de octubre', hora: '21:00', personas: '4', ubicacion: 'SALÓN', tipo: 'Cumpleaños', mesa: 'M1 + M2', comentarios: 'Una torta con velita' }), [plantilla])
   useEffect(() => setOrigen(window.location.origin), [])
-  useEffect(() => { if (state?.ok) toast({ texto: 'Configuración guardada' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const url = `${origen}/reservar/${slug}`
   const copiar = async () => { try { await navigator.clipboard.writeText(url); toast({ texto: 'Enlace copiado' }) } catch { toast({ tipo: 'error', texto: url }) } }
   return (
@@ -91,7 +91,7 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
       </div>
       <fieldset className="space-y-3 rounded-md border border-rs-border/60 p-3">
         <legend className="label px-1">Textos y reglas del sitio</legend>
-        <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="modo_prueba" defaultChecked={config.modo_prueba} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Modo prueba</span><span className="block text-xs text-rs-muted">Muestra el cartel “Sitio de prueba” y marca las reservas como “[Sitio de prueba]”. Apagalo cuando quieras publicarlo de verdad.</span></span></label>
+        {tecnico && <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="modo_prueba" defaultChecked={config.modo_prueba} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Modo prueba</span><span className="block text-xs text-rs-muted">Muestra el cartel “Sitio de prueba” y marca las reservas como “[Sitio de prueba]”. Apagalo cuando quieras publicarlo de verdad.</span></span></label>}
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="cualquier_ubicacion" defaultChecked={config.cualquier_ubicacion} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Ofrecer “cualquier ubicación disponible”</span><span className="block text-xs text-rs-muted">El cliente puede no elegir lugar ni mesa y reservar directo. Solo se ofrece si hay lugar en al menos una ubicación según el aforo de cada una (y los topes generales), y al registrar la reserva se le asigna la primera ubicación con lugar, en el orden en que cargaste las ubicaciones. Se muestra solo si tenés dos o más ubicaciones.</span></span></label>
         <fieldset className="space-y-2 rounded-md border border-rs-border/60 p-3 sm:col-span-2">
           <legend className="label px-1">Aviso de pocos lugares</legend>
@@ -111,24 +111,28 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label" htmlFor="rw_titulo">Título de la página</label><input id="rw_titulo" name="titulo" defaultValue={config.titulo ?? ''} maxLength={80} placeholder="Por defecto: el nombre del local" className="input w-full" /></div>
           <div><label className="label" htmlFor="rw_subtitulo">Subtítulo</label><input id="rw_subtitulo" name="subtitulo" defaultValue={config.subtitulo ?? ''} maxLength={160} placeholder="Por defecto: Reservá tu mesa" className="input w-full" /></div>
+          {tecnico && (
           <fieldset className="space-y-3 rounded-rs-lg border border-rs-border p-3 sm:col-span-2">
             <legend className="px-1 text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted">Marca del sitio (opcional)</legend>
             <p className="text-xs text-rs-muted">Para que el sitio se vea como tu local. Sin esto usa la identidad de Risto Suite; con esto mantiene su estilo oscuro y siempre firma “Reservas con Risto Suite”. Las imágenes van por dirección (https://… o /ruta).</p>
             <MarcaCampos marca={config.marca} prefijo="rw" />
           </fieldset>
-          <div><label className="label" htmlFor="rw_validez">Cuánto espera la solicitud (horas)</label><input id="rw_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Si el cliente no manda el mensaje de WhatsApp en ese tiempo, la solicitud vence.</p></div>
+          )}
+          {tecnico && <div><label className="label" htmlFor="rw_validez">Cuánto espera la solicitud (horas)</label><input id="rw_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Si el cliente no manda el mensaje de WhatsApp en ese tiempo, la solicitud vence.</p></div>}
           <div><label className="label" htmlFor="rw_maxmesas">Máximo de mesas por reserva</label><input id="rw_maxmesas" name="max_mesas" type="number" min={1} max={12} defaultValue={config.max_mesas} className="input w-full" /><p className="mt-1 text-xs text-rs-muted">Cuántas mesas móviles se pueden juntar para un grupo.</p></div>
         </div>
+        {tecnico && (
         <div>
           <label className="label" htmlFor="rw_wa">Mensaje de WhatsApp que se arma para el cliente</label>
           <textarea id="rw_wa" name="texto_whatsapp" value={plantilla} onChange={(e) => setPlantilla(e.target.value)} rows={9} maxLength={1200} placeholder={PLANTILLA_WA_DEFECTO} className="input w-full font-mono text-xs" />
           <p className="mt-1 text-xs text-rs-muted">Vacío = el mensaje original. Variables: {VARIABLES_WA.map(([v, d]) => <code key={v} title={d} className="mr-1 rounded bg-rs-raised px-1 font-mono text-rs-lime">{`{${v}}`}</code>)}. Una línea con una variable vacía no se incluye. <b className="text-rs-text">Tiene que llevar {'{codigo}'}</b> y, si cambiás la primera frase, actualizá la palabra clave de la regla del bot.</p>
           <div className="mt-2 rounded-md bg-rs-raised/50 p-3"><p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-rs-muted">Así lo ve el cliente (ejemplo)</p><pre className="whitespace-pre-wrap font-sans text-sm">{vista}</pre></div>
         </div>
+        )}
       </fieldset>
       <div><label className="label" htmlFor="rw_msg">Mensaje para el cliente</label><textarea id="rw_msg" name="mensaje" rows={2} maxLength={400} defaultValue={config.mensaje ?? ''} placeholder="Ej. Las reservas se confirman por WhatsApp. Tolerancia de 15 minutos." className="input w-full" /></div>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
-      <div className="flex justify-end"><button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar'}</button></div>
+      <div className="flex justify-end"><EstadoGuardado estado={estadoDeFormulario(f)} /></div>
     </form>
   )
 }

@@ -374,11 +374,12 @@ export async function guardarAforo(_prev: ActionResult | null, fd: FormData): Pr
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un número entero mayor a 0')
   const sedeId = text(fd, 'sucursal_id')
   if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
+  if (!sedeId && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
   const { error } = sedeId
     ? await ctx.supabase.from('sucursales').update({ aforo_maximo_reservas: aforo }).eq('id', sedeId).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('negocios').update({ aforo_maximo_reservas: aforo }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar el aforo')
-  revalidatePath('/', 'layout')
+  // sin revalidar la pantalla: esto se guarda solo mientras se escribe y no hace falta redibujar todo Configuración
   return { ok: true }
 }
 

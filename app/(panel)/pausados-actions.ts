@@ -62,7 +62,7 @@ export async function volverAPausar(id: string, motivo: string | null, pausadoEn
 export async function guardarPausaAuto(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.tieneApagadoBot) return fail('Este negocio no tiene habilitado el control del bot')
-  if (!ctx.puedeAdministrar) return fail('Solo un dueño o administrador puede cambiar la pausa automática')
+  if (!ctx.esSuperadmin) return fail('La pausa automática la configura el equipo de Risto Suite')
   const pausa: Record<string, number | null> = {}
   for (const [clave, titulo] of [['consulta', 'consulta o reclamo'], ['reserva', 'solicitud de reserva'], ['otro', 'otro motivo']] as const) {
     if (String(fd.get(clave + '_modo') ?? 'indefinida') !== 'tiempo') { pausa[clave] = null; continue }
@@ -79,6 +79,6 @@ export async function guardarPausaAuto(_prev: ActionResult | null, fd: FormData)
   const { error } = await admin.from('negocios').update({ modulos: { ...(actual.modulos as Record<string, unknown>), pausa_auto: pausa } }).eq('id', ctx.negocio.id)
   if (error) return fail('No se pudo guardar')
   const { data: n } = await admin.rpc('recalcular_pausas', { p_negocio: ctx.negocio.id })
-  revalidatePath('/', 'layout')
+  revalidatePath('/pausados')
   return { ok: true, cantidad: typeof n === 'number' ? n : 0 }
 }

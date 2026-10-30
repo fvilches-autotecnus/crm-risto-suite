@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { agregarDiaExtra, guardarDiasApertura, quitarDiaExtra } from '@/app/(panel)/calendario-actions'
 import { useToast } from '@/components/feedback'
+import { EstadoGuardado, useAutoGuardar } from '@/components/estado-guardado'
 import { FechaInput } from '@/components/inputs'
 import { Spinner } from '@/components/ui'
 import { fechaCorta } from '@/lib/fechas'
@@ -15,32 +16,27 @@ export interface AmbitoApertura { id: string | null; nombre: string; dias: numbe
 export interface DiaExtraUI { id: string; fecha: string; motivo: string | null; sucursal_id: string | null }
 
 function Ambito({ a, esSede }: { a: AmbitoApertura; esSede: boolean }) {
-  const toast = useToast()
   const [dias, setDias] = useState<number[]>(a.dias ?? DIAS_SEMANA.map((d) => d.n))
-  const [conRegla, setConRegla] = useState(a.dias !== null)
-  const [pending, start] = useTransition()
   const alternar = (n: number) => setDias((d) => (d.includes(n) ? d.filter((x) => x !== n) : [...d, n]))
-  const guardar = (valor: number[] | null) => start(async () => {
-    const r = await guardarDiasApertura(a.id, valor)
-    toast(r.ok ? { texto: valor === null ? (esSede ? `${a.nombre}: usa los días del negocio` : 'Abre todos los días') : `${a.nombre}: días guardados` } : { tipo: 'error', texto: r.error ?? 'No se pudo guardar' })
-    if (r.ok) setConRegla(valor !== null && valor.length < 7)
-  })
+  const conRegla = dias.length < 7   // con los 7 días marcados no hay regla: abre todos los días (o, en una sede, usa los del negocio)
+  // se guarda solo al marcar o desmarcar un día (con los 7 marcados se borra la regla)
+  const { estado, error } = useAutoGuardar(JSON.stringify([...dias].sort()), () => guardarDiasApertura(a.id, dias.length === 7 ? null : dias), { activo: dias.length > 0 })
   return (
     <li className="space-y-2 rounded-md border border-rs-border/60 bg-rs-raised/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-semibold">{a.nombre}</span>
-        <span className="text-xs text-rs-muted">{conRegla ? 'Abre solo los días marcados' : esSede ? 'Usa los días del negocio' : 'Abre todos los días'}</span>
+        <span className="text-xs text-rs-muted">{dias.length === 0 ? 'Elegí al menos un día' : conRegla ? 'Abre solo los días marcados' : esSede ? 'Usa los días del negocio' : 'Abre todos los días'}</span>
       </div>
       <div className="flex flex-wrap gap-2" role="group" aria-label={`Días que abre ${a.nombre}`}>
         {DIAS_SEMANA.map((d) => (
-          <label key={d.n} className={'inline-flex h-9 cursor-pointer items-center rounded-full border px-3.5 text-sm font-medium transition ' + (dias.includes(d.n) ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40')}>
+          <label key={d.n} className={'inline-flex h-9 cursor-pointer items-center rounded-full border px-3.5 text-sm font-medium transition ' + (dias.includes(d.n) ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text')}>
             <input type="checkbox" className="sr-only" checked={dias.includes(d.n)} onChange={() => alternar(d.n)} aria-label={d.l} />{d.c}
           </label>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" disabled={pending || dias.length === 0} onClick={() => guardar(dias)} className="btn btn-sm btn-primary">{pending && <Spinner />}Guardar días</button>
-        <button type="button" disabled={pending} onClick={() => { setDias(DIAS_SEMANA.map((d) => d.n)); guardar(null) }} className="btn btn-sm">{esSede ? 'Usar los días del negocio' : 'Abre todos los días'}</button>
+      <div className="flex flex-wrap items-center gap-3">
+        {conRegla && <button type="button" onClick={() => setDias(DIAS_SEMANA.map((d) => d.n))} className="btn btn-sm">{esSede ? 'Usar los días del negocio' : 'Abre todos los días'}</button>}
+        <EstadoGuardado estado={dias.length === 0 ? 'error' : estado} error={dias.length === 0 ? 'Elegí al menos un día de la semana' : error} />
       </div>
     </li>
   )

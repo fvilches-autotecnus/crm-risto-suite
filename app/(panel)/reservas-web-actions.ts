@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
+import { conservarTecnicosWeb, falloAlcance } from '@/lib/config-tecnica'
 import { leerMarca } from '@/lib/marca'
 import { VARIABLES_WA } from '@/lib/reservas-config'
 import type { ActionResult } from './actions'
@@ -16,6 +17,8 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden configurar el sitio de reservas')
+  const sinAlcance = falloAlcance(ctx); if (sinAlcance) return fail(sinAlcance)
+  await conservarTecnicosWeb(ctx, fd)   // lo técnico (modo de prueba, texto del WhatsApp, marca…) solo lo cambia el superadmin
   const dias = entero(text(fd, 'dias_adelante'), 1, 365), horas = entero(text(fd, 'horas_anticipacion'), 0, 72), pmin = entero(text(fd, 'personas_min'), 1, 100), pmax = entero(text(fd, 'personas_max'), 1, 200)
   if (!dias) return fail('Los días hacia adelante van de 1 a 365')
   if (horas === null) return fail('La anticipación va de 0 a 72 horas')
@@ -94,7 +97,6 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     if (e2) return fail('Se guardó el sitio, pero no los ajustes de las sedes')
   }
   revalidatePath(`/reservar/${ctx.negocio.slug}`)
-  revalidatePath('/configuracion')
   return { ok: true }
 }
 

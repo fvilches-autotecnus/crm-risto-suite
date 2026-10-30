@@ -5,16 +5,18 @@ import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import { guardarConfigSede } from '@/lib/config-sedes-servidor'
 import { CLAVES_PARAMS, GRUPOS_WEB, type TipoSedeOv } from '@/lib/config-sedes'
+import { conservarTecnicosSede } from '@/lib/config-tecnica'
 import { leerMarca } from '@/lib/marca'
 import { MODULOS_POR_SEDE } from '@/lib/modulos'
-import { ESTADOS_BLOQUEO, MENSAJES_BOT, VARIABLES_WA } from '@/lib/reservas-config'
+import { ESTADOS_BLOQUEO, VARIABLES_WA } from '@/lib/reservas-config'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
-const refrescar = (slug: string) => { revalidatePath('/', 'layout'); revalidatePath(`/reservar/${slug}`) }
+// Estos ajustes se guardan solos mientras se editan: no se redibuja toda la pantalla de Configuración, solo se renueva el sitio público
+const refrescar = (slug: string) => { revalidatePath(`/reservar/${slug}`) }
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 const horas = (v: string) => [...new Set(v.split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
 
@@ -36,6 +38,7 @@ export async function guardarModulosSedes(_prev: ActionResult | null, fd: FormDa
     for (const c of MODULOS_POR_SEDE) if (ctx.modulosNegocio[c] && fd.get(`m_${id}_${c}`) !== 'on') modulos[c] = false   // el negocio lo tiene y la sede no lo usa
     const err = await guardarConfigSede(ctx, id, { modulos }); if (err) return fail(err)
   }
+  revalidatePath('/', 'layout')   // los módulos cambian el menú de todas las pantallas
   refrescar(ctx.negocio.slug)
   return { ok: true }
 }
@@ -106,34 +109,12 @@ export async function guardarEstadoSede(sedeId: string, estado: string | null): 
   return { ok: true }
 }
 
-// ───────── mensajes del bot propios de la sede
-export async function guardarMensajeBotSede(sedeId: string, clave: string, texto: string): Promise<ActionResult> {
-  const { ctx, error } = await sedePermitida(sedeId); if (error) return fail(error)
-  const def = MENSAJES_BOT.find((m) => m.clave === clave)
-  if (!def) return fail('Mensaje no válido')
-  const t = String(texto ?? '').trim()
-  if (t.length < 1 || t.length > 600) return fail('El mensaje va de 1 a 600 letras')
-  const raras = [...t.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]).filter((v) => !def.variables.includes(v))
-  if (raras.length) return fail(`No existe la variable {${raras[0]}} en este mensaje${def.variables.length ? `. Podés usar: ${def.variables.map((v) => `{${v}}`).join(', ')}` : ''}`)
-  const err = await guardarConfigSede(ctx, sedeId, { mensajes: { ...(ctx.configSedes[sedeId]?.mensajes ?? {}), [clave]: t } }); if (err) return fail(err)
-  revalidatePath('/configuracion')
-  return { ok: true }
-}
-
-export async function restaurarMensajeBotSede(sedeId: string, clave: string): Promise<ActionResult> {
-  const { ctx, error } = await sedePermitida(sedeId); if (error) return fail(error)
-  if (!MENSAJES_BOT.some((m) => m.clave === clave)) return fail('Mensaje no válido')
-  const mensajes = { ...(ctx.configSedes[sedeId]?.mensajes ?? {}) }; delete mensajes[clave]
-  const err = await guardarConfigSede(ctx, sedeId, { mensajes }); if (err) return fail(err)
-  revalidatePath('/configuracion')
-  return { ok: true }
-}
-
 // ───────── sitio de reservas: lo propio de la sede (activa, horarios, mesa, mensaje) y los grupos de ajustes que pisa
 export async function guardarReservasWebSede(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const sedeId = text(fd, 'sede_id')
   const { ctx, error } = await sedePermitida(sedeId); if (error) return fail(error)
   if (!ctx.modulosNegocio.reservas) return fail('Este negocio no tiene el módulo Reservas')
+  await conservarTecnicosSede(ctx, fd, sedeId)   // lo técnico (dirección propia, texto del WhatsApp, marca…) solo lo cambia el superadmin
   const sedeActual = ctx.sedesTodas.find((s) => s.id === sedeId)!
   const nombre = sedeActual.nombre
 

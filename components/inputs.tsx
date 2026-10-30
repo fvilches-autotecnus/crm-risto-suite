@@ -50,7 +50,9 @@ export function FechaInput({ name, id, value, defaultValue = '', onChange, requi
   // si el valor cambia desde afuera (controlado), el texto lo sigue
   useEffect(() => { if (controlado && isoATexto(value!) !== texto && textoAIso(texto) !== value) setTexto(isoATexto(value!)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const emitir = (nuevo: string) => { if (!controlado) setInterno(nuevo); onChange?.(nuevo) }
+  const oculto = useRef<HTMLInputElement>(null)
+  // avisa al formulario (que guarda solo) que cambió el valor: el campo oculto no dispara eventos por sí mismo
+  const emitir = (nuevo: string) => { if (!controlado) setInterno(nuevo); onChange?.(nuevo); setTimeout(() => oculto.current?.dispatchEvent(new Event('input', { bubbles: true })), 0) }
   const hoy = hoyEn(TZ_AR)
   const base = iso || hoy
   const [vista, setVista] = useState({ y: +base.slice(0, 4), m: +base.slice(5, 7) })
@@ -84,7 +86,7 @@ export function FechaInput({ name, id, value, defaultValue = '', onChange, requi
 
   return (
     <div className={'relative ' + className}>
-      {name && <input type="hidden" name={name} value={iso} />}
+      {name && <input ref={oculto} type="hidden" name={name} value={iso} />}
       <div className="relative">
         <input
           ref={campo}
@@ -150,7 +152,8 @@ export function HoraInput({ name, id, value, defaultValue = '', onChange, requir
   const campo = useRef<HTMLInputElement>(null)
   useEffect(() => { if (controlado && value!.slice(0, 5) !== texto && !/^\d{1,2}:?\d{0,2}$/.test(texto)) setTexto(value!.slice(0, 5)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const emitir = (v: string) => { if (!controlado) setInterno(v); onChange?.(v) }
+  const oculto = useRef<HTMLInputElement>(null)
+  const emitir = (v: string) => { if (!controlado) setInterno(v); onChange?.(v); setTimeout(() => oculto.current?.dispatchEvent(new Event('input', { bubbles: true })), 0) }
   const valida = (t: string) => { const m = t.match(/^(\d{2}):(\d{2})$/); return !!m && +m[1] <= 23 && +m[2] <= 59 }
   const mascara = (raw: string) => { const d = raw.replace(/\D/g, '').slice(0, 4); return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}` }
   // "9" -> "09:00", "930" -> "09:30"
@@ -164,7 +167,7 @@ export function HoraInput({ name, id, value, defaultValue = '', onChange, requir
 
   return (
     <div className={'relative ' + className}>
-      {name && <input type="hidden" name={name} value={hhmm} />}
+      {name && <input ref={oculto} type="hidden" name={name} value={hhmm} />}
       <input
         ref={campo}
         id={id ?? auto}

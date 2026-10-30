@@ -7,6 +7,7 @@ import { FechaInput, HoraInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
+import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
 import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookSede, probarWebhookCliente, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 import ModulosPicker from '@/components/modulos-picker'
@@ -24,14 +25,15 @@ function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children
 // Aforo total por día
 // ---------------------------------------------------------------------------
 export function AforoForm({ aforo, puedeEditar, sedeId }: { aforo: number | null; puedeEditar: boolean; sedeId?: string }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarAforo)
-  useResultado(state, 'Aforo guardado')
+  const f = useAccionFormulario(guardarAforo, { auto: puedeEditar })
+  const { state, formProps } = f
   return (
     <form {...formProps} className="mt-3 flex flex-wrap items-center gap-3">
       {sedeId && <input type="hidden" name="sucursal_id" value={sedeId} />}
       <input name="aforo" type="number" min={1} defaultValue={aforo ?? ''} placeholder="Sin límite" disabled={!puedeEditar} aria-label="Aforo máximo" className="input w-32" />
       <span className="text-sm text-rs-muted">personas por día</span>
-      {puedeEditar && <Guardar pending={pending} />}
+      {puedeEditar && <EstadoGuardado estado={estadoDeFormulario(f)} />}
+      {state && !state.ok && <p role="alert" className="basis-full text-sm text-rs-danger">{state.error}</p>}
     </form>
   )
 }
@@ -350,8 +352,8 @@ function PruebaWebhook({ sedeId }: { sedeId?: string }) {
 }
 
 export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarFuncionesNegocio)
-  useResultado(state, 'Funciones guardadas')
+  const f = useAccionFormulario(guardarFuncionesNegocio, { auto: true })
+  const { state, formProps } = f
   return (
     <form {...formProps} className="mt-3 space-y-3">
       <label className="flex cursor-pointer items-start gap-3 text-sm">
@@ -361,7 +363,8 @@ export function FuncionesForm({ apagadoBot }: { apagadoBot: boolean }) {
           <span className="block text-rs-muted">Muestra el botón para apagar y encender el bot de WhatsApp a dueños, administradores y encargados. Si se deshabilita, el bot queda siempre encendido.</span>
         </span>
       </label>
-      <Guardar pending={pending} />
+      <EstadoGuardado estado={estadoDeFormulario(f)} />
+      {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
     </form>
   )
 }
@@ -507,17 +510,18 @@ function FilaPausa({ clave, titulo, ayuda, minutos }: { clave: string; titulo: s
 }
 
 export function PausaAutoForm({ config }: { config: PausaAuto }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarPausaAuto)
+  const f = useAccionFormulario(guardarPausaAuto, { auto: true })
+  const { state, formProps } = f
   const toast = useToast()
   useEffect(() => {
-    if (state?.ok) toast({ texto: state.cantidad ? `Guardado. Se aplicó a ${state.cantidad} chat${state.cantidad === 1 ? '' : 's'} que ya estaban pausados` : 'Pausa automática guardada' })
-    else if (state && !state.ok) toast({ tipo: 'error', texto: state.error ?? 'No se pudo guardar' })
+    if (state?.ok && state.cantidad) toast({ texto: `Se aplicó a ${state.cantidad} chat${state.cantidad === 1 ? '' : 's'} que ya estaban pausados` })
   }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form {...formProps} className="mt-4 space-y-3" noValidate>
       {MOTIVOS_FORM.map((m) => <FilaPausa key={m.clave} clave={m.clave} titulo={m.titulo} ayuda={m.ayuda} minutos={config[m.clave]} />)}
       <p className="text-xs text-rs-muted">El tiempo se cuenta desde que el bot pausa el chat. Pasado ese plazo, el bot vuelve a atender ese chat <strong className="font-semibold text-rs-text">cuando el cliente escribe de nuevo</strong>. Hasta entonces el chat deja de figurar como pausado en el panel. Los cambios también se aplican a los chats que ya están pausados.</p>
-      <Guardar pending={pending} />
+      <EstadoGuardado estado={estadoDeFormulario(f)} />
+      {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
     </form>
   )
 }

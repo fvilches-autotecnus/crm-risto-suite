@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { guardarTiposSede } from '@/app/(panel)/config-sedes-actions'
 import DisponibilidadTipo, { type ModoTipo } from '@/components/disponibilidad-tipo'
-import { useToast } from '@/components/feedback'
-import { Spinner } from '@/components/ui'
+import { EstadoGuardado, useAutoGuardar } from '@/components/estado-guardado'
 import type { TipoSedeOv } from '@/lib/config-sedes'
 import { textoDias } from '@/lib/dias'
 import { fechaCorta } from '@/lib/fechas'
@@ -15,21 +14,19 @@ const resumen = (m: ModoTipo, dias: number[], fechas: string[]) => (m === 'seman
 
 /** Tipos de reserva de UNA sede: cada tipo hereda lo del negocio o se personaliza (si la sede lo ofrece y en qué días). */
 export default function ConfigTiposSede({ sedeId, base, overrides, hoy }: { sedeId: string; base: TipoBase[]; overrides: Record<string, TipoSedeOv>; hoy: string }) {
-  const toast = useToast()
-  const [pending, start] = useTransition()
   const [filas, setFilas] = useState(() => Object.fromEntries(base.map((b) => {
     const o = overrides[b.clave]
     return [b.clave, { propio: !!o, activo: o?.activo !== false && b.activo, modo: (o?.modo ?? b.modo) as ModoTipo, dias: o?.dias_semana ?? b.dias_semana, fechas: o?.fechas ?? b.fechas }]
   })))
   const cambiar = (c: string, x: Partial<(typeof filas)[string]>) => setFilas((f) => ({ ...f, [c]: { ...f[c], ...x } }))
-  const guardar = () => start(async () => {
+  // se guarda solo: al personalizar un tipo, activarlo o cambiar en qué días se ofrece
+  const { estado, error } = useAutoGuardar(JSON.stringify(filas), () => {
     const ov: Record<string, TipoSedeOv> = {}
     for (const b of base) {
       const f = filas[b.clave]; if (!f.propio) continue
       ov[b.clave] = { ...(f.activo ? {} : { activo: false }), modo: f.modo, ...(f.modo === 'semana' ? { dias_semana: f.dias } : f.modo === 'fechas' ? { fechas: f.fechas } : {}) }
     }
-    const r = await guardarTiposSede(sedeId, ov)
-    toast(r.ok ? { texto: 'Tipos de reserva de la sede guardados' } : { tipo: 'error', texto: r.error ?? 'No se pudo guardar' })
+    return guardarTiposSede(sedeId, ov)
   })
   return (
     <div className="space-y-3">
@@ -52,7 +49,7 @@ export default function ConfigTiposSede({ sedeId, base, overrides, hoy }: { sede
           )
         })}
       </ul>
-      <div className="flex items-center gap-3"><button type="button" onClick={guardar} disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar tipos de la sede'}</button><p className="text-xs text-rs-muted">Lo que no personalices sigue a Configuración del negocio. Los nombres y el orden se cambian para todo el negocio.</p></div>
+      <div className="flex flex-wrap items-center gap-3"><EstadoGuardado estado={estado} error={error} /><p className="text-xs text-rs-muted">Lo que no personalices sigue a Configuración del negocio. Los nombres y el orden se cambian para todo el negocio.</p></div>
     </div>
   )
 }

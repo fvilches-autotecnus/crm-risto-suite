@@ -13,7 +13,7 @@ const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 export async function guardarSitioWeb(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
-  if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los sitios de reservas')
+  if (!ctx.esSuperadmin) return fail('Los sitios de reservas con dirección propia los configura el equipo de Risto Suite')
   const id = text(fd, 'id')
   if (id && !UUID.test(id)) return fail('Sitio no válido')
   const alias = text(fd, 'alias').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -50,7 +50,7 @@ export async function guardarSitioWeb(_prev: ActionResult | null, fd: FormData):
 
 export async function borrarSitioWeb(id: string): Promise<ActionResult> {
   const ctx = await getContexto()
-  if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden borrar sitios de reservas')
+  if (!ctx.esSuperadmin) return fail('Los sitios de reservas con dirección propia los configura el equipo de Risto Suite')
   if (!UUID.test(id)) return fail('Sitio no válido')
   const { data } = await ctx.supabase.from('sitios_web').delete().eq('id', id).eq('negocio_id', ctx.negocio.id).select('alias')
   if (!data?.length) return fail('No se encontró ese sitio')

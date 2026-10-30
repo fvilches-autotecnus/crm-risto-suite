@@ -1,19 +1,23 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { falloAlcance, sedeEnAlcance } from '@/lib/config-tecnica'
 import { getContexto } from '@/lib/context'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const refrescar = (slug: string) => { revalidatePath('/configuracion'); revalidatePath('/'); revalidatePath('/reservas'); revalidatePath(`/reservar/${slug}`) }
+// los días de apertura se guardan solos al marcar cada día: solo se renueva el sitio público
+const refrescarSitio = (slug: string) => { revalidatePath(`/reservar/${slug}`) }
 
 /** Días de la semana (0 = domingo … 6 = sábado) en que abre el negocio o una sede. `dias` null = abre todos los días (se borra la regla); en una sede, null = usar los del negocio. */
 export async function guardarDiasApertura(sucursalId: string | null, dias: number[] | null): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los días de apertura')
-  if (sucursalId && (!UUID.test(sucursalId) || !ctx.sedesTodas.some((s) => s.id === sucursalId))) return fail('La sede no es válida')
+  if (sucursalId && (!UUID.test(sucursalId) || !sedeEnAlcance(ctx, sucursalId))) return fail('La sede no es válida')
+  if (!sucursalId) { const e = falloAlcance(ctx); if (e) return fail(e) }
   const sede = sucursalId || null
   const base = ctx.supabase.from('reservas_dias_apertura').select('id').eq('negocio_id', ctx.negocio.id)
   const { data: actual } = await (sede ? base.eq('sucursal_id', sede) : base.is('sucursal_id', null)).maybeSingle()
@@ -27,7 +31,7 @@ export async function guardarDiasApertura(sucursalId: string | null, dias: numbe
       : await ctx.supabase.from('reservas_dias_apertura').insert({ negocio_id: ctx.negocio.id, sucursal_id: sede, dias_semana: limpios })
     if (error) return fail('No se pudo guardar')
   }
-  refrescar(ctx.negocio.slug)
+  refrescarSitio(ctx.negocio.slug)
   return { ok: true }
 }
 
@@ -37,7 +41,8 @@ export async function agregarDiaExtra(sucursalId: string | null, fecha: string, 
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
   if (!(ctx.puedeAdministrar || ctx.rol === 'encargado')) return fail('No tenés permiso para agregar días')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fail('Elegí la fecha')
-  if (sucursalId && (!UUID.test(sucursalId) || !ctx.sedesTodas.some((s) => s.id === sucursalId))) return fail('La sede no es válida')
+  if (sucursalId && (!UUID.test(sucursalId) || !sedeEnAlcance(ctx, sucursalId))) return fail('La sede no es válida')
+  if (!sucursalId) { const e = falloAlcance(ctx); if (e) return fail(e) }
   const { error } = await ctx.supabase.from('reservas_dias_extra').insert({ negocio_id: ctx.negocio.id, sucursal_id: sucursalId || null, fecha, motivo: motivo.trim().slice(0, 120) || null })
   if (error) return fail(error.code === '23505' ? 'Ese día ya está agregado' : 'No se pudo agregar el día')
   refrescar(ctx.negocio.slug)
@@ -48,6 +53,8 @@ export async function quitarDiaExtra(id: string): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!(ctx.puedeAdministrar || ctx.rol === 'encargado')) return fail('No tenés permiso para quitar días')
   if (!UUID.test(id)) return fail('Día no válido')
+  const { data: dia } = await ctx.supabase.from('reservas_dias_extra').select('sucursal_id').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
+  if (!dia || (dia.sucursal_id ? !sedeEnAlcance(ctx, dia.sucursal_id as string) : !!falloAlcance(ctx))) return fail('Día no válido')
   const { error } = await ctx.supabase.from('reservas_dias_extra').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo quitar el día')
   refrescar(ctx.negocio.slug)

@@ -1,21 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { guardarParametrosReservas } from '@/app/(panel)/config-reservas-actions'
 import { guardarParametrosSede } from '@/app/(panel)/config-sedes-actions'
 import GrupoSede from '@/components/grupo-sede'
-import { useToast } from '@/components/feedback'
-import { Spinner } from '@/components/ui'
+import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { ESTADOS_BLOQUEO, type ConfigReservas } from '@/lib/reservas-config'
 
 /** Alerta de aforo, turnos del plano y estados que bloquean una mesa en el sitio de reservas. */
 export default function ConfigParametrosReservas({ config, usaMesas, sede }: { config: ConfigReservas; usaMesas: boolean; sede?: { id: string; pisado: boolean } }) {
-  const { state, pending, formProps } = useAccionFormulario(sede ? guardarParametrosSede : guardarParametrosReservas)
-  const toast = useToast()
+  const f = useAccionFormulario(sede ? guardarParametrosSede : guardarParametrosReservas, { auto: true })
+  const { state, formProps, guardarPronto } = f
   const [turnos, setTurnos] = useState(config.turnos)
-  useEffect(() => { if (state?.ok) toast({ texto: 'Parámetros guardados' }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cambiarTurnos = (nuevos: typeof turnos) => { setTurnos(nuevos); guardarPronto(400) }   // agregar o quitar un turno también se guarda solo
   return (
     <form {...formProps} className="space-y-4">
       {sede && <input type="hidden" name="sede_id" value={sede.id} />}
@@ -36,7 +35,7 @@ export default function ConfigParametrosReservas({ config, usaMesas, sede }: { c
               <div key={i} className="flex flex-wrap items-center gap-2">
                 <input name="turno_nombre" defaultValue={t.nombre} maxLength={20} placeholder="Nombre (ej. Cena)" aria-label={`Nombre del turno ${i + 1}`} className="input w-44" />
                 <input name="turno_hora" type="time" defaultValue={t.hora} aria-label={`Hora del turno ${i + 1}`} className="input w-32" />
-                <button type="button" onClick={() => setTurnos(turnos.filter((_, k) => k !== i))} aria-label="Quitar turno" className="btn btn-sm btn-danger"><X size={13} /></button>
+                <button type="button" onClick={() => cambiarTurnos(turnos.filter((_, k) => k !== i))} aria-label="Quitar turno" className="btn btn-sm btn-danger"><X size={13} /></button>
               </div>
             ))}
             {turnos.length < 6 && <button type="button" onClick={() => setTurnos([...turnos, { nombre: '', hora: '' }])} className="btn btn-sm"><Plus size={13} />Agregar turno</button>}
@@ -58,7 +57,7 @@ export default function ConfigParametrosReservas({ config, usaMesas, sede }: { c
       </fieldset>
       </GrupoSede>
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
-      <div className="flex justify-end"><button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar'}</button></div>
+      <div className="flex justify-end"><EstadoGuardado estado={estadoDeFormulario(f)} /></div>
     </form>
   )
 }

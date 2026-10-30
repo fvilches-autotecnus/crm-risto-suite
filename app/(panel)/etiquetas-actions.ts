@@ -116,6 +116,7 @@ export async function quitarEtiquetaCliente(clienteId: string, etiquetaId: strin
 export async function eliminarEtiqueta(id: string): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeAdministrar) return fail('Solo un dueño o administrador puede eliminar etiquetas')
+  if (!ctx.sinRestriccionSede) return fail('Las etiquetas son de todo el negocio y tu usuario no tiene acceso a ellas')
   if (!UUID.test(id)) return fail('Etiqueta no válida')
   const { error } = await ctx.supabase.from('etiquetas').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo eliminar la etiqueta')

@@ -2,16 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { MENSAJES_BOT } from '@/lib/reservas-config'
+import { falloAlcance } from '@/lib/config-tecnica'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const refrescar = (slug: string) => { revalidatePath('/configuracion'); revalidatePath('/reservas'); revalidatePath('/'); revalidatePath('/mesas'); revalidatePath(`/reservar/${slug}`) }
+// Estos ajustes se guardan solos mientras se editan: no se redibuja toda la pantalla de Configuración, solo se renueva el sitio público
+const refrescar = (slug: string) => { revalidatePath(`/reservar/${slug}`) }
 
 /** Guarda el catálogo de tipos de reserva. `tipos` viene en el orden elegido. Un tipo que ya tiene reservas no se borra: se desactiva. */
 export async function guardarTiposReserva(tipos: { clave: string; etiqueta: string; activo: boolean; modo?: string; dias_semana?: number[]; fechas?: string[] }[]): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los tipos de reserva')
+  { const e = falloAlcance(ctx); if (e) return fail(e) }
   if (!Array.isArray(tipos) || tipos.length === 0 || tipos.length > 40) return fail('Tiene que haber entre 1 y 40 tipos de reserva')
   const claves = new Set<string>()
   for (const t of tipos) {
@@ -53,6 +55,7 @@ export async function guardarParametrosReservas(_prev: ActionResult | null, fd: 
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) return fail('Este negocio no tiene el módulo Reservas')
   if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar estos parámetros')
+  { const e = falloAlcance(ctx); if (e) return fail(e) }
   const alerta = Number(String(fd.get('alerta_aforo_pct') ?? '').trim())
   if (!Number.isInteger(alerta) || alerta < 50 || alerta > 100) return fail('La alerta de aforo va de 50 a 100 %')
   const nombres = fd.getAll('turno_nombre').map((v) => String(v).trim()), horas = fd.getAll('turno_hora').map((v) => String(v).trim())
@@ -69,33 +72,5 @@ export async function guardarParametrosReservas(_prev: ActionResult | null, fd: 
   const { error } = await ctx.supabase.from('reservas_config').upsert({ negocio_id: ctx.negocio.id, alerta_aforo_pct: alerta, turnos, estados_bloquean: estados })
   if (error) return fail('No se pudieron guardar los parámetros')
   refrescar(ctx.negocio.slug)
-  return { ok: true }
-}
-
-/** Guarda el texto de un mensaje del bot (el cliente lo recibe por WhatsApp). */
-export async function guardarMensajeBot(clave: string, texto: string): Promise<ActionResult> {
-  const ctx = await getContexto()
-  if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los mensajes del bot')
-  const def = MENSAJES_BOT.find((m) => m.clave === clave)
-  if (!def) return fail('Mensaje no válido')
-  const t = String(texto ?? '').trim()
-  if (t.length < 1 || t.length > 600) return fail('El mensaje va de 1 a 600 letras')
-  const permitidas = new Set(def.variables)
-  const raras = [...t.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]).filter((v) => !permitidas.has(v))
-  if (raras.length) return fail(`No existe la variable {${raras[0]}} en este mensaje${def.variables.length ? `. Podés usar: ${def.variables.map((v) => `{${v}}`).join(', ')}` : ''}`)
-  const { error } = await ctx.supabase.from('bot_mensajes').upsert({ negocio_id: ctx.negocio.id, clave, texto: t, actualizado_en: new Date().toISOString() })
-  if (error) return fail('No se pudo guardar el mensaje')
-  revalidatePath('/configuracion')
-  return { ok: true }
-}
-
-/** Vuelve al texto original de un mensaje del bot. */
-export async function restaurarMensajeBot(clave: string): Promise<ActionResult> {
-  const ctx = await getContexto()
-  if (!ctx.puedeAdministrar) return fail('Solo dueños y administradores pueden cambiar los mensajes del bot')
-  if (!MENSAJES_BOT.some((m) => m.clave === clave)) return fail('Mensaje no válido')
-  const { error } = await ctx.supabase.from('bot_mensajes').delete().eq('negocio_id', ctx.negocio.id).eq('clave', clave)
-  if (error) return fail('No se pudo restaurar el mensaje')
-  revalidatePath('/configuracion')
   return { ok: true }
 }

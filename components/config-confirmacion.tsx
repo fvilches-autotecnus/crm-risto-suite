@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { guardarConfirmacion } from '@/app/(panel)/confirmacion-actions'
-import { useToast } from '@/components/feedback'
+import { EstadoGuardado, useAutoGuardar } from '@/components/estado-guardado'
 import { FechaInput } from '@/components/inputs'
-import { Spinner } from '@/components/ui'
 import { RESULTADOS, estadoSegunReglas, textoCondicion, type ReglaConfirmacion, type ResultadoConfirmacion } from '@/lib/confirmacion'
 import { DIAS_SEMANA } from '@/lib/dias'
 import { fechaCorta } from '@/lib/fechas'
@@ -17,19 +16,15 @@ const numero = (v: string): number | null => { const n = parseInt(v.replace(/\D/
 
 /** Cómo entran las reservas del sitio y del bot: confirmadas solas o en “Nuevas” a la espera de un asesor, con excepciones por cantidad de personas, tipo, fechas, días y sede. */
 export default function ConfigConfirmacion({ defectoInicial, inicial, sedes, tipos, hoy }: { defectoInicial: ResultadoConfirmacion; inicial: ReglaConfirmacion[]; sedes: { id: string; nombre: string }[]; tipos: { value: string; label: string }[]; hoy: string }) {
-  const toast = useToast()
   const [defecto, setDefecto] = useState<ResultadoConfirmacion>(defectoInicial)
   const [reglas, setReglas] = useState<ReglaConfirmacion[]>(inicial)
-  const [pending, start] = useTransition()
   const nombreSede = (id: string) => sedes.find((s) => s.id === id)?.nombre ?? 'Sede'
   const etiquetaTipo = (c: string) => tipos.find((t) => t.value === c)?.label ?? c
   const cambiar = (i: number, c: Partial<ReglaConfirmacion>) => setReglas((l) => l.map((r, k) => (k === i ? { ...r, ...c } : r)))
   const mover = (i: number, d: -1 | 1) => setReglas((l) => { const j = i + d; if (j < 0 || j >= l.length) return l; const c = [...l];[c[i], c[j]] = [c[j], c[i]]; return c })
   const opuesto: ResultadoConfirmacion = defecto === 'confirmada' ? 'nueva' : 'confirmada'
-  const guardar = () => start(async () => {
-    const r = await guardarConfirmacion(defecto, reglas.map(({ uid: _u, ...resto }) => resto))
-    toast(r.ok ? { texto: 'Confirmación de reservas guardada' } : { tipo: 'error', texto: r.error ?? 'No se pudo guardar' })
-  })
+  // se guarda solo, en cuanto la regla está completa y válida (si falta algo, el aviso dice qué)
+  const { estado, error } = useAutoGuardar(JSON.stringify({ defecto, reglas }), () => guardarConfirmacion(defecto, reglas.map(({ uid: _u, ...resto }) => resto)))
 
   // simulador: qué pasaría con una reserva de ejemplo
   const [pSede, setPSede] = useState('')
@@ -111,7 +106,7 @@ export default function ConfigConfirmacion({ defectoInicial, inicial, sedes, tip
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={guardar} disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar confirmación'}</button>
+        <EstadoGuardado estado={estado} error={error} />
         <p className="text-xs text-rs-muted">Rige para las reservas del sitio y las que carga el bot, y cuando un cliente modifica una reserva desde su link (si el cambio cae en una excepción “en Nuevas”, la reserva vuelve a revisión). Las reservas que cargás a mano desde el panel las dejás en el estado que elijas.</p>
       </div>
     </div>

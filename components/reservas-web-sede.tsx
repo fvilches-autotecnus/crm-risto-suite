@@ -6,7 +6,7 @@ import { guardarReservasWebSede } from '@/app/(panel)/config-sedes-actions'
 import { useToast } from '@/components/feedback'
 import GrupoSede from '@/components/grupo-sede'
 import MarcaCampos from '@/components/marca-campos'
-import { Spinner } from '@/components/ui'
+import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import type { ConfigReservasWeb, SedeCfg } from '@/components/reservas-web-config'
 import { DIAS_SEMANA } from '@/lib/dias'
@@ -16,20 +16,20 @@ const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 
 /** Sitio de reservas de UNA sede: lo suyo de siempre (activa, horarios, mesa, mensaje) y los grupos de ajustes que puede personalizar o heredar del negocio.
  *  `config` es la configuración efectiva (la del negocio con lo propio de la sede encima); `pisados` dice qué grupos tiene personalizados. */
-export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisponibles }: { sede: SedeCfg; config: ConfigReservasWeb; pisados: Record<string, boolean>; slug: string; tiposDisponibles: { value: string; label: string }[] }) {
-  const { state, pending, formProps } = useAccionFormulario(guardarReservasWebSede)
+export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisponibles, tecnico = false }: { tecnico?: boolean; sede: SedeCfg; config: ConfigReservasWeb; pisados: Record<string, boolean>; slug: string; tiposDisponibles: { value: string; label: string }[] }) {
+  const f = useAccionFormulario(guardarReservasWebSede, { auto: true })
+  const { state, formProps } = f
   const toast = useToast()
   const [origen, setOrigen] = useState('')
   const [alias, setAlias] = useState(sede.alias_web ?? '')
   const copiarEnlace = async (t: string) => { try { await navigator.clipboard.writeText(t); toast({ texto: 'Enlace copiado' }) } catch { toast({ tipo: 'error', texto: t }) } }
   useEffect(() => setOrigen(window.location.origin), [])
-  useEffect(() => { if (state?.ok) toast({ texto: `Sitio de ${sede.nombre} guardado` }) }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   const enlace = `${origen}/reservar/${slug}?sede=${sinTildes(sede.nombre)}`
   const g = (id: string) => ({ sedeId: sede.id, pisado: !!pisados[id] })
   return (
     <form {...formProps} className="space-y-4">
       <input type="hidden" name="sede_id" value={sede.id} />
-      <p className="rounded-md bg-rs-raised/50 px-3 py-2 text-xs text-rs-muted">Esta es la configuración del sitio de reservas solo para <b className="text-rs-text">{sede.nombre}</b>. Cada grupo hereda lo del negocio hasta que lo personalices. Que el sitio esté activo y el modo prueba se deciden para todo el negocio.</p>
+      <p className="rounded-md bg-rs-raised/50 px-3 py-2 text-xs text-rs-muted">Esta es la configuración del sitio de reservas solo para <b className="text-rs-text">{sede.nombre}</b>. Cada grupo hereda lo del negocio hasta que lo personalices. Que el sitio esté activo se decide para todo el negocio. Los cambios se guardan solos.</p>
       <div className="space-y-2 rounded-md bg-rs-raised/30 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" name="sede_activo" defaultChecked={sede.activo} className="h-4 w-4 accent-[#c8e62b]" />{sede.nombre} se ofrece en el sitio</label>
@@ -50,6 +50,7 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
         <p className="flex items-center gap-2 truncate font-mono text-[11px] text-rs-muted" title="Enlace directo a esta sede">{enlace}<a href={enlace} target="_blank" rel="noopener noreferrer" className="btn btn-sm"><ExternalLink size={12} />Abrir</a></p>
       </div>
 
+      {tecnico && (
       <div className="space-y-2 rounded-md border border-rs-border/60 p-3">
         <label className="label" htmlFor="ws_alias">Dirección propia del sitio de {sede.nombre}</label>
         <div className="flex flex-wrap items-center gap-2">
@@ -66,12 +67,13 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
         )}
         <p className="text-xs text-rs-muted">¿Querés publicarla en otro dominio, por ejemplo <span className="font-mono">reservas.ristosuite.app/{alias.trim() || 'mi-sede'}</span>? Se hace con una regla en el proyecto de ese dominio que reenvíe esa dirección a <span className="font-mono">{origen}/reservar/{alias.trim() || 'mi-sede'}</span> (ver el manual).</p>
       </div>
+      )}
 
       <GrupoSede id="reglas" titulo="Reglas de la reserva" {...g('reglas')}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div><label className="label" htmlFor="ws_dias">Días hacia adelante</label><input id="ws_dias" name="dias_adelante" type="number" min={1} max={365} defaultValue={config.dias_adelante} className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_horas">Anticipación (horas)</label><input id="ws_horas" name="horas_anticipacion" type="number" min={0} max={72} defaultValue={config.horas_anticipacion} className="input w-full" /></div>
-          <div><label className="label" htmlFor="ws_validez">Espera de la solicitud (horas)</label><input id="ws_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /></div>
+          {tecnico && <div><label className="label" htmlFor="ws_validez">Espera de la solicitud (horas)</label><input id="ws_validez" name="validez_horas" type="number" min={1} max={168} defaultValue={config.validez_horas} className="input w-full" /></div>}
           <div><label className="label" htmlFor="ws_pmin">Personas: mínimo</label><input id="ws_pmin" name="personas_min" type="number" min={1} max={100} defaultValue={config.personas_min} className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_pmax">Personas: máximo</label><input id="ws_pmax" name="personas_max" type="number" min={1} max={200} defaultValue={config.personas_max} className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_maxmesas">Máximo de mesas por reserva</label><input id="ws_maxmesas" name="max_mesas" type="number" min={1} max={12} defaultValue={config.max_mesas} className="input w-full" /></div>
@@ -108,19 +110,23 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
           <div><label className="label" htmlFor="ws_titulo">Título de la página</label><input id="ws_titulo" name="titulo" defaultValue={config.titulo ?? ''} maxLength={80} placeholder="Por defecto: el nombre del local" className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_subtitulo">Subtítulo</label><input id="ws_subtitulo" name="subtitulo" defaultValue={config.subtitulo ?? ''} maxLength={160} placeholder="Por defecto: Reservá tu mesa" className="input w-full" /></div>
         </div>
+        {tecnico && (
         <div>
           <label className="label" htmlFor="ws_wa">Mensaje de WhatsApp que se arma para el cliente</label>
           <textarea id="ws_wa" name="texto_whatsapp" defaultValue={config.texto_whatsapp ?? ''} rows={7} maxLength={1200} placeholder={PLANTILLA_WA_DEFECTO} className="input w-full font-mono text-xs" />
           <p className="mt-1 text-xs text-rs-muted">Vacío = el mensaje original. Variables: {VARIABLES_WA.map(([v, d]) => <code key={v} title={d} className="mr-1 rounded bg-rs-raised px-1 font-mono text-rs-lime">{`{${v}}`}</code>)}. <b className="text-rs-text">Tiene que llevar {'{codigo}'}</b>.</p>
         </div>
+        )}
       </GrupoSede>
 
+      {tecnico && (
       <GrupoSede id="marca" titulo="Marca del sitio (logo, colores, frase)" {...g('marca')}>
         <MarcaCampos marca={config.marca} prefijo="ws" />
       </GrupoSede>
+      )}
 
       {state && !state.ok && <p role="alert" className="text-sm text-rs-danger">{state.error}</p>}
-      <div className="flex justify-end"><button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : `Guardar el sitio de ${sede.nombre}`}</button></div>
+      <div className="flex justify-end"><EstadoGuardado estado={estadoDeFormulario(f)} /></div>
     </form>
   )
 }

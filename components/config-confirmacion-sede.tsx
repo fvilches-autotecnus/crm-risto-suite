@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { guardarEstadoSede } from '@/app/(panel)/config-sedes-actions'
-import { useToast } from '@/components/feedback'
-import { Spinner } from '@/components/ui'
+import { EstadoGuardado, useAutoGuardar } from '@/components/estado-guardado'
 import { RESULTADOS, textoCondicion, type ReglaConfirmacion, type ResultadoConfirmacion } from '@/lib/confirmacion'
 
 /** Cómo entran las reservas de una sede: como el negocio o con su propio resultado por defecto. Las excepciones (cantidad de personas, tipo, fechas…) se cargan en el negocio, eligiendo la sede. */
 export default function ConfigConfirmacionSede({ sedeId, defectoNegocio, valor, reglas, nombreSede, tipos }: { sedeId: string; defectoNegocio: ResultadoConfirmacion; valor: ResultadoConfirmacion | null; reglas: ReglaConfirmacion[]; nombreSede: string; tipos: { value: string; label: string }[] }) {
-  const toast = useToast()
   const [v, setV] = useState<string>(valor ?? '')
-  const [pending, start] = useTransition()
   const corto = (r: ResultadoConfirmacion) => RESULTADOS.find((o) => o.value === r)?.corto
-  const guardar = () => start(async () => { const r = await guardarEstadoSede(sedeId, v || null); toast(r.ok ? { texto: 'Confirmación de la sede guardada' } : { tipo: 'error', texto: r.error ?? 'No se pudo guardar' }) })
+  const { estado, error } = useAutoGuardar(v, () => guardarEstadoSede(sedeId, v || null), { demora: 250 })   // se guarda solo al elegir
   return (
     <div className="space-y-3">
       <fieldset className="space-y-2">
@@ -26,7 +23,7 @@ export default function ConfigConfirmacionSede({ sedeId, defectoNegocio, valor, 
           <ul className="list-disc space-y-0.5 pl-4">{reglas.map((r) => <li key={r.uid} className={r.activo ? '' : 'line-through opacity-60'}>{textoCondicion(r, () => nombreSede, (c) => tipos.find((t) => t.value === c)?.label ?? c)} → {corto(r.resultado)}</li>)}</ul>
         </div>
       )}
-      <button type="button" onClick={guardar} disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : 'Guardar'}</button>
+      <EstadoGuardado estado={estado} error={error} />
     </div>
   )
 }
