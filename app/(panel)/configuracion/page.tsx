@@ -15,8 +15,8 @@ import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
 import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
 import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
-import { flujosSilencio, integracionBC } from '@/lib/etiquetas'
-import { FlujosSilencioForm } from '@/components/silencio-bot-ui'
+import { cuentasBC, integracionBC } from '@/lib/etiquetas'
+import { BotconversaSedesForm, FlujosSilencioForm } from '@/components/silencio-bot-ui'
 import { leerPausaAuto } from '@/lib/pausas'
 import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/components/reservas-web-config'
 import { labelTipo } from '@/lib/reservas'
@@ -70,6 +70,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   // las consultas propias de esta pantalla se lanzan juntas con las demás (cada una es un viaje a la base)
   const pWebhook = esSuper ? webhookCliente(ctx.negocio.id) : Promise.resolve(null)
   const pBc = integracionBC(ctx.negocio.id)
+  const pCuentasBC = esSuper && !esSede ? cuentasBC(ctx.negocio.id) : Promise.resolve({ negocio: { activo: false, tieneClave: false, flujos: {} }, sedes: {} } as Awaited<ReturnType<typeof cuentasBC>>)
   const pEtiquetas = ctx.puedeAdministrar && !restringido ? ctx.supabase.from('etiquetas').select('id, nombre, bc_tag_id, cliente_etiquetas(count)').eq('negocio_id', ctx.negocio.id).order('nombre') : Promise.resolve({ data: [] })
   const { supabase, negocio, sede } = ctx
   const hoy = hoyEn(negocio.zona_horaria)
@@ -89,7 +90,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
       : Promise.resolve({ data: null }),
   ])
 
-  const [webhook, bc, { data: etiquetasDb }] = await Promise.all([pWebhook, pBc, pEtiquetas])
+  const [webhook, bc, { data: etiquetasDb }, cuentasBotconversa] = await Promise.all([pWebhook, pBc, pEtiquetas, pCuentasBC])
   // Pedidos: ajustes del negocio entero (no de una sede), para dueños, administradores y encargados con acceso a todas las sedes
   const veAjustesPedidos = mods.pedidos && (ctx.puedeAdministrar || ctx.rol === 'encargado') && !restringido && !esSede
   const cfgPedidos = veAjustesPedidos ? (await cargarConfigPedidos(supabase, negocio.id)).config : CONFIG_PEDIDOS_POR_DEFECTO
@@ -340,7 +341,12 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
           <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo="Funciones y módulos del negocio">
             <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
             <BotconversaForm activo={bc.activo} tieneClave={bc.tieneClave} />
-            {bc.activo && <FlujosSilencioForm flujos={await flujosSilencio(negocio.id)} tieneClave={bc.tieneClave} />}
+            {(() => { const cb = cuentasBotconversa; return (
+              <>
+                {bc.activo && <FlujosSilencioForm flujos={cb.negocio.flujos} tieneClave={bc.tieneClave} />}
+                <BotconversaSedesForm sedes={ctx.sedesTodas.filter((x) => x.activa).map((x) => ({ id: x.id, nombre: x.nombre, activo: !!cb.sedes[x.id]?.activo, tieneClave: !!cb.sedes[x.id]?.tieneClave, flujos: cb.sedes[x.id]?.flujos ?? {} }))} />
+              </>
+            ) })()}
             {webhook && (
               <AvisosForm
                 config={webhook}

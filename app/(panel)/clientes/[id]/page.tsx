@@ -10,8 +10,8 @@ import NotasCliente from './notas'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
 import { labelOrigen } from '@/lib/origen'
 import { EtiquetasCliente, type EtiquetaUI } from '@/components/etiquetas-ui'
-import { flujosSilencio, integracionBC } from '@/lib/etiquetas'
-import { SilencioBot } from '@/components/silencio-bot-ui'
+import { cuentasBC, integracionBC } from '@/lib/etiquetas'
+import { SilencioBot, type CuentaSilencio } from '@/components/silencio-bot-ui'
 import { estadoSilencio } from '@/lib/silencio'
 import { EditarCumple } from '@/components/cumples-ui'
 import { ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/components/resenas-ui'
@@ -29,7 +29,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound()
 
   const etiquetasTipo = Object.fromEntries((await cargarTiposReserva(ctx)).map((t) => [t.clave, t.etiqueta]))
-  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes, fecha_nacimiento, bot_silenciado_en, bot_silenciado_hasta').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
+  const { data: cliente } = await supabase.from('clientes').select('id, nombre, telefono, email, canal_origen, notas, creado_en, cumple_dia, cumple_mes, fecha_nacimiento').eq('id', id).eq('negocio_id', negocio.id).maybeSingle()
   if (!cliente) notFound()
 
   const { data: reservas } = await supabase
@@ -60,7 +60,17 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
     supabase.from('cliente_etiquetas').select('etiquetas(id, nombre)').eq('cliente_id', id),
     integracionBC(negocio.id),
   ])
-  const flujosBot = bc.activo && ctx.puedeSilenciarBot ? await flujosSilencio(negocio.id) : {}
+  // BotConversa: una cuenta por sede que tenga la suya (solo las sedes del usuario) y la del negocio; cada una con su estado de silencio para este cliente
+  const cuentasBot: CuentaSilencio[] = []
+  if (ctx.puedeSilenciarBot && cliente.telefono) {
+    const [cb, { data: estados }] = await Promise.all([cuentasBC(negocio.id), supabase.from('cliente_botconversa').select('sucursal_id, bot_silenciado_en, bot_silenciado_hasta').eq('cliente_id', id)])
+    const estado = (sid: string | null) => estadoSilencio((estados ?? []).find((e) => (e.sucursal_id ?? null) === sid) ?? { bot_silenciado_en: null, bot_silenciado_hasta: null })
+    for (const s of [...ctx.sedesGestion.filter((x) => x.activa)].sort((a, b) => Number(b.id === ctx.sede?.id) - Number(a.id === ctx.sede?.id))) {
+      const c = cb.sedes[s.id]
+      if (c?.activo && c.tieneClave) cuentasBot.push({ sucursalId: s.id, nombre: s.nombre, estado: estado(s.id), flujos: c.flujos })
+    }
+    if (cb.negocio.activo && cb.negocio.tieneClave) cuentasBot.push({ sucursalId: null, nombre: 'Cuenta del negocio', estado: estado(null), flujos: cb.negocio.flujos })
+  }
   const catalogo = (catalogoDb ?? []) as EtiquetaUI[]
   const aplicadas = ((aplicadasDb ?? []) as unknown as { etiquetas: EtiquetaUI | null }[]).map((x) => x.etiquetas).filter((x): x is EtiquetaUI => !!x).sort((a, b) => a.nombre.localeCompare(b.nombre))
   const prox = cliente.cumple_dia && cliente.cumple_mes ? proximoCumple(cliente.cumple_dia, cliente.cumple_mes, hoy) : null
@@ -83,7 +93,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
 
       <EtiquetasCliente clienteId={cliente.id} aplicadas={aplicadas} catalogo={catalogo} puedeEscribir={ctx.puedeEscribir} esBotconversa={bc.activo} />
 
-      {bc.activo && cliente.telefono && ctx.puedeSilenciarBot && <SilencioBot clienteId={cliente.id} estado={estadoSilencio(cliente)} flujos={flujosBot} />}
+      {cuentasBot.length > 0 && <SilencioBot clienteId={cliente.id} cuentas={cuentasBot} />}
 
       <NotasCliente id={cliente.id} notas={cliente.notas ?? ''} puedeEscribir={ctx.puedeEscribir} />
 
