@@ -35,6 +35,29 @@ export const rangoCapacidad = (m: Pick<Mesa, 'capacidad' | 'capacidad_min'>) => 
 /** Un conjunto de mesas se puede juntar solo si son todas móviles (una mesa sola siempre se puede). */
 export const sePuedenJuntar = (ms: Pick<Mesa, 'movil'>[]) => ms.length <= 1 || ms.every((m) => m.movil)
 
+type MesaElegible = { id: string; movil: boolean; capacidad_min: number; capacidad: number | null }
+
+/**
+ * ¿Por qué esta mesa libre no se puede elegir para `personas`? Como los mínimos de las mesas que se juntan se suman, una mesa que pide más
+ * personas que las de la reserva no sirve ni sola ni en grupo ('minimo'), y una móvil que sumada a las ya elegidas pasaría el mínimo tampoco ('suma').
+ * Null si se puede elegir (o si ya está elegida).
+ */
+export function bloqueoPorCapacidad(m: MesaElegible, personas: number, elegidas: MesaElegible[]): { motivo: 'minimo' | 'suma'; minimo: number } | null {
+  if (elegidas.some((x) => x.id === m.id)) return null
+  if (m.capacidad_min > personas) return { motivo: 'minimo', minimo: m.capacidad_min }
+  if (m.movil && elegidas.length > 0 && elegidas.every((x) => x.movil)) {
+    const minimo = elegidas.reduce((s, x) => s + x.capacidad_min, m.capacidad_min)
+    if (minimo > personas) return { motivo: 'suma', minimo }
+  }
+  return null
+}
+
+/** Las mesas tal como se ven al elegir: las libres que no sirven para ese grupo (ni solas ni sumadas a lo ya elegido) pasan a 'no_apta', así se ven bloqueadas. */
+export function conBloqueos<T extends MesaElegible & { tipo: string; estado: string }>(mesas: T[], personas: number, sel: string[]): T[] {
+  const elegidas = mesas.filter((m) => sel.includes(m.id))
+  return mesas.map((m) => (m.tipo === 'mesa' && m.estado === 'disponible' && bloqueoPorCapacidad(m, personas, elegidas) ? { ...m, estado: 'no_apta' } : m))
+}
+
 /** Reservas que, en el minuto `t`, tienen tomada esa mesa (ventana desde 30 min antes de la hora hasta que termina la duración típica). */
 export function reservasDeMesa(mesaId: string, reservas: ReservaSalon[], t: number, duracion: number, esHoy: boolean): ReservaSalon[] {
   return reservas.filter((r) => {

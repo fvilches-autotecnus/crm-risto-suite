@@ -5,13 +5,17 @@ import { Users } from 'lucide-react'
 import { CajaMesa, Derecho } from '@/components/mesa-sillas'
 import PlanoZoom from '@/components/plano-zoom'
 import { consultarPlanoReserva, type MesaPanel, type SalonPanel } from '@/app/(panel)/actions'
+import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
 
 const rango = (m: Pick<MesaPanel, 'capacidad' | 'capacidad_min'>) => (m.capacidad_min > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
 
 /** Selección de mesas: una sola mesa (fija o móvil) o varias móviles juntas. Devuelve la nueva selección y, si hace falta, un aviso. */
 function alternar(mesas: MesaPanel[], sel: string[], m: MesaPanel, personas: number, maxMesas: number): { sel: string[]; aviso: string | null } {
   if (m.estado === 'ocupada') return { sel, aviso: `La mesa ${m.numero} ya está ocupada a esa hora${m.ocupada_por ? ` (${m.ocupada_por})` : ''}.` }
-  if (m.estado === 'no_apta') return { sel, aviso: `La mesa ${m.numero} es para ${rango(m)} personas (la reserva es de ${personas}).` }
+  if (m.estado === 'no_apta') {
+    const b = bloqueoPorCapacidad(m, personas, mesas.filter((x) => sel.includes(x.id)))
+    return { sel, aviso: b?.motivo === 'suma' ? `La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y la reserva es de ${personas}. Sacá una mesa si querés cambiarla.` : `La mesa ${m.numero} es para ${rango(m)} personas (la reserva es de ${personas}).` }
+  }
   if (m.estado !== 'disponible') return { sel, aviso: null }
   if (sel.includes(m.id)) return { sel: sel.filter((i) => i !== m.id), aviso: null }
   const actuales = mesas.filter((x) => sel.includes(x.id))
@@ -72,6 +76,8 @@ export default function PlanoElegir({ fecha, hora, personas, sede, ubicacion, va
 
   const elegidas = useMemo(() => (datos?.mesas ?? []).filter((m) => value.includes(m.id)), [datos, value])
   const salon = datos?.salones.find((s) => s.id === salonId) ?? null
+  // las mesas que no sirven para este grupo (ni solas ni sumadas a las ya elegidas) se ven bloqueadas
+  const mesasVisibles = useMemo(() => conBloqueos(datos?.mesas ?? [], personas, value), [datos, personas, value])
   const total = elegidas.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
 
   return (
@@ -92,7 +98,7 @@ export default function PlanoElegir({ fecha, hora, personas, sede, ubicacion, va
         : datos && (
           <div className="space-y-2">
             {datos.salones.length > 1 && <div className="flex flex-wrap gap-2">{datos.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} aria-pressed={salonId === s.id} className={'btn btn-sm ' + (salonId === s.id ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>}
-            {salon && <Plano salon={salon} mesas={datos.mesas.filter((m) => m.salon_id === salon.id)} sel={value} onTocar={(m) => { const r = alternar(datos.mesas, value, m, personas, 6); onChange(r.sel); setAviso(r.aviso) }} />}
+            {salon && <Plano salon={salon} mesas={mesasVisibles.filter((m) => m.salon_id === salon.id)} sel={value} onTocar={(m) => { const r = alternar(datos.mesas, value, m, personas, 6); onChange(r.sel); setAviso(r.aviso) }} />}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-rs-muted">
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-rs-ok/70 bg-rs-ok/15" />Libre</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-rs-lime bg-rs-lime/30" />Elegida</span>

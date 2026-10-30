@@ -9,6 +9,7 @@ import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
 import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
+import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
 import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
@@ -114,11 +115,17 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const total = mesasSel.reduce((s, m) => ({ min: s.min + m.capacidad_min, max: s.max + m.capacidad }), { min: 0, max: 0 })
   const seleccionValida = mesasSel.length > 0 && personas >= total.min && personas <= total.max && (mesasSel.length === 1 || mesasSel.every((m) => m.movil))
   const salon = plano?.salones.find((s) => s.id === salonId) ?? null
+  // las mesas que no sirven para este grupo (ni solas ni sumadas a las ya elegidas) se ven bloqueadas
+  const mesasVisibles = useMemo(() => conBloqueos(plano?.mesas ?? [], personas, sel), [plano, personas, sel])
 
   const tocarMesa = (m: MesaWeb) => {
     setAviso(null)
     if (m.estado === 'ocupada') { setAviso(`La mesa ${m.numero} ya está reservada a esa hora.`); return }
-    if (m.estado === 'no_apta') { setAviso(`La mesa ${m.numero} es para ${rango(m)} personas (tu reserva es de ${personas}).`); return }
+    if (m.estado === 'no_apta') {
+      const b = bloqueoPorCapacidad(m, personas, mesasSel)
+      setAviso(b?.motivo === 'suma' ? `La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y tu reserva es de ${personas}. Sacá una mesa si querés cambiarla.` : `La mesa ${m.numero} es para ${rango(m)} personas (tu reserva es de ${personas}).`)
+      return
+    }
     if (m.estado !== 'disponible') return
     if (sel.includes(m.id)) { setSel(sel.filter((i) => i !== m.id)); return }
     const actuales = (plano?.mesas ?? []).filter((x) => sel.includes(x.id))
@@ -251,7 +258,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               cargandoPlano ? <p className="text-sm text-rs-muted">Cargando el plano…</p> : errorPlano ? <p role="alert" className="text-sm text-rs-danger">{errorPlano}</p> : plano && plano.salones.length === 0 ? <p className="text-sm text-rs-muted">Todavía no hay un plano cargado para esta ubicación: un asesor va a elegir tu mesa.</p> : plano && (
                 <div className="space-y-3">
                   {plano.salones.length > 1 && <div className="flex flex-wrap gap-2">{plano.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} className={chip(salonId === s.id)}>{s.nombre}</button>)}</div>}
-                  {salon && <PlanoWeb salon={salon} mesas={plano.mesas.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} />}
+                  {salon && <PlanoWeb salon={salon} mesas={mesasVisibles.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} />}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-rs-muted">
                     <Leyenda clase="border-rs-ok/70 bg-rs-ok/15" t="Disponible" /><Leyenda clase="border-rs-lime bg-rs-lime/30" t="Tu elección" /><Leyenda clase="border-rs-muted/40 bg-rs-raised/40 opacity-60" t="No disponible" /><Leyenda clase="border-dashed border-rs-ok/70 bg-rs-ok/15" t="Móvil (se puede juntar)" />
                   </div>

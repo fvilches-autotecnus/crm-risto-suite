@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { CalendarClock, Check, MessageCircle, Minus, Plus, ShieldCheck, Users, X } from 'lucide-react'
 import { FechaInput } from '@/components/inputs'
 import { consultarHorarios, consultarPlano, pedirAccionReserva, type MesaWeb, type ResultadoAccion, type SalonWeb, type SlotWeb } from '@/app/reservar/[slug]/actions'
 import { PlanoWeb } from '@/components/reservar-publico'
 import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
 import { fechaCorta } from '@/lib/fechas'
+import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
 
 export interface InfoReserva {
   negocio: string
@@ -78,10 +79,16 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
   const mesasActuales = (info.mesas ?? '').split('+').map((x) => x.trim()).filter(Boolean).sort().join('+')
   const cambiaMesa = modoMesa === 'elegir' && mesasSel.length > 0 && mesasSel.map((m) => m.numero).sort().join('+') !== mesasActuales
   const seleccionValida = mesasSel.length > 0 && personas >= totalMesas.min && personas <= totalMesas.max && (mesasSel.length === 1 || mesasSel.every((m) => m.movil))
+  // las mesas que no sirven para este grupo (ni solas ni sumadas a las ya elegidas) se ven bloqueadas
+  const mesasVisibles = useMemo(() => conBloqueos(plano?.mesas ?? [], personas, sel), [plano, personas, sel])
   const tocarMesa = (m: MesaWeb) => {
     setAviso(null)
     if (m.estado === 'ocupada') { setAviso(`La mesa ${m.numero} ya está reservada a esa hora.`); return }
-    if (m.estado === 'no_apta') { setAviso(`La mesa ${m.numero} no es para ${personas} personas.`); return }
+    if (m.estado === 'no_apta') {
+      const b = bloqueoPorCapacidad(m, personas, mesasSel)
+      setAviso(b?.motivo === 'suma' ? `La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y son ${personas}. Sacá una mesa si querés cambiarla.` : `La mesa ${m.numero} no es para ${personas} personas.`)
+      return
+    }
     if (m.estado !== 'disponible') return
     if (sel.includes(m.id)) { setSel(sel.filter((i) => i !== m.id)); return }
     const actuales = (plano?.mesas ?? []).filter((x) => sel.includes(x.id))
@@ -198,7 +205,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
                 {modoMesa === 'elegir' && plano && plano.salones.length > 0 && (
                   <div className="space-y-2">
                     {plano.salones.length > 1 && <div className="flex flex-wrap gap-2">{plano.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} className={'btn btn-sm ' + (salonId === s.id ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>}
-                    {(() => { const salon = plano.salones.find((s) => s.id === salonId); return salon ? <PlanoWeb salon={salon} mesas={plano.mesas.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} /> : null })()}
+                    {(() => { const salon = plano.salones.find((s) => s.id === salonId); return salon ? <PlanoWeb salon={salon} mesas={mesasVisibles.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} /> : null })()}
                     {(() => { const t = avisoCapacidadMinima(plano.mesas.filter((m) => m.salon_id === salonId), personas); return t ? <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{t}</p> : null })()}
                     {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
                     <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')}>{mesasSel.length === 0 ? 'Tocá una mesa disponible.' : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} ✓` : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran de ${totalMesas.min} a ${totalMesas.max} personas y son ${personas}.`}</p>
