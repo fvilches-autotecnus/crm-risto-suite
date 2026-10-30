@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import CartaPublica, { type CategoriaPublica, type PedidosPublicos } from '@/components/carta-publica'
 import { CONFIG_POR_DEFECTO, leerVariantes, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
-import { normalizarMarca, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
+import { normalizarMarca, origenCrm, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
 import { resolverModulos } from '@/lib/modulos'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -48,7 +48,7 @@ export default async function CartaPublicaPage({ params }: { params: Promise<{ s
   return (
     <>
       {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
-      <CartaPublica slug={slug} nombre={d.nombre} config={d.config} categorias={d.categorias} pedidos={d.pedidos} marca={d.marca} />
+      <CartaPublica slug={slug} nombre={d.nombre} config={d.config} categorias={d.categorias} pedidos={d.pedidos} marca={d.marca} logoRisto={`${origenCrm()}/logo.jpeg`} />
     </>
   )
 }

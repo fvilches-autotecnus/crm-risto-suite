@@ -14,7 +14,7 @@ interface Linea { producto_id: string; nombre: string; variante: string | null; 
 const clave = (producto: string, variante: string | null) => `${producto}|${variante ?? ''}`
 
 /** Carta pública. Si el negocio tiene Pedidos encendido, cada producto se puede agregar a un pedido y confirmarlo sin salir de la página. */
-export default function CartaPublica({ slug, nombre, config, categorias, pedidos, marca }: { slug: string; nombre: string; config: ConfigCarta; categorias: CategoriaPublica[]; pedidos: PedidosPublicos | null; marca?: Marca }) {
+export default function CartaPublica({ slug, nombre, config, categorias, pedidos, marca, logoRisto }: { slug: string; nombre: string; config: ConfigCarta; categorias: CategoriaPublica[]; pedidos: PedidosPublicos | null; marca?: Marca; logoRisto?: string }) {
   const puedePedir = !!pedidos?.recibe
   const [carrito, setCarrito] = useState<Record<string, Linea>>({})
   const [abierto, setAbierto] = useState(false)
@@ -47,12 +47,22 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-rs-raised bg-rs-header px-4 pb-4 pt-8 text-center">
+      {/* Mismo encabezado que el sitio de reservas del local: logo, adorno, frase y colores propios */}
+      {marca?.ornamento_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={marca.ornamento_url} alt="" aria-hidden className="pointer-events-none fixed -bottom-16 -left-20 -z-10 w-64 rotate-180 select-none opacity-[.12] sm:w-80" />
+      )}
+      <header className={'relative isolate overflow-hidden border-b border-rs-raised bg-rs-header px-4 text-center ' + (marca?.logo_url ? 'pb-5 pt-8' : 'pb-4 pt-8')}>
+        {marca?.ornamento_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={marca.ornamento_url} alt="" aria-hidden className="pointer-events-none absolute -right-8 -top-4 -z-10 w-48 select-none opacity-25 sm:-right-4 sm:w-64" />
+        )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {marca?.logo_url && (marca.logo_forma === 'redondo'
-          ? <img src={marca.logo_url} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-1 ring-rs-lime/30" />
-          : <img src={marca.logo_url} alt="" className="mx-auto mb-3 h-auto max-h-32 w-auto max-w-[75%] object-contain" />)}
-        <h1 className={marca?.logo_url && marca.logo_forma !== 'redondo' ? 'sr-only' : 'text-2xl font-bold text-rs-lime'}>{config.titulo || nombre}</h1>
+        {marca?.logo_url && (marca.logo_forma === 'libre'
+          ? <img src={marca.logo_url} alt="" className="mx-auto mb-3 h-auto max-h-32 w-auto max-w-[85%] object-contain" />
+          : <img src={marca.logo_url} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />)}
+        <h1 className={marca?.logo_url && marca.logo_forma === 'libre' ? 'sr-only' : marca?.logo_url ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>{config.titulo || nombre}</h1>
+        {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
         <p className="mt-1 text-sm text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'}</p>
         {config.mensaje && <p className="mx-auto mt-3 max-w-xl whitespace-pre-line text-sm">{config.mensaje}</p>}
         {pedidos && !pedidos.recibe && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Por el momento no estamos tomando pedidos online.{pedidos.mensaje ? ` ${pedidos.mensaje}` : ''}</p>}
@@ -107,7 +117,14 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
             </ul>
           </section>
         ))}
-        <p className="mt-12 text-center text-xs text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'} · RistoSuite</p>
+        {marca && Object.values(marca).some(Boolean) ? (
+          <p className="mt-12 flex items-center justify-center gap-1.5 text-xs text-rs-muted">
+            {pedidos ? 'Carta y pedidos' : 'Carta digital'} con
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {logoRisto && <img src={logoRisto} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-md" />}
+            <b className="font-semibold text-rs-text">Risto Suite</b>
+          </p>
+        ) : <p className="mt-12 text-center text-xs text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'} · RistoSuite</p>}
       </main>
 
       {puedePedir && unidades > 0 && !abierto && (
