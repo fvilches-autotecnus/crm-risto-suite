@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { CajaMesa, Derecho } from '@/components/mesa-sillas'
 import { FechaInput } from '@/components/inputs'
+import PlanoZoom from '@/components/plano-zoom'
 import { unirNombre } from '@/lib/nombres'
 import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
@@ -282,18 +283,12 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               {cfg.pedir_cumple && (
                 <div>
                   <span className="label">Tu cumpleaños (opcional)</span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] gap-2">
                     <select aria-label="Día de cumpleaños" value={form.cumple_dia} onChange={(e) => setForm((f) => ({ ...f, cumple_dia: e.target.value }))} className="input w-full"><option value="">Día</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}</select>
                     <select aria-label="Mes de cumpleaños" value={form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_mes: e.target.value }))} className="input w-full"><option value="">Mes</option>{['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'].map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}</select>
+                    <select id="rw_cumple_anio" aria-label="Año de nacimiento" value={form.cumple_anio} onChange={(e) => setForm((f) => ({ ...f, cumple_anio: e.target.value }))} className="input w-full"><option value="">Año</option>{Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}</select>
                   </div>
-                  <p className="mt-1 text-xs text-rs-muted">Recibí un regalo en ese día 🎁 Podés dejarlo vacío.</p>
-                  <div className="mt-2">
-                    <label className="label" htmlFor="rw_cumple_anio">Año de nacimiento (opcional)</label>
-                    <select id="rw_cumple_anio" value={form.cumple_anio} disabled={!form.cumple_dia || !form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_anio: e.target.value }))} className="input w-full">
-                      <option value="">Año</option>{Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}
-                    </select>
-                    <p className="mt-1 text-xs text-rs-muted">Así sabemos qué edad cumplís. Primero elegí el día y el mes.</p>
-                  </div>
+                  <p className="mt-1 text-xs text-rs-muted">Recibí un regalo en ese día 🎁</p>
                 </div>
               )}
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
@@ -352,11 +347,28 @@ function Banner({ nombre, subtitulo, prueba, marca }: { nombre: string; subtitul
 const Leyenda = ({ clase, t }: { clase: string; t: string }) => <span className="inline-flex items-center gap-1.5"><span className={'h-3 w-3 rounded border-2 ' + clase} />{t}</span>
 
 export function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesas: MesaWeb[]; sel: string[]; onTocar: (m: MesaWeb) => void }) {
+  const [vista, setVista] = useState<'mapa' | 'lista'>('mapa')   // en el celular se puede elegir entre el mapa y una lista de mesas
+  const lista = mesas.filter((m) => m.tipo !== 'deco').sort((x, y) => x.numero.localeCompare(y.numero, 'es', { numeric: true }))
+  const segmento = (v: 'mapa' | 'lista', t: string) => <button type="button" onClick={() => setVista(v)} aria-pressed={vista === v} className={'flex-1 rounded-md px-3 py-1 text-sm font-medium transition-colors ' + (vista === v ? 'bg-rs-lime/20 text-rs-lime' : 'text-rs-muted')}>{t}</button>
   return (
     <div>
-    {salon.ancho * 24 > 340 && <p className="mb-1.5 text-xs text-rs-muted sm:hidden">Deslizá hacia los costados para ver todo el plano →</p>}
-    <div className="overflow-x-auto rounded-rs-lg border border-rs-border bg-rs-bg/60 p-3">
-      <div className="relative" style={{ aspectRatio: `${salon.ancho} / ${salon.alto}`, minWidth: Math.max(salon.ancho * 24, 320), containerType: 'inline-size' }}>
+    <div className="mb-2 flex gap-1 rounded-rs-lg border border-rs-control p-1 sm:hidden" role="group" aria-label="Cómo ver las mesas">{segmento('mapa', 'Mapa')}{segmento('lista', 'Lista')}</div>
+    {vista === 'lista' && (
+      <ul className="grid grid-cols-2 gap-2 sm:hidden">
+        {lista.map((m) => {
+          const elegida = sel.includes(m.id), libre = m.estado === 'disponible'
+          return (
+            <li key={m.id}><button type="button" onClick={() => onTocar(m)} aria-pressed={elegida} className={'flex min-h-[3.5rem] w-full flex-col items-start justify-center rounded-rs-lg border-2 px-3 py-2 text-left leading-tight transition ' + (m.movil ? 'border-dashed ' : '') + (elegida ? 'border-rs-lime bg-rs-lime/20 ring-2 ring-rs-lime ' : libre ? 'border-rs-ok/70 bg-rs-ok/10 ' : 'border-rs-muted/40 bg-rs-raised/40 text-rs-muted opacity-60 ')}>
+              <span className="font-bold">Mesa {m.numero}</span>
+              <span className="text-xs text-rs-muted"><Users className="mr-1 inline" size={11} />{rango(m)} personas</span>
+              <span className="text-[11px] uppercase text-rs-muted">{elegida ? 'Elegida' : libre ? 'Disponible' : m.estado === 'ocupada' ? 'Reservada' : 'No apta'}</span>
+            </button></li>
+          )
+        })}
+      </ul>
+    )}
+    <div className={vista === 'lista' ? 'max-sm:hidden' : ''}>
+    <PlanoZoom ancho={salon.ancho} alto={salon.alto}>
         {mesas.map((m) => {
           const base = { left: `${(m.x / salon.ancho) * 100}%`, top: `${(m.y / salon.alto) * 100}%`, width: `${(m.w / salon.ancho) * 100}%`, height: `${(m.h / salon.alto) * 100}%`, fontSize: `calc(100cqw / ${salon.ancho} * .55)` }
           if (m.tipo === 'deco') return <div key={m.id} style={base} className="absolute grid place-items-center overflow-hidden rounded border border-dashed border-rs-muted/50 bg-rs-raised/40 px-1 text-center font-semibold uppercase tracking-wide text-rs-muted">{m.numero}</div>
@@ -371,7 +383,7 @@ export function PlanoWeb({ salon, mesas, sel, onTocar }: { salon: SalonWeb; mesa
             </button></CajaMesa>
           )
         })}
-      </div>
+    </PlanoZoom>
     </div>
     </div>
   )
