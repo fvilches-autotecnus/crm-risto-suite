@@ -15,7 +15,8 @@ import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
 import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
 import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
-import { integracionBC } from '@/lib/etiquetas'
+import { flujosSilencio, integracionBC } from '@/lib/etiquetas'
+import { FlujosSilencioForm } from '@/components/silencio-bot-ui'
 import { leerPausaAuto } from '@/lib/pausas'
 import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/components/reservas-web-config'
 import { labelTipo } from '@/lib/reservas'
@@ -339,6 +340,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
           <Seccion id="funciones" i={n++} borde="border-rs-lime/30" titulo="Funciones y módulos del negocio">
             <FuncionesForm apagadoBot={ctx.tieneApagadoBot} />
             <BotconversaForm activo={bc.activo} tieneClave={bc.tieneClave} />
+            {bc.activo && <FlujosSilencioForm flujos={await flujosSilencio(negocio.id)} tieneClave={bc.tieneClave} />}
             {webhook && (
               <AvisosForm
                 config={webhook}

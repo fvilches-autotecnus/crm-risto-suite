@@ -1,5 +1,6 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/server'
+import { leerFlujos, type FlujosSilencio } from '@/lib/silencio'
 
 export interface IntegracionBC { activo: boolean; tieneClave: boolean }
 
@@ -7,6 +8,12 @@ export interface IntegracionBC { activo: boolean; tieneClave: boolean }
 export async function integracionBC(negocioId: string): Promise<IntegracionBC> {
   const { data } = await createAdminClient().from('negocios_integraciones').select('botconversa_activo, botconversa_api_key').eq('negocio_id', negocioId).maybeSingle()
   return { activo: !!data?.botconversa_activo, tieneClave: !!data?.botconversa_api_key }
+}
+
+/** Ids de los flujos de silencio de BotConversa que el negocio tiene configurados (los que faltan no aparecen). */
+export async function flujosSilencio(negocioId: string): Promise<FlujosSilencio> {
+  const { data } = await createAdminClient().from('negocios_integraciones').select('botconversa_flujos').eq('negocio_id', negocioId).maybeSingle()
+  return leerFlujos(data?.botconversa_flujos)
 }
 
 /** Clave de la API de BotConversa del negocio (solo para usar en el servidor), o null si no está activa. */

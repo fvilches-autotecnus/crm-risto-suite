@@ -75,6 +75,22 @@ export async function quitarEtiquetaBC(clave: string, suscriptorId: number, etiq
   return r && (r.status === 200 || r.status === 204) ? { ok: true } : fallo(r)
 }
 
+/** Flujos que hay en BotConversa (id y nombre), para elegir los de silencio en Configuración. */
+export async function flujosBC(clave: string): Promise<ResultadoBC<{ id: number; name: string }[]>> {
+  const r = await llamar(clave, 'GET', '/flows/')
+  if (!r || r.status !== 200 || !Array.isArray(r.json)) return fallo(r)
+  return { ok: true, datos: (r.json as { id: number; name: string }[]).filter((f) => Number.isInteger(f.id) && typeof f.name === 'string') }
+}
+
+/** Le manda un flujo a un suscriptor (BotConversa lo ejecuta en ese chat). */
+export async function enviarFlujoBC(clave: string, suscriptorId: number, flujoId: number): Promise<ResultadoBC> {
+  const r = await llamar(clave, 'POST', `/subscriber/${suscriptorId}/send_flow/`, { flow: flujoId })
+  if (r && r.status === 200) return { ok: true }
+  // la API responde 400 ("User does not exist…") cuando el suscriptor ya no existe: se trata como no encontrado
+  if (r && r.status === 400 && /does not exist|not exist|no existe/i.test(mensaje(r.json))) return { ok: false, error: 'no_encontrado', detalle: mensaje(r.json) }
+  return fallo(r)
+}
+
 export function textoErrorBC(e: { error?: ErrorBC; detalle?: string }): string {
   switch (e.error) {
     case 'clave': return 'BotConversa rechazó la clave de la API (revisala en Configuración)'

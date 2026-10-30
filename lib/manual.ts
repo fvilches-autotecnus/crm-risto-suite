@@ -271,6 +271,7 @@ export const MANUAL: SeccionManual[] = [
     id: 'pausados', grupo: 'Clientes y marketing', titulo: 'Chats pausados, conversaciones y botón del bot', resumen: 'Cuando el bot le pasa el chat a una persona.',
     bloques: [
       { t: 'p', x: '**Chats pausados** (para encargados y administradores): cuando el bot deriva a un cliente a una persona, su chat queda **pausado** para que el bot no se meta. Acá ves quiénes están esperando y podés **reactivar** el chat (uno por uno o todos juntos) cuando terminaste. Pasado un tiempo, el bot vuelve a atender solo.' },
+      { t: 'p', x: '**Silenciar al bot de un cliente** (negocios que usan BotConversa; para encargados, administradores y dueños): en la **ficha del cliente**, sección **Bot de WhatsApp**, podés silenciar al bot por **2 horas**, **24 horas** o **indefinidamente** (por ejemplo, mientras una persona del equipo conversa con ese cliente) y **reactivarlo** cuando quieras. Mientras está silenciado, la ficha lo indica y hasta cuándo. Las acciones que se ven son las que tienen su flujo configurado.' },
       { t: 'p', x: '**Conversaciones** (si está encendido): muestra los chats del bot de WhatsApp para leerlos.' },
       { t: 'p', x: 'El botón **Bot encendido / apagado** (arriba a la derecha, si tu negocio lo tiene) apaga al bot por completo: no responde ni registra mensajes. Una barra roja avisa mientras está apagado.' },
     ],

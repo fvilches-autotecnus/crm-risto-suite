@@ -50,6 +50,7 @@ export interface Contexto {
   configSedes: Record<string, ConfigSede>
   tieneApagadoBot: boolean // el negocio tiene habilitado el botón de apagado (lo configura Autotecnus)
   puedeApagarBot: boolean
+  puedeSilenciarBot: boolean
   /** Sedes del negocio a las que el usuario tiene alcance (todas si no tiene restricción). Vacío = negocio de una sola sede. */
   sedes: Sede[]
   /** Todas las sedes del negocio, activas o no (para mostrar nombres de datos viejos). */
@@ -124,6 +125,8 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     configSedes,
     tieneApagadoBot,
     puedeApagarBot: tieneApagadoBot && (rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado'),
+    /** Silenciar / reactivar al bot de un cliente desde su ficha (encargado o superior; no depende del botón de apagar el bot). */
+    puedeSilenciarBot: rol === 'superadmin' || rol === 'owner' || rol === 'admin' || rol === 'encargado',
     sedes,
     sedesTodas,
     sedesGestion,
