@@ -39,6 +39,7 @@ export const MANUAL: SeccionManual[] = [
       { t: 'tip', x: 'En el celular la barra de pestañas se desliza hacia los costados, y las tablas se convierten en tarjetas.' },
       { t: 'tip', x: 'Todas las fechas se ven y se escriben **día-mes-año** (por ejemplo 26-10-2026). En los campos de fecha podés escribir solo los números (26102026) o tocar el calendario, que empieza en lunes.' },
       { t: 'tip', x: 'Las pantallas se actualizan solas (reservas nuevas, pedidos, vouchers). Cuando entra una reserva o un pedido nuevo suena un aviso y aparece una notificación. Si algo no cambia, recargá la página.' },
+      { t: 'p', x: '**Campanita de notificaciones** (arriba a la derecha, al lado de tu nombre): junta lo que fue llegando y todavía no viste, sin que tengas que estar mirando la pantalla justo en ese momento: reservas nuevas que toma el bot o el sitio, consultas, reclamos y pedidos (los últimos 14 días). El globito muestra cuántos hay sin leer. Tocá un aviso para ir a esa pantalla (queda marcado como leído) o usá **Marcar todas como leídas**. Cada persona tiene sus propias lecturas, y si tu usuario tiene algunas sedes asignadas, solo ves lo de esas sedes. Las reservas que cargás a mano no generan aviso.' },
     ],
   },
   {

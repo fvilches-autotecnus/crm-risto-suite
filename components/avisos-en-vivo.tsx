@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { useToast } from '@/components/feedback'
+import { EVENTO_NOTIFICACIONES } from '@/components/campana-notificaciones'
 
 interface FilaReserva { id: string; numero: number; cliente_nombre: string | null; cantidad_personas: number | null; fecha: string | null; hora: string | null; sucursal_id: string | null; es_manual: boolean; estado: string }
 interface FilaConsulta { id: string; telefono: string | null; nombre?: string | null; mensaje: string | null; tipo: string; sucursal_id: string | null }
@@ -64,6 +65,7 @@ export default function AvisosEnVivo({ negocioId, sedes, pedidos = false }: { ne
       }
       if (document.hidden) { sinLeer += lote.length; document.title = `(${sinLeer}) ${titulo}` }
       if (lote.some((e) => e.tipo === 'pedido')) sonar()
+      window.dispatchEvent(new Event(EVENTO_NOTIFICACIONES))   // la campanita vuelve a pedir su lista
       if (REFRESCAR.includes(ruta.current)) router.refresh()
     }
     const encolar = (e: Evento) => { cola.push(e); if (!timer) timer = setTimeout(mostrar, 1200) }   // junta ráfagas (ej. una importación) en un solo aviso

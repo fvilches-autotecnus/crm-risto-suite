@@ -9,11 +9,16 @@ import Nav from '@/components/nav'
 import NegocioSelect from '@/components/negocio-select'
 import SedeSelect from '@/components/sede-select'
 import { getContexto } from '@/lib/context'
+import CampanaNotificaciones from '@/components/campana-notificaciones'
+import { cargarNotificaciones } from '@/lib/notificaciones'
 import { contarPausados } from '@/lib/pausados'
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContexto()
-  const pausados = ctx.puedeApagarBot ? await contarPausados(ctx) : 0   // chats que el bot dejó esperando a una persona
+  const [pausados, notificaciones] = await Promise.all([
+    ctx.puedeApagarBot ? contarPausados(ctx) : 0,   // chats que el bot dejó esperando a una persona
+    cargarNotificaciones(ctx),
+  ])
 
   return (
     <FeedbackProvider>
@@ -36,6 +41,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
+              <CampanaNotificaciones key={ctx.negocio.id} inicial={notificaciones} />
               <span className="hidden text-sm font-semibold md:inline">{ctx.nombreUsuario}</span>
               <form action="/salir" method="post">
                 <button className="btn btn-sm h-8 px-3"><LogOut size={14} /> Salir</button>
