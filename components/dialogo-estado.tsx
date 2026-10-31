@@ -33,8 +33,9 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState('')
   const t = TEXTOS[estado]!
-  const avisable = aviso.disponible && !!r.cliente_telefono && aviso.estados.includes(estado)
-  const nota = !aviso.disponible ? null : !r.cliente_telefono ? 'No hay teléfono del cliente: no se le puede avisar por WhatsApp.' : !aviso.estados.includes(estado) ? `El aviso por WhatsApp de “${labelEstado(estado)}” no está habilitado para este local.` : null
+  const manual = r.es_manual === true   // las que se cargan a mano desde el CRM no se avisan: el cliente ya habló con una persona
+  const avisable = !manual && aviso.disponible && !!r.cliente_telefono && aviso.estados.includes(estado)
+  const nota = !aviso.disponible ? null : manual ? 'Es una reserva cargada a mano: no se le avisa al cliente por WhatsApp.' : !r.cliente_telefono ? 'No hay teléfono del cliente: no se le puede avisar por WhatsApp.' : !aviso.estados.includes(estado) ? `El aviso por WhatsApp de “${labelEstado(estado)}” no está habilitado para este local.` : null
   const montoNum = Number(monto.replace(',', '.'))
 
   const enviar = (notificar: boolean) => {

@@ -302,13 +302,13 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
     .update({ estado, motivo_cancelacion: estado === 'cancelada' ? motivo?.trim() || null : null, ...(estado === 'pendiente_pago' ? { monto_sena: Math.round(monto! * 100) / 100 } : {}) })
     .eq('id', id)
     .eq('negocio_id', negocio.id)
-    .select('numero, numero_sede, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones, sucursal_id')
+    .select('numero, numero_sede, cliente_nombre, cliente_telefono, cantidad_personas, fecha, hora, motivo_cancelacion, monto_sena, tipo_reserva, ubicacion, observaciones, sucursal_id, es_manual')
     .maybeSingle()
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
-  // El aviso al cliente solo sale si la persona del equipo lo eligió en el diálogo
+  // El aviso al cliente solo sale si la persona del equipo lo eligió en el diálogo, y nunca para las reservas cargadas a mano
   let aviso: ActionResult['aviso']
-  if (notificar === true && esEstadoAviso(estado)) {
+  if (notificar === true && !r.es_manual && esEstadoAviso(estado)) {
     aviso = await avisarCambioDeEstado({
       negocioId: negocio.id,
       sedeId: r.sucursal_id,

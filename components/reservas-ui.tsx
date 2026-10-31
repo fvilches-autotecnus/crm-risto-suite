@@ -26,6 +26,11 @@ const ESTADO_CLS: Record<string, string> = {
   no_show: 'bg-rs-muted/20 text-rs-muted',
 }
 
+/** Marca para las reservas que se cargaron a mano desde el CRM (no llegaron por el sitio ni por el bot). */
+export function MarcaManual() {
+  return <span className="badge ml-2 bg-rs-lav/15 align-middle text-rs-lav" title="Cargada a mano desde el CRM: no se le avisa al cliente">Manual</span>
+}
+
 export function EstadoBadge({ estado }: { estado: string }) {
   return (
     <span className={'badge transition-colors ' + (ESTADO_CLS[estado] ?? 'bg-rs-raised text-rs-muted')}>
@@ -329,7 +334,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
             {reservas.map((r, i) => (
               <tr key={r.id} className={'reveal group border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <td className="td font-semibold text-rs-lime">#{numeroVisible(r)}</td>
-                <td className="td"><span className="font-medium">{r.cliente_nombre ?? '—'}</span>{!ver('observaciones') && nota(r) && <span className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[11px] italic leading-tight text-rs-muted/70" title={nota(r) ?? ''}><MessageSquareText size={10} className="shrink-0" /><span className="truncate">{nota(r)}</span></span>}</td>
+                <td className="td"><span className="font-medium">{r.cliente_nombre ?? '—'}</span>{r.es_manual && <MarcaManual />}{!ver('observaciones') && nota(r) && <span className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[11px] italic leading-tight text-rs-muted/70" title={nota(r) ?? ''}><MessageSquareText size={10} className="shrink-0" /><span className="truncate">{nota(r)}</span></span>}</td>
                 {ver('telefono') && <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>}
                 {mostrarSede && ver('sede') && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
                 {ver('fecha') && <td className="td">{fechaCorta(r.fecha)}</td>}
@@ -353,7 +358,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
           <li key={r.id} className={'reveal card p-4 transition-opacity ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 8) }}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold"><span className="text-rs-lime">#{numeroVisible(r)}</span> {r.cliente_nombre ?? '—'}</p>
+                <p className="font-semibold"><span className="text-rs-lime">#{numeroVisible(r)}</span> {r.cliente_nombre ?? '—'}{r.es_manual && <MarcaManual />}</p>
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
                 <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>

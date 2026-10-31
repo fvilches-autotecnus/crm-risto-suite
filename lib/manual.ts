@@ -60,7 +60,7 @@ export const MANUAL: SeccionManual[] = [
   {
     id: 'dashboard', grupo: 'Operación diaria', titulo: 'Dashboard (pantalla de inicio)', resumen: 'El resumen del día: reservas, aforo y alertas.',
     bloques: [
-      { t: 'p', x: 'Muestra cómo viene el día: **Reservas hoy**, **Personas hoy**, **Pendientes** (las que todavía hay que revisar) y **Reservas semana**; el **aforo del día** (cuánto del cupo del local está tomado) y la lista de **reservas del día**. Con las flechas pasás al día anterior o al siguiente.' },
+      { t: 'p', x: 'Muestra cómo viene el día: **Reservas hoy**, **Personas hoy**, **Pendientes** (las que todavía hay que revisar) y **Reservas semana**; el **aforo del día** (cuánto del cupo del local está tomado) y la lista de **reservas del día**. Con las flechas pasás al día anterior o al siguiente. Las reservas que cargó una persona a mano desde el CRM llevan la marca **Manual** al lado del nombre (en el Dashboard y en Reservas); a esas **no se les avisa al cliente** por WhatsApp al cambiar su estado.' },
       { t: 'p', x: 'Las **alertas activas** te avisan, por ejemplo, cuando el aforo llega al 90 %. El aforo se configura en Configuración → Aforo.' },
       { t: 'p', x: 'Si tu negocio no tiene el módulo Reservas, en su lugar el inicio te muestra los módulos que tiene encendidos y los que se pueden sumar.' },
     ],
