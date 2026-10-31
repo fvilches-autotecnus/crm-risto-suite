@@ -41,7 +41,7 @@ export function AforoForm({ aforo, puedeEditar, sedeId }: { aforo: number | null
 // ---------------------------------------------------------------------------
 // Reglas de aforo por franja horaria y ubicación
 // ---------------------------------------------------------------------------
-export interface ReglaEditable { id: string; sucursal_id: string | null; ubicacion: string | null; hora_desde: string | null; hora_hasta: string | null; maximo: number; dias_semana?: number[] | null; fecha_desde?: string | null; fecha_hasta?: string | null }
+export interface ReglaEditable { id: string; sucursal_id: string | null; ubicacion: string | null; hora_desde: string | null; hora_hasta: string | null; maximo: number; dias_semana?: number[] | null; fecha_desde?: string | null; fecha_hasta?: string | null; incluye_hasta?: boolean }
 
 function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: ReglaEditable; sedes: { id: string; nombre: string }[]; ubicaciones: string[]; puedeTodas: boolean; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(guardarRegla)
@@ -70,7 +70,11 @@ function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: 
       )}
       <div><label className="label" htmlFor="r_desde">Franja desde</label><HoraInput id="r_desde" name="hora_desde" defaultValue={regla?.hora_desde?.slice(0, 5) ?? ''} /></div>
       <div><label className="label" htmlFor="r_hasta">Franja hasta</label><HoraInput id="r_hasta" name="hora_hasta" defaultValue={regla?.hora_hasta?.slice(0, 5) ?? ''} /></div>
-      <p className="col-span-2 -mt-1 text-xs text-rs-muted">Dejá la franja vacía para que valga todo el día. La reserva entra en la franja si su hora es desde ≤ hora &lt; hasta.</p>
+      <label className="col-span-2 flex cursor-pointer items-start gap-3 text-sm">
+        <input type="checkbox" name="incluye_hasta" defaultChecked={regla ? regla.incluye_hasta === true : true} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" />
+        <span><span className="font-medium">Incluir la hora final en la franja</span><span className="block text-xs text-rs-muted">Con la marca, una franja de 20:00 a 21:30 cubre también las reservas de las 21:30 (las de las 21:31 en adelante quedan fuera). Sin la marca, la franja llega hasta justo antes de la hora final.</span></span>
+      </label>
+      <p className="col-span-2 -mt-1 text-xs text-rs-muted">Dejá la franja vacía para que valga todo el día. Las reservas fuera de toda franja no cuentan para esta regla ni la respetan.</p>
       <fieldset className="col-span-2">
         <legend className="label">Días de la semana</legend>
         <div className="flex flex-wrap gap-2">
@@ -104,7 +108,7 @@ export function ReglasPanel({ reglas, sedes, nombresSede, ubicaciones, puedeToda
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
-  const texto = (r: ReglaEditable) => [r.sucursal_id ? nombresSede[r.sucursal_id] ?? 'otra sede' : sedes.length > 0 ? 'Todas las sedes' : null, r.ubicacion ?? (ubicaciones.length > 0 ? 'todas las ubicaciones' : null), textoDias(r.dias_semana), r.fecha_desde && r.fecha_hasta ? (r.fecha_desde === r.fecha_hasta ? fechaCorta(r.fecha_desde) : `${fechaCorta(r.fecha_desde)} al ${fechaCorta(r.fecha_hasta)}`) : null, r.hora_desde && r.hora_hasta ? `${r.hora_desde.slice(0, 5)}–${r.hora_hasta.slice(0, 5)}` : 'todo el día'].filter(Boolean).join(' · ')
+  const texto = (r: ReglaEditable) => [r.sucursal_id ? nombresSede[r.sucursal_id] ?? 'otra sede' : sedes.length > 0 ? 'Todas las sedes' : null, r.ubicacion ?? (ubicaciones.length > 0 ? 'todas las ubicaciones' : null), textoDias(r.dias_semana), r.fecha_desde && r.fecha_hasta ? (r.fecha_desde === r.fecha_hasta ? fechaCorta(r.fecha_desde) : `${fechaCorta(r.fecha_desde)} al ${fechaCorta(r.fecha_hasta)}`) : null, r.hora_desde && r.hora_hasta ? `${r.hora_desde.slice(0, 5)}–${r.hora_hasta.slice(0, 5)}${r.incluye_hasta ? ' (incluida)' : ''}` : 'todo el día'].filter(Boolean).join(' · ')
   const borrar = async (r: ReglaEditable) => {
     if (!(await confirmar({ titulo: '¿Borrar esta regla de aforo?', texto: texto(r), confirmar: 'Borrar', peligro: true }))) return
     start(async () => { const x = await borrarRegla(r.id); toast(x.ok ? { texto: 'Regla borrada' } : { tipo: 'error', texto: x.error ?? 'No se pudo borrar' }) })

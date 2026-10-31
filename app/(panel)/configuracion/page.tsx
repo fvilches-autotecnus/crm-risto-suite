@@ -84,7 +84,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   const [{ data: bloqueos }, { data: ubicaciones }, { data: reglas }, { data: miembros }] = await Promise.all([
     bq.order('fecha'),
     supabase.from('ubicaciones').select('id, nombre, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
-    ctx.puedeAdministrar ? supabase.from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo, dias_semana, fecha_desde, fecha_hasta').eq('negocio_id', negocio.id).order('creado_en') : Promise.resolve({ data: [] }),
+    ctx.puedeAdministrar ? supabase.from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo, dias_semana, fecha_desde, fecha_hasta, incluye_hasta').eq('negocio_id', negocio.id).order('creado_en') : Promise.resolve({ data: [] }),
     ctx.puedeAdministrar && !restringido
       ? supabase.from('membresias').select('user_id, rol, activo, sucursal_ids, perfiles(id, usuario, nombre, activo, es_superadmin)').eq('negocio_id', negocio.id)
       : Promise.resolve({ data: null }),

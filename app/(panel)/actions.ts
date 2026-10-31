@@ -552,7 +552,7 @@ export async function guardarRegla(_prev: ActionResult | null, fd: FormData): Pr
   if (desde && desde >= hasta) return fail('La franja debe terminar después de empezar (no puede cruzar la medianoche)')
   if (sedeId && !ctx.sedes.some((x) => x.id === sedeId)) return fail('La sede no es válida')
   if (!sedeId && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
-  const fila = { sucursal_id: sedeId, ubicacion, hora_desde: desde || null, hora_hasta: hasta || null, maximo, dias_semana: dias.length > 0 && dias.length < 7 ? dias : null, fecha_desde: fDesde || null, fecha_hasta: fHasta || null }
+  const fila = { sucursal_id: sedeId, ubicacion, hora_desde: desde || null, hora_hasta: hasta || null, incluye_hasta: !!desde && fd.get('incluye_hasta') === 'on', maximo, dias_semana: dias.length > 0 && dias.length < 7 ? dias : null, fecha_desde: fDesde || null, fecha_hasta: fHasta || null }
   const { error } = id
     ? await ctx.supabase.from('aforos').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('aforos').insert({ ...fila, negocio_id: ctx.negocio.id })

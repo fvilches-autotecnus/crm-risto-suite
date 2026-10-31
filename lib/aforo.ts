@@ -17,6 +17,7 @@ export interface ReglaAforo {
   dias_semana?: number[] | null    // solo esos días de la semana (0 = domingo … 6 = sábado); null = todos
   fecha_desde?: string | null      // solo ese rango de fechas; null = siempre
   fecha_hasta?: string | null
+  incluye_hasta?: boolean          // la hora final también entra en la franja (una regla 20:00–21:30 cubre las reservas de las 21:30); por defecto no
 }
 export interface UsoAforo extends ReglaAforo { usado: number }
 
@@ -36,7 +37,7 @@ export function etiquetaRegla(r: Pick<ReglaAforo, 'sucursal_id' | 'ubicacion' | 
 /** Reglas del negocio: las cargadas en `aforos` + los topes totales (negocio y sede) que ya existían. */
 export async function cargarReglas(ctx: Contexto): Promise<ReglaAforo[]> {
   const nombre = (id: string) => ctx.sedesTodas.find((x) => x.id === id)?.nombre ?? '—'
-  const { data } = await createAdminClient().from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo, dias_semana, fecha_desde, fecha_hasta').eq('negocio_id', ctx.negocio.id).order('creado_en')
+  const { data } = await createAdminClient().from('aforos').select('id, sucursal_id, ubicacion, hora_desde, hora_hasta, maximo, dias_semana, fecha_desde, fecha_hasta, incluye_hasta').eq('negocio_id', ctx.negocio.id).order('creado_en')
   const reglas: ReglaAforo[] = (data ?? []).map((r) => ({ ...r, etiqueta: etiquetaRegla(r, nombre) }))
   if (ctx.negocio.aforo_maximo_reservas) reglas.unshift({ id: null, etiqueta: 'Total del día', sucursal_id: null, ubicacion: null, hora_desde: null, hora_hasta: null, maximo: ctx.negocio.aforo_maximo_reservas })
   for (const s of ctx.sedesTodas) if (s.aforo_maximo_reservas) reglas.push({ id: null, etiqueta: `Total del día · ${s.nombre}`, sucursal_id: s.id, ubicacion: null, hora_desde: null, hora_hasta: null, maximo: s.aforo_maximo_reservas })
@@ -61,7 +62,7 @@ export function aplica(r: ReglaAforo, d: DatosReserva): boolean {
   if (r.hora_desde && r.hora_hasta) {
     if (!d.hora) return false                       // "a coordinar": todavía no ocupa ninguna franja
     const h = hms(d.hora)
-    if (!(h >= r.hora_desde && h < r.hora_hasta)) return false
+    if (!(h >= r.hora_desde && (h < r.hora_hasta || (r.incluye_hasta === true && h === r.hora_hasta)))) return false
   }
   return true
 }
