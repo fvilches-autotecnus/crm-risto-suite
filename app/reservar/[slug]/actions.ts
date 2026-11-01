@@ -1,8 +1,9 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/server'
+import type { TurnoPublico } from '@/lib/turnos-web'
 
-export interface SlotWeb { hora: string; disponible: boolean; motivo?: 'fuera_de_rango' | 'pasado' | 'bloqueado' | 'completo'; aviso?: string }
+export interface SlotWeb { hora: string; disponible: boolean; motivo?: 'fuera_de_rango' | 'pasado' | 'bloqueado' | 'completo' | 'corte'; aviso?: string; /** Nombre del turno al que pertenece (si el local armó turnos). */ turno?: string }
 export interface MesaWeb { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; rotacion?: number; sillas?: boolean; sillas_lados?: string[] | null; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco' }
 export interface SedeWeb { id: string; nombre: string; direccion: string | null; maps_url: string | null; whatsapp: string; elegir_mesa: boolean; mensaje: string | null; tiene_plano: boolean }
 export interface TipoWeb { value: string; label: string; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[]; fechas: string[] }
@@ -17,12 +18,12 @@ const HORA = /^\d{2}:\d{2}$/
 const rpc = async (fn: string, p: Record<string, unknown>) => { const { data, error } = await createAdminClient().rpc(fn, { p }); return error ? null : (data as Record<string, unknown>) }
 
 /** Horarios de un día y si hay lugar (usa el aforo y las fechas bloqueadas del CRM). */
-export async function consultarHorarios(slug: string, fecha: string, personas: number, ubicacion: string, sede = ''): Promise<{ ok: true; slots: SlotWeb[] } | { ok: false; error: string }> {
+export async function consultarHorarios(slug: string, fecha: string, personas: number, ubicacion: string, sede = ''): Promise<{ ok: true; slots: SlotWeb[]; turnos: TurnoPublico[] } | { ok: false; error: string }> {
   if (!SLUG.test(slug) || !FECHA.test(fecha) || !Number.isInteger(personas)) return { ok: false, error: 'Datos no válidos' }
   const r = await rpc('web_horarios', { negocio: slug, fecha, personas, ubicacion, sede })
   if (!r) return { ok: false, error: 'No pudimos consultar los horarios. Probá de nuevo.' }
   if (r.ok !== true) return { ok: false, error: r.error === 'personas_invalidas' ? 'La cantidad de personas no está permitida para reservar por acá.' : r.error === 'sitio_apagado' ? 'Este sitio de reservas no está disponible.' : 'No pudimos consultar los horarios.' }
-  return { ok: true, slots: r.slots as SlotWeb[] }
+  return { ok: true, slots: r.slots as SlotWeb[], turnos: Array.isArray(r.turnos) ? (r.turnos as TurnoPublico[]) : [] }
 }
 
 /** Plano con el estado de cada mesa a esa fecha y hora (solo confirmadas, pendientes de pago o en revisión de pago bloquean una mesa). */
@@ -53,7 +54,7 @@ export async function crearReservaPublica(slug: string, d: DatosReservaWeb): Pro
   })
   if (!r) return { ok: false, error: 'No pudimos guardar tu solicitud. Probá de nuevo.' }
   if (r.ok !== true) {
-    if (r.error === 'horario_no_disponible') return { ok: false, error: r.motivo === 'completo' ? 'Ese horario se completó. Elegí otro.' : MENSAJES.horario_no_disponible }
+    if (r.error === 'horario_no_disponible') return { ok: false, error: r.motivo === 'completo' ? 'Ese horario se completó. Elegí otro.' : r.motivo === 'corte' ? 'Ese turno ya cerró las reservas. Podés acercarte igual: sujeto a disponibilidad, por orden de llegada.' : MENSAJES.horario_no_disponible }
     if (r.error === 'mesa_no_apta') return { ok: false, error: `Las mesas elegidas son para ${r.minimo}–${r.maximo} personas.` }
     return { ok: false, error: MENSAJES[String(r.error)] ?? 'No pudimos registrar tu reserva. Probá de nuevo.' }
   }

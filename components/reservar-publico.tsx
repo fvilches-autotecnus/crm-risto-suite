@@ -10,6 +10,8 @@ import { PLANTILLA_WA_DEFECTO, renderPlantillaWA } from '@/lib/reservas-config'
 import { MapPin } from 'lucide-react'
 import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
 import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
+import { HorariosAgrupados } from '@/components/horarios-agrupados'
+import type { TurnoPublico } from '@/lib/turnos-web'
 import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
@@ -21,7 +23,7 @@ interface Props {
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
 const rango = (m: Pick<MesaWeb, 'capacidad' | 'capacidad_min'>) => (m.capacidad_min > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
-const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible' }
+const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible', corte: 'Cerrado' }
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
@@ -56,6 +58,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const ubicTexto = (u: string | null) => (u === '*' ? etiquetaCualquiera : u)
   const [tipo, setTipo] = useState(tiposTodos[0]?.value ?? 'comun')
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
+  const [turnos, setTurnos] = useState<TurnoPublico[]>([])
   const [cargandoSlots, setCargandoSlots] = useState(false)
   const [errorSlots, setErrorSlots] = useState<string | null>(null)
   const [hora, setHora] = useState('')
@@ -89,8 +92,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
       const r = await consultarHorarios(slug, fecha, personas, ubicacion, sedeId)
       if (!vivo) return
       setCargandoSlots(false)
-      if (!r.ok) { setSlots(null); setErrorSlots(r.error); return }
-      setSlots(r.slots)
+      if (!r.ok) { setSlots(null); setTurnos([]); setErrorSlots(r.error); return }
+      setSlots(r.slots); setTurnos(r.turnos)
       setHora((h) => (r.slots.some((s) => s.hora === h && s.disponible) ? h : ''))
     }, 250)
     return () => { vivo = false; clearTimeout(t) }
@@ -230,15 +233,15 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           <div>
             <span className="label">Horario</span>
             {cargandoSlots && !slots ? <p className="text-sm text-rs-muted">Buscando horarios…</p> : errorSlots ? <p role="alert" className="text-sm text-rs-danger">{errorSlots}</p> : (
-              <div className={'flex flex-wrap gap-2 ' + (cargandoSlots ? 'opacity-60' : '')}>
-                {(slots ?? []).map((s) => (
+              <>
+                <HorariosAgrupados slots={slots ?? []} turnos={turnos} cargando={cargandoSlots} renderSlot={(s) => (
                   <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => { setHora(s.hora); setModo(cualquiera || !puedeElegir ? 'asesor' : null); setSel([]) }} aria-pressed={hora === s.hora}
                     className={chip(hora === s.hora) + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50') + (s.aviso && s.disponible ? ' !h-auto min-h-9 py-1' : '')} title={s.disponible ? s.aviso : MOTIVO[s.motivo ?? 'fuera_de_rango']}>
                     {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
-                ))}
+                )} />
                 {slots && slots.length === 0 && <p className="text-sm text-rs-muted">No hay horarios para este día.</p>}
-              </div>
+              </>
             )}
           </div>
         </section>

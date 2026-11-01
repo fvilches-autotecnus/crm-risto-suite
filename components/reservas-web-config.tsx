@@ -9,13 +9,15 @@ import { PLANTILLA_WA_DEFECTO, VARIABLES_WA, renderPlantillaWA } from '@/lib/res
 import { Copy, ExternalLink } from 'lucide-react'
 import { DIAS_SEMANA } from '@/components/config-calendario'
 import MarcaCampos from '@/components/marca-campos'
+import EditorTurnos from '@/components/editor-turnos'
 import type { Marca } from '@/lib/marca'
+import type { TurnoWeb } from '@/lib/turnos-web'
 
 export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
-  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]>; escasez_modo?: 'off' | 'pocos' | 'cantidad'; escasez_umbral?: number; escasez_texto?: string | null; marca?: Marca }
+  modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]>; turnos?: TurnoWeb[]; escasez_modo?: 'off' | 'pocos' | 'cantidad'; escasez_umbral?: number; escasez_texto?: string | null; marca?: Marca }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
-export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean; horarios_dias?: Record<string, string[]>; alias_web?: string | null }
+export interface SedeCfg { id: string; nombre: string; whatsapp: string; propio: boolean; activo: boolean; horarios: string[]; elegir_mesa: boolean | null; mensaje: string | null; tiene_plano: boolean; horarios_dias?: Record<string, string[]>; turnos?: TurnoWeb[]; alias_web?: string | null }
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 export default function ReservasWebConfig({ config, slug, tiposDisponibles, horariosSugeridos, tieneWhatsapp, sedes = [], tecnico = false }: { config: ConfigReservasWeb; slug: string; tieneWhatsapp: boolean; sedes?: SedeCfg[]; tiposDisponibles: { value: string; label: string }[]; horariosSugeridos: string[]; tecnico?: boolean }) {
@@ -82,6 +84,7 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
             {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`rw_hd_${d.n}`}>{d.l}</label><input id={`rw_hd_${d.n}`} name={`horarios_dia_${d.n}`} defaultValue={(config.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de arriba" className="input w-full" /></div>)}
           </div>
         </details>
+        <EditorTurnos name="turnos" inicial={config.turnos ?? []} ayudaHeredar={sedes.length > 0 ? 'Los turnos propios de una sede se arman al elegirla en Configuración (si la sede no tiene turnos ni horarios propios, usa estos).' : undefined} />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><label className="label" htmlFor="rw_dias">Días hacia adelante</label><input id="rw_dias" name="dias_adelante" type="number" min={1} max={365} defaultValue={config.dias_adelante} className="input w-full" /></div>

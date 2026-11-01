@@ -16,6 +16,7 @@ import type { UsuarioUI } from '@/lib/roles'
 import { AforoForm, AvisosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
 import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
 import { cuentasBC, integracionBC } from '@/lib/etiquetas'
+import { turnosGuardados } from '@/lib/turnos-web'
 import { BotconversaSedesForm, FlujosSilencioForm } from '@/components/silencio-bot-ui'
 import { leerPausaAuto } from '@/lib/pausas'
 import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/components/reservas-web-config'
@@ -108,11 +109,11 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   let cfgRes: ConfigReservas | null = null
   if (mods.reservas && ctx.puedeAdministrar) {
     const [{ data: c }, { data: ts }, { data: hs }] = await Promise.all([
-      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple, horarios_dias, escasez_modo, escasez_umbral, escasez_texto, marca').eq('negocio_id', negocio.id).maybeSingle(),
+      supabase.from('reservas_web_config').select('activo, elegir_mesa, tipos, horarios, dias_adelante, horas_anticipacion, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, validez_horas, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple, horarios_dias, turnos, escasez_modo, escasez_umbral, escasez_texto, marca').eq('negocio_id', negocio.id).maybeSingle(),
       supabase.from('reservas').select('tipo_reserva').eq('negocio_id', negocio.id).limit(10000),
       supabase.from('reservas').select('hora').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', sumarDias(hoy, -120)).lte('fecha', hoy).not('hora', 'is', null).limit(10000),
     ])
-    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, cualquier_ubicacion: true, texto_cualquier_ubicacion: null, pedir_cumple: true, ...(c ?? {}) } as ConfigReservasWeb
+    webCfg = { activo: false, elegir_mesa: true, tipos: [], horarios: [], dias_adelante: 60, horas_anticipacion: 2, personas_min: 1, personas_max: 12, mensaje: null, modo_prueba: true, titulo: null, subtitulo: null, texto_whatsapp: null, validez_horas: 48, max_mesas: 6, cualquier_ubicacion: true, texto_cualquier_ubicacion: null, pedir_cumple: true, ...(c ?? {}), turnos: turnosGuardados(c?.turnos) } as ConfigReservasWeb
     // catálogo de tipos de reserva (el que configura el dueño) + los que el bot creó y todavía no tienen nombre
     const [catalogo, cr, { data: apert }, { data: extras }, { data: negEstado }, { data: reglasConf }] = await Promise.all([
       cargarTiposReserva(ctx, null), cargarConfigReservas(ctx, sedeAmb?.id ?? null),
@@ -132,7 +133,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
     const sedesActivas = sedesAmbito
     if (sedesActivas.length) {
       const [{ data: ajustes }, { data: salonesW }, { data: mesasW }] = await Promise.all([
-        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
+        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, turnos, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
         supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true),
         supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
       ])
@@ -146,7 +147,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         const propio = !!(x.whatsapp_nro ?? '').replace(/\D/g, '')
         return {
           id: x.id, nombre: x.nombre, whatsapp: ((x.whatsapp_nro ?? '') || (negocio.whatsapp_nro ?? '')).replace(/\D/g, ''), propio,
-          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null, horarios_dias: (a?.horarios_dias as Record<string, string[]> | null) ?? {}, alias_web: x.alias_web ?? null,
+          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null, horarios_dias: (a?.horarios_dias as Record<string, string[]> | null) ?? {}, turnos: turnosGuardados(a?.turnos), alias_web: x.alias_web ?? null,
           tiene_plano: (salonesW ?? []).some((sl) => (!sl.sucursal_id || sl.sucursal_id === x.id) && conMesas.has(sl.id as string)),
         }
       })

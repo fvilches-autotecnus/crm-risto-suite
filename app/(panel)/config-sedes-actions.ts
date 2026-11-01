@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import { guardarConfigSede } from '@/lib/config-sedes-servidor'
@@ -9,6 +10,7 @@ import { conservarTecnicosSede } from '@/lib/config-tecnica'
 import { leerMarca } from '@/lib/marca'
 import { MODULOS_POR_SEDE } from '@/lib/modulos'
 import { ESTADOS_BLOQUEO, VARIABLES_WA } from '@/lib/reservas-config'
+import { leerTurnos, type TurnoWeb } from '@/lib/turnos-web'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -16,7 +18,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
 // Estos ajustes se guardan solos mientras se editan: no se redibuja toda la pantalla de Configuración, solo se renueva el sitio público
-const refrescar = (slug: string) => { revalidatePath(`/reservar/${slug}`) }
+// Se renueva el sitio público DESPUÉS de responder (after): estas pantallas se guardan solas mientras se escribe, y si la invalidación va dentro de la
+// respuesta el navegador recarga toda la pantalla y puede abortar el guardado siguiente (quedaba en "Guardando…").
+const refrescar = (slug: string) => { after(() => revalidatePath(`/reservar/${slug}`)) }
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 const horas = (v: string) => [...new Set(v.split(/[\s,;]+/).filter(Boolean).map((h) => (/^\d{1,2}:\d{2}$/.test(h) ? h.padStart(5, '0') : h)))]
 
@@ -125,8 +129,7 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
   if (aliasNuevo !== (sedeActual.alias_web ?? null)) {
     const { error: eAlias } = await createAdminClient().from('sucursales').update({ alias_web: aliasNuevo }).eq('id', sedeId).eq('negocio_id', ctx.negocio.id)
     if (eAlias) return fail(eAlias.code === '23505' ? 'Esa dirección ya la usa otra sede o un negocio: elegí otra' : 'No se pudo guardar la dirección del sitio')
-    if (sedeActual.alias_web) revalidatePath(`/reservar/${sedeActual.alias_web}`)
-    if (aliasNuevo) revalidatePath(`/reservar/${aliasNuevo}`)
+    after(() => { if (sedeActual.alias_web) revalidatePath(`/reservar/${sedeActual.alias_web}`); if (aliasNuevo) revalidatePath(`/reservar/${aliasNuevo}`) })
   }
 
   // 1) lo que ya tenía el sitio por sede
@@ -142,7 +145,10 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
   }
   const msg = text(fd, 'sede_mensaje'); if (msg.length > 400) return fail('El mensaje puede tener hasta 400 letras')
   const mesa = text(fd, 'sede_mesa')
-  const { error: e1 } = await ctx.supabase.from('reservas_web_sedes').upsert({ sucursal_id: sedeId, negocio_id: ctx.negocio.id, activo: fd.get('sede_activo') === 'on', horarios: hs.length ? hs.sort() : null, horarios_dias: hd, elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null }, { onConflict: 'sucursal_id' })
+  // turnos propios de la sede (vacío = hereda los del negocio, salvo que la sede tenga horarios propios)
+  let turnosSede: TurnoWeb[] | undefined
+  if (fd.has('sede_turnos')) { const tr = leerTurnos(String(fd.get('sede_turnos') ?? '')); if (!tr.ok) return fail(tr.error); turnosSede = tr.turnos }
+  const { error: e1 } = await ctx.supabase.from('reservas_web_sedes').upsert({ sucursal_id: sedeId, negocio_id: ctx.negocio.id, activo: fd.get('sede_activo') === 'on', horarios: hs.length ? hs.sort() : null, horarios_dias: hd, ...(turnosSede ? { turnos: turnosSede } : {}), elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null }, { onConflict: 'sucursal_id' })
   if (e1) return fail('No se pudo guardar el sitio de la sede')
 
   // 2) los grupos de ajustes: el que se personaliza se guarda; el que no, vuelve a heredar del negocio

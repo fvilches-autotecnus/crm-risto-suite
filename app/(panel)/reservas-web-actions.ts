@@ -1,10 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
 import { conservarTecnicosWeb, falloAlcance } from '@/lib/config-tecnica'
 import { leerMarca } from '@/lib/marca'
 import { VARIABLES_WA } from '@/lib/reservas-config'
+import { leerTurnos, type TurnoWeb } from '@/lib/turnos-web'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -35,6 +37,9 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     if (hs.length > 24) return fail('Hasta 24 horarios por día')
     horariosDias[String(d)] = hs.sort()
   }
+  // turnos con separadores y corte propio (vacío = sin turnos: se usa la lista de horarios)
+  let turnos: TurnoWeb[] | undefined
+  if (fd.has('turnos')) { const tr = leerTurnos(String(fd.get('turnos') ?? '')); if (!tr.ok) return fail(tr.error); turnos = tr.turnos }
   const tipos = fd.getAll('tipos').map(String).filter((t) => /^[a-z0-9_]{1,40}$/.test(t))
   const mensaje = text(fd, 'mensaje')
   if (mensaje.length > 400) return fail('El mensaje puede tener hasta 400 letras')
@@ -86,7 +91,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     }
   }
   const { error } = await ctx.supabase.from('reservas_web_config').upsert({
-    negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(), horarios_dias: horariosDias,
+    negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(), horarios_dias: horariosDias, ...(turnos ? { turnos } : {}),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
     modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', pedir_cumple: fd.get('pedir_cumple') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
     escasez_modo: escModo, escasez_umbral: escUmbral, escasez_texto: escTexto || null, marca: marcaLeida.marca,
@@ -96,7 +101,10 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     const { error: e2 } = await ctx.supabase.from('reservas_web_sedes').upsert(filasSede, { onConflict: 'sucursal_id' })
     if (e2) return fail('Se guardó el sitio, pero no los ajustes de las sedes')
   }
-  revalidatePath(`/reservar/${ctx.negocio.slug}`)
+  // el sitio público se renueva DESPUÉS de responder: esta pantalla se guarda sola mientras se escribe y, si la invalidación va dentro de la respuesta,
+  // el navegador recarga toda la pantalla y puede abortar el guardado siguiente (quedaba en "Guardando…")
+  const slugSitio = ctx.negocio.slug
+  after(() => revalidatePath(`/reservar/${slugSitio}`))
   return { ok: true }
 }
 

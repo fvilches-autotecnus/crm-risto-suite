@@ -8,6 +8,8 @@ import { PlanoWeb } from '@/components/reservar-publico'
 import { avisoCapacidadMinima } from '@/lib/capacidad-minima'
 import { fechaCorta } from '@/lib/fechas'
 import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
+import { HorariosAgrupados } from '@/components/horarios-agrupados'
+import type { TurnoPublico } from '@/lib/turnos-web'
 
 export interface InfoReserva {
   negocio: string
@@ -18,7 +20,7 @@ export interface InfoReserva {
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
-const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible' }
+const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible', corte: 'Cerrado' }
 const ESTADO: Record<string, string> = { nueva: 'Pendiente de confirmación', confirmada: 'Confirmada', pendiente_pago: 'Pendiente de pago', revisar_pago: 'Pago en revisión', cancelada: 'Cancelada', no_show: 'No asistió' }
 
 /** Ver, cancelar o modificar una reserva desde su link. Pedirlo NO cambia nada: se arma un mensaje de WhatsApp y el cambio se aplica cuando llega desde el teléfono de la reserva. */
@@ -34,6 +36,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
   const ubicTexto = (u: string) => (u === '*' ? etiquetaCualquiera : u)
   const igualUbic = (ubic || '') === (r.ubicacion ?? '')
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
+  const [turnos, setTurnos] = useState<TurnoPublico[]>([])
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
   const [listo, setListo] = useState<Extract<ResultadoAccion, { ok: true }> | null>(null)
@@ -52,8 +55,8 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
     const t = setTimeout(async () => {
       const x = await consultarHorarios(slug, fecha, personas, ubic, r.sede_id ?? '')
       if (!vivo) return
-      if (!x.ok) { setSlots(null); setError(x.error); return }
-      setError(null)
+      if (!x.ok) { setSlots(null); setTurnos([]); setError(x.error); return }
+      setError(null); setTurnos(x.turnos)
       // el horario que ya tiene se puede conservar aunque figure completo (la reserva ya está contada ahí)
       setSlots(x.slots.map((s) => (fecha === r.fecha && s.hora === r.hora && igualUbic ? { ...s, disponible: true, motivo: undefined } : s)))
       setHora((h) => (x.slots.some((s) => s.hora === h && (s.disponible || (fecha === r.fecha && s.hora === r.hora && igualUbic))) ? h : ''))
@@ -185,15 +188,15 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
               </div>
             )}
             <div><span className="label">Horario</span>
-              <div className="flex flex-wrap gap-2">
-                {(slots ?? []).map((s) => (
+              <>
+                <HorariosAgrupados slots={slots ?? []} turnos={turnos} forzarAbierto={(s) => fecha === r.fecha && s.hora === r.hora && igualUbic} renderSlot={(s) => (
                   <button key={s.hora} type="button" disabled={!s.disponible} onClick={() => setHora(s.hora)} aria-pressed={hora === s.hora}
                     className={'inline-flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ' + (hora === s.hora ? 'border-rs-lime/70 bg-rs-lime/15 font-semibold text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/40 hover:text-rs-text') + (s.disponible ? '' : ' cursor-not-allowed line-through opacity-50') + (s.aviso && s.disponible ? ' !h-auto min-h-9 py-1' : '')} title={s.disponible ? s.aviso : undefined}>
                     {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
-                ))}
+                )} />
                 {!slots && !error && <p className="text-sm text-rs-muted">Buscando horarios…</p>}
-              </div>
+              </>
             </div>
             {info.elegir_mesa && hora && ubic !== '*' && (
               <div className="space-y-2">
