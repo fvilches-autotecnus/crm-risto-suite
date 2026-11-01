@@ -107,6 +107,7 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
                   <span className={'badge ' + est.color}><span className={'h-1.5 w-1.5 rounded-full ' + est.punto} />{est.label}</span>
                   <span className="badge bg-rs-raised text-rs-text">{labelEntrega(p)}{p.tipo === 'mesa' && p.mesa ? ` ${p.mesa}` : ''}</span>
                   {p.origen !== 'web' && <span className="badge bg-rs-raised text-rs-muted">{p.origen === 'bot' ? 'Bot' : 'Manual'}</span>}
+                  {p.campana && <span className="badge bg-rs-lav/15 text-rs-lav" title="Entró por un enlace de campaña">Campaña: {p.campana}</span>}
                 </div>
                 <span className="text-xs text-rs-muted" title={new Date(p.creado_en).toLocaleString('es-AR')}>{hora(p.creado_en)} · {hace(p.creado_en)}</span>
               </div>

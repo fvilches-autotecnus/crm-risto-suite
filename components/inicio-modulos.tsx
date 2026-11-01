@@ -12,7 +12,7 @@ function saludo(): string {
 
 /** Inicio de un negocio que no usa reservas (el dashboard clásico es de reservas): accesos directos a los módulos que tiene habilitados. */
 export default function InicioModulos({ nombre, negocio, activos }: { nombre: string; negocio: string; activos: ModulosActivos }) {
-  const lista = MODULOS.filter((m) => activos[m.clave])
+  const lista = MODULOS.filter((m) => activos[m.clave] && RUTAS[m.clave])   // los módulos sin pantalla propia (como las promos de reservas) no tienen acceso directo
   return (
     <div className="space-y-5">
       <div className="animate-fade-up">
@@ -21,7 +21,7 @@ export default function InicioModulos({ nombre, negocio, activos }: { nombre: st
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {lista.map((m, i) => {
-          const Icono = ICONOS[m.clave]
+          const Icono = ICONOS[m.clave as keyof typeof ICONOS]
           return (
             <Link key={m.clave} href={RUTAS[m.clave]} className="reveal card card-hover flex items-start gap-3 p-4" style={{ ['--i' as string]: i }}>
               <span className="rounded-lg bg-rs-raised p-2 text-rs-lime"><Icono size={18} /></span>

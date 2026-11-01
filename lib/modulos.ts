@@ -5,7 +5,7 @@
  */
 
 export type ModuloClave =
-  | 'reservas' | 'mesas' | 'shows' | 'carta' | 'pedidos'
+  | 'reservas' | 'mesas' | 'shows' | 'carta' | 'pedidos' | 'promos'
   | 'clientes' | 'consultas' | 'cumpleanos' | 'vouchers' | 'resenas' | 'fidelizacion' | 'campanas' | 'metricas' | 'derivadas' | 'conversaciones'
 
 export interface ModuloDef {
@@ -26,6 +26,7 @@ export const MODULOS: ModuloDef[] = [
   { clave: 'shows', titulo: 'Shows', texto: 'Shows y eventos del local (cartelera, entradas y cupos).', grupo: 'Operación', porDefecto: false, conviene: { con: ['reservas'], porque: 'los shows se llenan con reservas de mesa; sin Reservas solo podrías mostrar la cartelera.' }, enPreparacion: true },
   { clave: 'carta', titulo: 'Carta', texto: 'Carta digital: categorías, productos, precios y fotos. Sirve para que los clientes vean el menú (con o sin pedidos) y es la base de los pedidos.', grupo: 'Operación', porDefecto: false },
   { clave: 'pedidos', titulo: 'Pedidos', texto: 'Pedidos de los clientes (delivery y retiro) armados desde la carta digital.', grupo: 'Operación', porDefecto: false, conviene: { con: ['carta'], porque: 'los pedidos se arman eligiendo productos de la carta; sin carta cada pedido habría que escribirlo a mano y no habría precios ni disponibilidad.' } },
+  { clave: 'promos', titulo: 'Promos de reservas', texto: 'Cada tipo de reserva puede tener una descripción y promos con precio por persona (por ejemplo, Cumpleaños: Promo 1 a $x, Promo 2 a $y). El cliente elige una al reservar y queda anotada en la reserva.', grupo: 'Operación', porDefecto: false, conviene: { con: ['reservas'], porque: 'las promos se ofrecen al reservar desde el sitio de reservas.' } },
   { clave: 'clientes', titulo: 'Clientes', texto: 'Base de clientes, su historial, notas y etiquetas.', grupo: 'Clientes y marketing', porDefecto: true },
   { clave: 'consultas', titulo: 'Consultas y reclamos', texto: 'Lo que escriben los clientes por WhatsApp y hay que responder o resolver.', grupo: 'Clientes y marketing', porDefecto: true },
   { clave: 'cumpleanos', titulo: 'Cumpleaños', texto: 'Próximos cumpleaños de clientes y su distribución por mes.', grupo: 'Clientes y marketing', porDefecto: true, conviene: { con: ['clientes'], porque: 'el cumpleaños se guarda en la ficha de cada cliente.' } },

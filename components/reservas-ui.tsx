@@ -13,6 +13,7 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import PlanoElegir from '@/components/plano-elegir'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
+import { resumenPromoElegida } from '@/lib/promos'
 import { TIPOS_RESERVA, esEstadoAviso, numeroVisible, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import type { ChequeoAforo } from '@/lib/aforo'
 import { COLUMNAS_COOKIE, COLUMNAS_DEFECTO, COLUMNAS_OPCIONALES, type ColumnaClave } from '@/lib/columnas-reservas'
@@ -29,6 +30,18 @@ const ESTADO_CLS: Record<string, string> = {
 /** Marca para las reservas que se cargaron a mano desde el CRM (no llegaron por el sitio ni por el bot). */
 export function MarcaManual() {
   return <span className="badge ml-2 bg-rs-lav/15 align-middle text-rs-lav" title="Cargada a mano desde el CRM: no se le avisa al cliente">Manual</span>
+}
+
+/** La promo que eligió el cliente (con su precio de ese momento) y el enlace de campaña con el que entró, si los hay. */
+export function DatosPromo({ r }: { r: Pick<Reserva, 'opcion' | 'campana'> }) {
+  const promo = resumenPromoElegida(r.opcion)
+  if (!promo && !r.campana) return null
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-tight">
+      {promo && <span className="font-semibold text-rs-lime" title="Promo elegida por el cliente">Promo: {promo}</span>}
+      {r.campana && <span className="rounded-full bg-rs-lav/15 px-1.5 py-0.5 font-semibold text-rs-lav" title="Entró por un enlace de campaña">Campaña: {r.campana}</span>}
+    </span>
+  )
 }
 
 export function EstadoBadge({ estado }: { estado: string }) {
@@ -334,7 +347,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
             {reservas.map((r, i) => (
               <tr key={r.id} className={'reveal group border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50 ' + (ocupada === r.id ? 'opacity-60' : '')} style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <td className="td font-semibold text-rs-lime">#{numeroVisible(r)}</td>
-                <td className="td"><span className="font-medium">{r.cliente_nombre ?? '—'}</span>{r.es_manual && <MarcaManual />}{!ver('observaciones') && nota(r) && <span className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[11px] italic leading-tight text-rs-muted/70" title={nota(r) ?? ''}><MessageSquareText size={10} className="shrink-0" /><span className="truncate">{nota(r)}</span></span>}</td>
+                <td className="td"><span className="font-medium">{r.cliente_nombre ?? '—'}</span>{r.es_manual && <MarcaManual />}<DatosPromo r={r} />{!ver('observaciones') && nota(r) && <span className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[11px] italic leading-tight text-rs-muted/70" title={nota(r) ?? ''}><MessageSquareText size={10} className="shrink-0" /><span className="truncate">{nota(r)}</span></span>}</td>
                 {ver('telefono') && <td className="td text-rs-muted">{r.cliente_telefono ?? '—'}</td>}
                 {mostrarSede && ver('sede') && <td className="td text-rs-muted">{r.sucursal_id ? op.nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
                 {ver('fecha') && <td className="td">{fechaCorta(r.fecha)}</td>}
@@ -370,6 +383,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
               {mostrarSede && r.sucursal_id && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{op.nombresSede[r.sucursal_id] ?? '—'}{r.ubicacion ? ` · ${r.ubicacion}` : ''}</span>}
               {(!mostrarSede || !r.sucursal_id) && r.ubicacion && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{r.ubicacion}</span>}
               <span>{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</span>
+              {(r.opcion?.nombre || r.campana) && <span className="basis-full"><DatosPromo r={r} /></span>}
               {mesas[r.id] && <a href={`/mesas?fecha=${r.fecha ?? ''}`} className="font-semibold text-rs-lav">Mesa {mesas[r.id]}</a>}
             </div>
             {nota(r) && <p className="mt-2 flex items-start gap-1 text-xs italic text-rs-muted/70"><MessageSquareText size={11} className="mt-0.5 shrink-0" />{nota(r)}</p>}

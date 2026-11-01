@@ -39,6 +39,8 @@ export function useAutoGuardar(valor: string, guardar: () => Promise<{ ok: boole
   const guardarRef = useRef(guardar); guardarRef.current = guardar
   const enCurso = useRef(false)
   const valorRef = useRef(valor); valorRef.current = valor
+  // Si mientras se guardaba el valor cambió (por ejemplo, volvió al anterior), al terminar hay que volver a evaluar: sin esto quedaba "sin guardar" para siempre
+  const [vuelta, setVuelta] = useState(0)
   useEffect(() => {
     if (!activo) return
     // se volvió al último valor guardado (por ejemplo, tras corregir un dato inválido): no hay nada pendiente ni con error
@@ -50,12 +52,12 @@ export function useAutoGuardar(valor: string, guardar: () => Promise<{ ok: boole
       const enviado = valorRef.current
       try {
         const r = await guardarRef.current()
-        if (r.ok) { ultimo.current = enviado; setError(null); setEstado(valorRef.current === enviado ? 'guardado' : 'sucio') }
+        if (r.ok) { ultimo.current = enviado; setError(null); if (valorRef.current === enviado) setEstado('guardado'); else { setEstado('sucio'); setVuelta((n) => n + 1) } }
         else { setError(r.error ?? null); setEstado('error') }
       } catch { setError('No se pudo guardar. Probá de nuevo.'); setEstado('error') }
       finally { enCurso.current = false }
     }, demora)
     return () => clearTimeout(t)
-  }, [valor, activo, demora])
+  }, [valor, activo, demora, vuelta])
   return { estado, error }
 }

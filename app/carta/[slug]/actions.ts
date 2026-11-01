@@ -1,12 +1,14 @@
 'use server'
 
 import { mensajeError } from '@/lib/pedidos'
+import { limpiarCampana } from '@/lib/promos'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export interface DatosPedidoPublico {
   tipo: string; nombre: string; telefono: string; direccion: string; mesa: string; medio_pago: string; observaciones: string
   items: { producto_id: string; variante: string | null; cantidad: number }[]
   web?: string   // campo trampa: las personas lo dejan vacío
+  campana?: string   // código del enlace de campaña (?c=…)
 }
 export type ResultadoPedidoPublico =
   | { ok: true; numero: number; total: number; tipo: string; entrega_nombre: string | null; medio_pago: string; medio_pago_nombre: string | null; tiempo_estimado: string | null; datos_pago: string | null; instrucciones: string | null; mensaje: string | null; whatsapp: string | null; unidades: number }
@@ -22,7 +24,7 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
   const admin = createAdminClient()
   const { data, error } = await admin.rpc('crear_pedido', { p: {
     negocio: slug, origen: 'web', tipo: corto(d.tipo, 40), nombre: corto(d.nombre, 80), telefono: corto(d.telefono, 30), direccion: corto(d.direccion, 200),
-    mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items,
+    mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items, campana: limpiarCampana(d.campana),
   } })
   if (error) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }
   const r = data as { ok: boolean; error?: string; minimo?: number; numero?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; tiempo_estimado?: string | null; datos_pago?: string | null; instrucciones?: string | null; mensaje?: string | null; unidades?: number }

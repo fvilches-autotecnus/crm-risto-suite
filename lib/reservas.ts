@@ -48,6 +48,9 @@ export interface Reserva {
   motivo_cancelacion: string | null
   asistio_en: string | null   // cuándo se marcó que el cliente llegó (Fidelización)
   monto_sena: number | null
+  /** Promo elegida del tipo de reserva (con su precio de ese momento) y código del enlace de campaña con el que entró. */
+  opcion?: { nombre?: string; total?: number | null; modo?: 'persona' | 'reserva'; personas?: number } | null
+  campana?: string | null
   creado_en: string
 }
 
@@ -55,7 +58,7 @@ export interface Reserva {
 export const numeroVisible = (r: { numero: number; numero_sede?: number | null }) => r.numero_sede ?? r.numero
 
 export const RESERVA_COLS =
-  'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, creado_en'
+  'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, opcion, campana, creado_en'
 
 /** Reservas que ocupan lugar (cuentan para aforo y para "hoy"). */
 export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => ESTADOS_OCUPAN.includes(r.estado)

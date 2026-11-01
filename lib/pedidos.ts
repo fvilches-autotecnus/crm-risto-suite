@@ -81,7 +81,7 @@ export const claveDeNombre = (nombre: string) => nombre.normalize('NFD').replace
 export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number }
 export interface Pedido {
   id: string; numero: number; nombre: string; telefono: string | null; tipo: TipoPedido; mesa: string | null; direccion: string | null; observaciones: string | null
-  medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number; motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'
+  medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number; motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'; campana?: string | null
   creado_en: string; aceptado_en: string | null; listo_en: string | null; entregado_en: string | null; cancelado_en: string | null
   items: ItemPedido[]
 }

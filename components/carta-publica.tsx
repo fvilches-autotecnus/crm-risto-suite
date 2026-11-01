@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import type { Marca } from '@/lib/marca'
 import { crearPedidoPublico, type ResultadoPedidoPublico } from '@/app/carta/[slug]/actions'
+import { limpiarCampana } from '@/lib/promos'
 import { etiquetaDe, formatearPrecio, textoPrecio, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import { CONFIG_PEDIDOS_POR_DEFECTO, dinero, labelPago, labelTipo, type ConfigPedidos, type EntregaPedido, type MedioPedido } from '@/lib/pedidos'
 import { costoEnvioFinal, estadoPedidos, mediosDisponibles } from '@/lib/pedidos-horarios'
@@ -188,7 +189,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     start(async () => {
-      const r = await crearPedidoPublico(slug, { tipo, ...form, nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
+      const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), ...form, nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
       if (r.ok) onExito(r); else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
     })
   }

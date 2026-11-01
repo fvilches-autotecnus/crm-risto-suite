@@ -13,7 +13,7 @@ import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
 
 const TABS = [{ v: 'activos', l: 'En curso' }, { v: 'entregados', l: 'Entregados' }, { v: 'cancelados', l: 'Cancelados' }, { v: 'todos', l: 'Todos' }]
 const PERIODOS = [{ v: 'hoy', l: 'Hoy' }, { v: '7', l: '7 días' }, { v: '30', l: '30 días' }, { v: 'todos', l: 'Todo' }]
-const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, motivo_cancelacion, origen, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
+const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, motivo_cancelacion, origen, campana, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
 
 export default async function PedidosPage({ searchParams }: { searchParams: Promise<{ tab?: string; periodo?: string; q?: string; pagina?: string }> }) {
   const ctx = await getContexto()

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Megaphone } from 'lucide-react'
 import { BarrasHorizontales, GraficoLinea, TarjetaGrafico } from '@/components/charts'
 import { ListaCampanas, NuevaCampanaBtn } from '@/components/campanas-ui'
+import EnlacesCampana, { type ResultadoEnlace } from '@/components/enlaces-campana'
 import { Tile } from '@/components/dashboard-ui'
 import SelectorDias from '@/components/selector-dias'
 import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, labelTipoCampana, type Campana, type ResumenCampana } from '@/lib/campanas'
@@ -24,6 +25,17 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
   const desde = sumarDias(hoy, -(dias - 1))
   const pDesde = `${desde}T00:00:00-03:00`
   const pHasta = `${sumarDias(hoy, 1)}T00:00:00-03:00`
+
+  const [{ data: rCamp }, { data: pCamp }, { data: tiposDb }] = await Promise.all([
+    supabase.from('reservas').select('campana, cantidad_personas, estado').eq('negocio_id', negocio.id).is('eliminado_en', null).not('campana', 'is', null).gte('creado_en', pDesde).lt('creado_en', pHasta).limit(20000),
+    ctx.modulosActivos.pedidos ? supabase.from('pedidos').select('campana, total, estado').eq('negocio_id', negocio.id).not('campana', 'is', null).gte('creado_en', pDesde).lt('creado_en', pHasta).limit(20000) : Promise.resolve({ data: [] as { campana: string; total: number; estado: string }[] }),
+    supabase.from('reserva_tipos').select('clave, etiqueta').eq('negocio_id', negocio.id).eq('activo', true).order('orden'),
+  ])
+  const porCodigo = new Map<string, ResultadoEnlace>()
+  const fila = (c: string) => { let f = porCodigo.get(c); if (!f) { f = { codigo: c, reservas: 0, personas: 0, pedidos: 0, ventas: 0 }; porCodigo.set(c, f) } return f }
+  for (const r of rCamp ?? []) if (r.estado !== 'cancelada') { const f = fila(r.campana as string); f.reservas++; f.personas += Number(r.cantidad_personas ?? 0) }
+  for (const p of (pCamp ?? []) as { campana: string; total: number; estado: string }[]) if (p.estado !== 'cancelado') { const f = fila(p.campana); f.pedidos++; f.ventas += Number(p.total) }
+  const resultadosEnlaces = [...porCodigo.values()].sort((a, b) => b.reservas + b.pedidos - (a.reservas + a.pedidos))
 
   const [{ data: cs }, { data: res }, { data: env }] = await Promise.all([
     supabase.from('campanas').select(CAMPANA_COLS).eq('negocio_id', negocio.id).order('creado_en', { ascending: false }),
@@ -87,6 +99,8 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
           <BarrasHorizontales datos={porTipo} unidad="envíos" />
         </TarjetaGrafico>
       </div>
+
+      <EnlacesCampana slug={negocio.slug} sedes={ctx.sedesTodas.filter((s) => s.activa).map((s) => ({ nombre: s.nombre }))} tipos={(tiposDb ?? []).map((t) => ({ value: t.clave as string, label: t.etiqueta as string }))} conPedidos={ctx.modulosActivos.pedidos} resultados={resultadosEnlaces} dias={dias} />
 
       <div className="flex flex-wrap items-center gap-2">
         {MODOS.map((m) => <Link key={m.v} href={link(m.v)} className={'btn btn-sm ' + (modo === m.v ? 'btn-primary' : '')}>{m.l}</Link>)}

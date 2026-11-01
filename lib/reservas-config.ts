@@ -35,13 +35,14 @@ Hora: {hora}
 Personas: {personas}
 Ubicación: {ubicacion}
 Tipo: {tipo}
+Promo: {promo}
 Mesa: {mesa}
 Cumpleaños: {cumple}
 Comentarios: {comentarios}`
 
 export const VARIABLES_WA = [
   ['negocio', 'nombre del local'], ['codigo', 'código de la solicitud (obligatorio)'], ['nombre', 'nombre y apellido del cliente'], ['nombre_pila', 'solo el nombre'], ['apellido', 'solo el apellido'], ['sede', 'sede elegida (vacío si el negocio no tiene sedes)'], ['dia', 'día elegido'], ['hora', 'horario'],
-  ['personas', 'cantidad de personas'], ['ubicacion', 'ubicación'], ['tipo', 'tipo de reserva'], ['mesa', 'mesa elegida o “que la elija el local”'], ['cumple', 'día y mes de cumpleaños (si lo dejó)'], ['comentarios', 'comentarios del cliente'],
+  ['personas', 'cantidad de personas'], ['ubicacion', 'ubicación'], ['tipo', 'tipo de reserva'], ['promo', 'promo elegida con su precio (solo si el tipo tiene promos)'], ['mesa', 'mesa elegida o “que la elija el local”'], ['cumple', 'día y mes de cumpleaños (si lo dejó)'], ['comentarios', 'comentarios del cliente'],
 ] as const
 
 export function renderPlantillaWA(plantilla: string, vars: Record<string, string>): string {

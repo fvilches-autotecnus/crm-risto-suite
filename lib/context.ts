@@ -17,7 +17,7 @@ export interface Negocio {
   zona_horaria: string
   aforo_maximo_reservas: number | null
   bot_activo: boolean
-  modulos: { mesas?: boolean; fidelizacion?: boolean; shows?: boolean; carta?: boolean; clientes?: boolean; consultas?: boolean; pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean; campanas?: boolean }
+  modulos: { mesas?: boolean; fidelizacion?: boolean; shows?: boolean; carta?: boolean; clientes?: boolean; consultas?: boolean; pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean; campanas?: boolean; promos?: boolean }
 }
 
 export interface Sede {

@@ -2,11 +2,13 @@
 
 import { createAdminClient } from '@/lib/supabase/server'
 import type { TurnoPublico } from '@/lib/turnos-web'
+import { limpiarCampana } from '@/lib/promos'
 
 export interface SlotWeb { hora: string; disponible: boolean; motivo?: 'fuera_de_rango' | 'pasado' | 'bloqueado' | 'completo' | 'corte'; aviso?: string; /** Nombre del turno al que pertenece (si el local armó turnos). */ turno?: string }
 export interface MesaWeb { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; rotacion?: number; sillas?: boolean; sillas_lados?: string[] | null; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco' }
 export interface SedeWeb { id: string; nombre: string; direccion: string | null; maps_url: string | null; whatsapp: string; elegir_mesa: boolean; mensaje: string | null; tiene_plano: boolean }
-export interface TipoWeb { value: string; label: string; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[]; fechas: string[] }
+export interface PromoWeb { id: string; nombre: string; descripcion: string | null; precio: number | null; modo: 'persona' | 'reserva' }
+export interface TipoWeb { value: string; label: string; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[]; fechas: string[]; /** Qué incluye el tipo (módulo de promos). */ descripcion?: string | null; /** Promos del tipo: si hay, el cliente tiene que elegir una. */ opciones?: PromoWeb[] }
 export interface SalonWeb { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null; tema_sillas?: string; color_sillas?: string | null }
 export type ResultadoReserva =
   | { ok: true; codigo: string; whatsapp: string; sede: string | null; mesas: string | null; fecha: string; hora: string; personas: number; ubicacion: string | null; mensaje: string | null }
@@ -34,11 +36,11 @@ export async function consultarPlano(slug: string, fecha: string, hora: string, 
   return { ok: true, salones: r.salones as SalonWeb[], mesas: r.mesas as MesaWeb[] }
 }
 
-export interface DatosReservaWeb { cumple_dia?: string; cumple_mes?: string; cumple_anio?: string; sede?: string; fecha: string; hora: string; personas: number; ubicacion: string; tipo: string; nombre: string; observaciones: string; mesas: string[]; web?: string }
+export interface DatosReservaWeb { cumple_dia?: string; cumple_mes?: string; cumple_anio?: string; sede?: string; fecha: string; hora: string; personas: number; ubicacion: string; tipo: string; nombre: string; observaciones: string; mesas: string[]; web?: string; /** Promo elegida (id), si el tipo tiene promos. */ opcion?: string; /** Código de campaña del enlace (?c=…). */ campana?: string }
 
 const MENSAJES: Record<string, string> = {
   sitio_apagado: 'Este sitio de reservas no está disponible.', personas_invalidas: 'La cantidad de personas no está permitida.', falta_nombre: 'Escribí tu nombre.',
-  cumple_invalido: 'Revisá el cumpleaños: tiene que tener día y mes válidos, y si ponés el año, que sea una fecha real (o dejalo vacío).', tipo_no_disponible: 'Ese tipo de reserva no está disponible ese día. Elegí otro o cambiá el día.', falta_sede: 'Elegí en qué sede querés reservar.', sin_whatsapp: 'Este sitio todavía no está habilitado. Escribinos por WhatsApp.', tipo_invalido: 'Elegí un tipo de reserva.', ubicacion_invalida: 'Elegí una ubicación.',
+  cumple_invalido: 'Revisá el cumpleaños: tiene que tener día y mes válidos, y si ponés el año, que sea una fecha real (o dejalo vacío).', tipo_no_disponible: 'Ese tipo de reserva no está disponible ese día. Elegí otro o cambiá el día.', falta_sede: 'Elegí en qué sede querés reservar.', sin_whatsapp: 'Este sitio todavía no está habilitado. Escribinos por WhatsApp.', tipo_invalido: 'Elegí un tipo de reserva.', falta_opcion: 'Elegí una de las promos para seguir.', opcion_invalida: 'Esa promo ya no está disponible. Elegí otra.', ubicacion_invalida: 'Elegí una ubicación.',
   horario_no_disponible: 'Ese horario ya no está disponible. Elegí otro.', mesa_invalida: 'Alguna mesa ya no está disponible. Volvé a elegir.', mesas_fijas_no_se_juntan: 'Las mesas fijas no se pueden juntar.',
   mesa_no_apta: 'Las mesas elegidas no son para esa cantidad de personas.', mesa_ocupada: 'Alguna de las mesas ya fue reservada. Elegí otra.', eleccion_no_permitida: 'Por ahora no se puede elegir mesa: un asesor la va a elegir por vos.',
   demasiadas_solicitudes: 'Hay muchas solicitudes en este momento. Esperá unos minutos o escribinos por WhatsApp.', datos_invalidos: 'Revisá los datos de la reserva.',
@@ -51,6 +53,7 @@ export async function crearReservaPublica(slug: string, d: DatosReservaWeb): Pro
   const r = await rpc('crear_solicitud_web', {
     negocio: slug, sede: String(d.sede ?? '').slice(0, 40), fecha: d.fecha, hora: d.hora, personas: Math.trunc(Number(d.personas)), ubicacion: String(d.ubicacion ?? '').slice(0, 60), tipo: String(d.tipo ?? '').slice(0, 40),
     nombre: String(d.nombre ?? '').slice(0, 80), cumple_dia: String(d.cumple_dia ?? '').slice(0, 2), cumple_mes: String(d.cumple_mes ?? '').slice(0, 2), cumple_anio: String(d.cumple_anio ?? '').slice(0, 4), observaciones: String(d.observaciones ?? '').slice(0, 400), mesas: Array.isArray(d.mesas) ? d.mesas.slice(0, 6) : [],
+    opcion: String(d.opcion ?? '').slice(0, 40), campana: limpiarCampana(d.campana),
   })
   if (!r) return { ok: false, error: 'No pudimos guardar tu solicitud. Probá de nuevo.' }
   if (r.ok !== true) {

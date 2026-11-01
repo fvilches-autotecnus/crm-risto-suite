@@ -22,6 +22,7 @@ import { leerPausaAuto } from '@/lib/pausas'
 import ReservasWebConfig, { type ConfigReservasWeb, type SedeCfg } from '@/components/reservas-web-config'
 import { labelTipo } from '@/lib/reservas'
 import ConfigTiposReserva, { type FilaTipo } from '@/components/config-tipos-reserva'
+import ConfigPromosReserva, { type TipoConPromos } from '@/components/config-promos-reserva'
 import ConfigCalendario, { type AmbitoApertura, type DiaExtraUI } from '@/components/config-calendario'
 import ConfigConfirmacion from '@/components/config-confirmacion'
 import type { ReglaConfirmacion, ResultadoConfirmacion } from '@/lib/confirmacion'
@@ -100,6 +101,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   let webTipos: { value: string; label: string }[] = []
   let webHorarios: string[] = []
   let filasTipos: FilaTipo[] = []
+  let promosTipos: TipoConPromos[] = []
   let sedesWeb: SedeCfg[] = []
   let sitiosAgrupados: SitioWebCfg[] = []
   let ambitos: AmbitoApertura[] = []
@@ -159,6 +161,17 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
       ...Object.keys(usos).filter((k) => !catalogo.some((t) => t.clave === k)).sort().map((k) => ({ clave: k, etiqueta: labelTipo(k), activo: true, usos: usos[k], sinConfigurar: true, modo: 'siempre' as const, dias_semana: [], fechas: [] })),
     ]
     webTipos = filasTipos.filter((t) => t.activo).map((t) => ({ value: t.clave, label: t.etiqueta }))
+    // promos de cada tipo (solo con el módulo "Promos de reservas" y en la configuración del negocio entero)
+    if (ctx.modulosActivos.promos && !sedeAmb) {
+      const [{ data: descs }, { data: ops }] = await Promise.all([
+        supabase.from('reserva_tipos').select('clave, descripcion').eq('negocio_id', negocio.id),
+        supabase.from('reserva_tipo_opciones').select('id, tipo_clave, nombre, descripcion, precio, modo_precio, activa').eq('negocio_id', negocio.id).order('orden'),
+      ])
+      promosTipos = catalogo.map((t) => ({
+        clave: t.clave, etiqueta: t.etiqueta, descripcion: ((descs ?? []).find((d) => d.clave === t.clave)?.descripcion as string | null) ?? '',
+        promos: (ops ?? []).filter((o) => o.tipo_clave === t.clave).map((o) => ({ id: o.id as string, nombre: o.nombre as string, descripcion: (o.descripcion as string | null) ?? '', precio: o.precio === null ? '' : String(Number(o.precio)).replace('.', ','), modo_precio: o.modo_precio as 'persona' | 'reserva', activa: o.activa as boolean })),
+      }))
+    }
     const cuenta: Record<string, number> = {}
     for (const h of hs ?? []) { const k = String(h.hora).slice(0, 5); cuenta[k] = (cuenta[k] ?? 0) + 1 }
     webHorarios = Object.entries(cuenta).filter(([, c]) => c >= 5).map(([k]) => k).sort()
@@ -276,6 +289,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         {hay.tipos && (
           <Seccion id="tipos" i={n++} titulo="Tipos de reserva" texto="Los tipos que se ofrecen al cargar una reserva y en el sitio de reservas (Común, Cumpleaños, Cena show…). Cambiás el nombre, el orden y cuáles están activos.">
             <div className="mt-3">{sedeAmb ? <ConfigTiposSede key={sedeAmb.id} sedeId={sedeAmb.id} base={filasTipos.filter((t) => !t.sinConfigurar)} overrides={ovSede?.tipos ?? {}} hoy={hoy} /> : <ConfigTiposReserva inicial={filasTipos} hoy={hoy} />}</div>
+            {!sedeAmb && promosTipos.length > 0 && <ConfigPromosReserva inicial={promosTipos} />}
           </Seccion>
         )}
 
