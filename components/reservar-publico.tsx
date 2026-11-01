@@ -108,7 +108,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     let vivo = true
     setCargandoSlots(true); setErrorSlots(null)
     const t = setTimeout(async () => {
-      const r = await consultarHorarios(slug, fecha, personas, ubicacion, sedeId)
+      const r = await consultarHorarios(slug, fecha, personas, ubicacion, sedeId, tipo)
       if (!vivo) return
       setCargandoSlots(false)
       if (!r.ok) { setSlots(null); setTurnos([]); setErrorSlots(r.error); return }
@@ -116,7 +116,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
       setHora((h) => (r.slots.some((s) => s.hora === h && s.disponible) ? h : ''))
     }, 250)
     return () => { vivo = false; clearTimeout(t) }
-  }, [slug, fecha, personas, ubicacion, sedeId, listo])
+  }, [slug, fecha, personas, ubicacion, sedeId, listo, tipo])
 
   // plano: cuando se eligió horario y la persona quiere elegir mesa
   useEffect(() => {
@@ -303,7 +303,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                     {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
                 )} />
-                {slots && slots.length === 0 && <p className="text-sm text-rs-muted">No hay horarios para este día.</p>}
+                {slots && slots.length === 0 && <p className="text-sm text-rs-muted">{tipos.length > 1 && tipoSel ? `No hay horarios de “${tipoSel.label}” para este día. Probá con otro día o con otro tipo de reserva.` : 'No hay horarios para este día.'}</p>}
               </>
             )}
           </div>

@@ -4,7 +4,7 @@
  * Se guardan en reservas_web_config.turnos (negocio) y reservas_web_sedes.turnos (sede).
  */
 export type CorteTurno = { tipo: 'horas'; horas: number } | { tipo: 'hora'; hora: string }
-export interface TurnoWeb { nombre: string; horas: string[]; /** Días de la semana (0 = domingo … 6 = sábado); null = todos. */ dias: number[] | null; corte: CorteTurno | null; mensaje: string | null }
+export interface TurnoWeb { nombre: string; horas: string[]; /** Días de la semana (0 = domingo … 6 = sábado); null = todos. */ dias: number[] | null; /** Claves de los tipos de reserva para los que rige el turno (ej. "show"); null = todos los tipos. */ tipos: string[] | null; corte: CorteTurno | null; mensaje: string | null }
 /** Lo que devuelve el sitio para cada turno del día. */
 export interface TurnoPublico { nombre: string; horas: string[]; cerrado: boolean; mensaje: string }
 
@@ -50,7 +50,8 @@ export function leerTurnos(raw: unknown): { ok: true; turnos: TurnoWeb[] } | { o
     }
     const mensaje = String(o.mensaje ?? '').trim()
     if (mensaje.length > 120) return { ok: false, error: `El mensaje de “${nombre}” puede tener hasta 120 letras` }
-    turnos.push({ nombre, horas, dias: dias.length > 0 && dias.length < 7 ? dias : null, corte, mensaje: mensaje || null })
+    const tipos = Array.isArray(o.tipos) ? [...new Set(o.tipos.map((x) => String(x).trim().toLowerCase()).filter((x) => /^[a-z0-9_-]{1,40}$/.test(x)))] : []
+    turnos.push({ nombre, horas, dias: dias.length > 0 && dias.length < 7 ? dias : null, tipos: tipos.length > 0 ? tipos : null, corte, mensaje: mensaje || null })
   }
   return { ok: true, turnos }
 }

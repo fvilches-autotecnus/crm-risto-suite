@@ -84,7 +84,7 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
             {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`rw_hd_${d.n}`}>{d.l}</label><input id={`rw_hd_${d.n}`} name={`horarios_dia_${d.n}`} defaultValue={(config.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de arriba" className="input w-full" /></div>)}
           </div>
         </details>
-        <EditorTurnos name="turnos" inicial={config.turnos ?? []} ayudaHeredar={sedes.length > 0 ? 'Los turnos propios de una sede se arman al elegirla en Configuración (si la sede no tiene turnos ni horarios propios, usa estos).' : undefined} />
+        <EditorTurnos name="turnos" inicial={config.turnos ?? []} tiposDisponibles={tiposDisponibles}ayudaHeredar={sedes.length > 0 ? 'Los turnos propios de una sede se arman al elegirla en Configuración (si la sede no tiene turnos ni horarios propios, usa estos).' : undefined} />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><label className="label" htmlFor="rw_dias">Días hacia adelante</label><input id="rw_dias" name="dias_adelante" type="number" min={1} max={365} defaultValue={config.dias_adelante} className="input w-full" /></div>

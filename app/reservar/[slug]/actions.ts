@@ -20,9 +20,9 @@ const HORA = /^\d{2}:\d{2}$/
 const rpc = async (fn: string, p: Record<string, unknown>) => { const { data, error } = await createAdminClient().rpc(fn, { p }); return error ? null : (data as Record<string, unknown>) }
 
 /** Horarios de un día y si hay lugar (usa el aforo y las fechas bloqueadas del CRM). */
-export async function consultarHorarios(slug: string, fecha: string, personas: number, ubicacion: string, sede = ''): Promise<{ ok: true; slots: SlotWeb[]; turnos: TurnoPublico[] } | { ok: false; error: string }> {
+export async function consultarHorarios(slug: string, fecha: string, personas: number, ubicacion: string, sede = '', tipo = ''): Promise<{ ok: true; slots: SlotWeb[]; turnos: TurnoPublico[] } | { ok: false; error: string }> {
   if (!SLUG.test(slug) || !FECHA.test(fecha) || !Number.isInteger(personas)) return { ok: false, error: 'Datos no válidos' }
-  const r = await rpc('web_horarios', { negocio: slug, fecha, personas, ubicacion, sede })
+  const r = await rpc('web_horarios', { negocio: slug, fecha, personas, ubicacion, sede, tipo: String(tipo ?? '').slice(0, 40) })   // el tipo filtra los turnos que rigen para él
   if (!r) return { ok: false, error: 'No pudimos consultar los horarios. Probá de nuevo.' }
   if (r.ok !== true) return { ok: false, error: r.error === 'personas_invalidas' ? 'La cantidad de personas no está permitida para reservar por acá.' : r.error === 'sitio_apagado' ? 'Este sitio de reservas no está disponible.' : 'No pudimos consultar los horarios.' }
   return { ok: true, slots: r.slots as SlotWeb[], turnos: Array.isArray(r.turnos) ? (r.turnos as TurnoPublico[]) : [] }

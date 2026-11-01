@@ -48,7 +48,7 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
             {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`ws_hd_${d.n}`}>{d.l}</label><input id={`ws_hd_${d.n}`} name={`sede_horarios_dia_${d.n}`} defaultValue={(sede.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de la sede" className="input w-full" /></div>)}
           </div>
         </details>
-        <EditorTurnos name="sede_turnos" inicial={sede.turnos ?? []} ayudaHeredar="Si esta sede no tiene turnos ni horarios propios, usa los turnos del negocio." />
+        <EditorTurnos name="sede_turnos" inicial={sede.turnos ?? []} tiposDisponibles={tiposDisponibles}ayudaHeredar="Si esta sede no tiene turnos ni horarios propios, usa los turnos del negocio." />
         <p className="flex items-center gap-2 truncate font-mono text-[11px] text-rs-muted" title="Enlace directo a esta sede">{enlace}<a href={enlace} target="_blank" rel="noopener noreferrer" className="btn btn-sm"><ExternalLink size={12} />Abrir</a></p>
       </div>
 

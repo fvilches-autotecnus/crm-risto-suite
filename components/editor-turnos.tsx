@@ -5,15 +5,15 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { DIAS_SEMANA } from '@/lib/dias'
 import { MAX_TURNOS, MENSAJE_CORTE_DEFECTO, type TurnoWeb } from '@/lib/turnos-web'
 
-interface Borrador { nombre: string; horas: string; dias: number[]; corteTipo: '' | 'horas' | 'hora'; corteHoras: string; corteHora: string; mensaje: string }
+interface Borrador { nombre: string; horas: string; dias: number[]; tipos: string[]; corteTipo: '' | 'horas' | 'hora'; corteHoras: string; corteHora: string; mensaje: string }
 
 const desdeTurno = (t: TurnoWeb): Borrador => ({
-  nombre: t.nombre, horas: t.horas.join(', '), dias: t.dias ?? [],
+  nombre: t.nombre, horas: t.horas.join(', '), dias: t.dias ?? [], tipos: t.tipos ?? [],
   corteTipo: t.corte?.tipo ?? '', corteHoras: t.corte?.tipo === 'horas' ? String(t.corte.horas).replace('.', ',') : '1', corteHora: t.corte?.tipo === 'hora' ? t.corte.hora : '18:00', mensaje: t.mensaje ?? '',
 })
 // un turno recién agregado y todavía vacío no se manda (así el guardado automático no marca error mientras se lo completa)
 const aJson = (bs: Borrador[]) => JSON.stringify(bs.filter((b) => b.nombre.trim() !== '' || b.horas.trim() !== '').map((b) => ({
-  nombre: b.nombre, horas: b.horas, dias: b.dias,
+  nombre: b.nombre, horas: b.horas, dias: b.dias, tipos: b.tipos,
   corte: b.corteTipo === 'horas' ? { tipo: 'horas', horas: b.corteHoras.replace(',', '.') } : b.corteTipo === 'hora' ? { tipo: 'hora', hora: b.corteHora } : null,
   mensaje: b.mensaje,
 })))
@@ -22,7 +22,7 @@ const aJson = (bs: Borrador[]) => JSON.stringify(bs.filter((b) => b.nombre.trim(
  * Editor de turnos del sitio de reservas (Desayuno, Almuerzo, Cena…): cada uno con sus horarios, los días en que rige,
  * un corte propio opcional y el mensaje que se ve cuando ya cerró. Manda todo en un campo oculto (`name`) como JSON.
  */
-export default function EditorTurnos({ name, inicial, ayudaHeredar }: { name: string; inicial: TurnoWeb[]; ayudaHeredar?: string }) {
+export default function EditorTurnos({ name, inicial, ayudaHeredar, tiposDisponibles = [] }: { name: string; inicial: TurnoWeb[]; ayudaHeredar?: string; tiposDisponibles?: { value: string; label: string }[] }) {
   const [turnos, setTurnos] = useState<Borrador[]>(() => inicial.map(desdeTurno))
   const oculto = useRef<HTMLInputElement>(null)
   const json = aJson(turnos)
@@ -32,7 +32,7 @@ export default function EditorTurnos({ name, inicial, ayudaHeredar }: { name: st
 
   const cambiar = (i: number, c: Partial<Borrador>) => setTurnos((ts) => ts.map((t, k) => (k === i ? { ...t, ...c } : t)))
   const mover = (i: number, d: number) => setTurnos((ts) => { const j = i + d; if (j < 0 || j >= ts.length) return ts; const n = [...ts]; [n[i], n[j]] = [n[j], n[i]]; return n })
-  const agregar = () => setTurnos((ts) => [...ts, { nombre: '', horas: '', dias: [], corteTipo: '', corteHoras: '1', corteHora: '18:00', mensaje: '' }])
+  const agregar = () => setTurnos((ts) => [...ts, { nombre: '', horas: '', dias: [], tipos: [], corteTipo: '', corteHoras: '1', corteHora: '18:00', mensaje: '' }])
 
   return (
     <div className="mt-3 space-y-3 rounded-md border border-rs-border/60 bg-rs-raised/30 p-3" data-editor-turnos>
@@ -58,6 +58,19 @@ export default function EditorTurnos({ name, inicial, ayudaHeredar }: { name: st
             </div>
             <p className="mt-1 text-xs text-rs-muted">Sin marcar ninguno, el turno rige todos los días.</p>
           </fieldset>
+          {tiposDisponibles.length > 1 && (
+            <fieldset data-turno-tipos={i}>
+              <legend className="label">Para qué tipos de reserva</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {tiposDisponibles.map((x) => (
+                  <label key={x.value} className="inline-flex h-8 cursor-pointer items-center rounded-full border border-rs-control px-3 text-xs font-medium text-rs-muted transition hover:border-rs-lime/40 has-[:checked]:border-rs-lime/70 has-[:checked]:bg-rs-lime/15 has-[:checked]:font-semibold has-[:checked]:text-rs-lime">
+                    <input type="checkbox" checked={t.tipos.includes(x.value)} onChange={(e) => cambiar(i, { tipos: e.target.checked ? [...t.tipos, x.value] : t.tipos.filter((v) => v !== x.value) })} className="sr-only" aria-label={`${x.label} (${t.nombre || 'turno'})`} />{x.label}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-rs-muted">Sin marcar ninguno, el turno se ofrece para todos los tipos. Si marcás alguno, el cliente solo ve este turno cuando elige uno de esos tipos (por ejemplo, el turno de show solo con el tipo “Show”).</p>
+            </fieldset>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor={`${name}_c_${i}`}>Cuándo se cierran las reservas del turno</label>
