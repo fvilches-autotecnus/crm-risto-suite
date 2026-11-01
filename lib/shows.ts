@@ -18,6 +18,9 @@ export interface Show {
   fecha: string; hora: string | null; ubicacion_id: string | null; modalidad: ModalidadShow; enlace: string | null; visible: boolean
 }
 
+/** Un show tal como lo ve el sitio de reservas: con la dirección de su imagen y el nombre de su ubicación (null = todo el local). */
+export interface ShowWeb { id: string; titulo: string; descripcion: string | null; img: string | null; fecha: string; hora: string | null; ubicacion: string | null; modalidad: ModalidadShow; enlace: string | null }
+
 /** Lo que escribe la persona en "enlace" → URL lista para usar. '' → null (sin enlace); algo que no es un enlace ni un teléfono → undefined. */
 export function normalizarEnlace(texto: string): string | null | undefined {
   const s = texto.trim()

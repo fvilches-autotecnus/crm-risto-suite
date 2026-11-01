@@ -6,6 +6,8 @@ import { resolverModulos } from '@/lib/modulos'
 import { origenCrm, urlAbsoluta, variablesMarca } from '@/lib/marca'
 import { cargarMarcaSitio, resolverSitio } from '@/lib/sitio-reservas'
 import { labelTipo } from '@/lib/reservas'
+import { urlImagen } from '@/lib/carta'
+import type { ShowWeb } from '@/lib/shows'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { PromoWeb, SedeWeb, TipoWeb } from './actions'
 
@@ -49,6 +51,16 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   const { data: opsDb } = promosActivo ? await admin.from('reserva_tipo_opciones').select('id, tipo_clave, nombre, descripcion, precio, modo_precio').eq('negocio_id', negocio.id).eq('activa', true).order('orden') : { data: [] as { id: string; tipo_clave: string; nombre: string; descripcion: string | null; precio: number | null; modo_precio: 'persona' | 'reserva' }[] }
   const promosDe = (clave: string): PromoWeb[] => (opsDb ?? []).filter((o) => o.tipo_clave === clave).map((o) => ({ id: o.id as string, nombre: o.nombre as string, descripcion: (o.descripcion as string | null) ?? null, precio: o.precio === null ? null : Number(o.precio), modo: o.modo_precio as 'persona' | 'reserva' }))
   if (!cfg?.activo) notFound()
+  // shows del local (módulo "Shows"): si el día que elige el cliente tiene uno, el sitio le muestra su foto y su información
+  let showsWeb: ShowWeb[] = []
+  if (resolverModulos(negocio.modulos).shows) {
+    const [{ data: sh }, { data: ubTodas }] = await Promise.all([
+      admin.from('shows').select('id, titulo, descripcion, imagen_path, fecha, hora, ubicacion_id, modalidad, enlace').eq('negocio_id', negocio.id).eq('visible', true).gte('fecha', hoyEn(negocio.zona_horaria as string)).order('fecha').order('hora').limit(300),
+      admin.from('ubicaciones').select('id, nombre').eq('negocio_id', negocio.id),
+    ])
+    const nombreUbic = new Map((ubTodas ?? []).map((u) => [u.id as string, u.nombre as string]))
+    showsWeb = (sh ?? []).map((s) => ({ id: s.id as string, titulo: s.titulo as string, descripcion: (s.descripcion as string | null) ?? null, img: urlImagen(s.imagen_path as string | null), fecha: s.fecha as string, hora: (s.hora as string | null) ?? null, ubicacion: s.ubicacion_id ? nombreUbic.get(s.ubicacion_id as string) ?? null : null, modalidad: s.modalidad as ShowWeb['modalidad'], enlace: (s.enlace as string | null) ?? null }))
+  }
   // Sedes: si el negocio tiene, el cliente elige una y todo sale de lo que esa sede tiene activo (su WhatsApp, ubicaciones, plano, horarios)
   const { data: info } = await admin.rpc('web_sedes_info', { p: { negocio: slugNegocio } })
   let sedes = ((info as { sedes?: SedeWeb[] } | null)?.sedes ?? []) as SedeWeb[]
@@ -80,7 +92,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   return (
     <>
     {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
-    <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}}
+    <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}}
       cfg={{ elegir_mesa: cfg.elegir_mesa === true, dias_adelante: cfg.dias_adelante, personas_min: cfg.personas_min, personas_max: cfg.personas_max, mensaje: cfg.mensaje, modo_prueba: cfg.modo_prueba !== false, titulo: cfg.titulo, subtitulo: cfg.subtitulo, texto_whatsapp: cfg.texto_whatsapp, max_mesas: cfg.max_mesas ?? 6, cualquier_ubicacion: cfg.cualquier_ubicacion !== false, texto_cualquier_ubicacion: cfg.texto_cualquier_ubicacion, pedir_cumple: cfg.pedir_cumple !== false }}
       hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} />
     </>

@@ -164,6 +164,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Acá cargás los shows y eventos del local. Cada uno tiene **nombre, fecha, hora (opcional), descripción e imagen (opcional)**, y puede ser de **una ubicación** (Salón, Patio…) o de **todo el local**. Se ven en la **cartelera pública** (botón “Ver cartelera pública”, con enlace para copiar); los que ya pasaron salen solos de ahí y quedan en la pestaña “Pasados”.' },
       { t: 'p', x: 'Elegís **cómo se reserva o se entra**: **Reserva de mesa en el local** (el botón lleva al sitio de reservas con la fecha y la ubicación del show ya elegidas, y las reservas quedan anotadas con un código de campaña “show-…” para medir cuántas trajo cada show en Campañas), **Reservas con otra producción** (el botón lleva a su WhatsApp o su sitio) o **Solo entradas** (el botón lleva al enlace donde se venden). En una reserva de mesa también podés sumar un enlace de venta de entradas.' },
+      { t: 'p', x: 'En el **sitio de reservas**, cuando el cliente elige un día que tiene show, le aparece una tarjeta con la **foto, la hora, la ubicación y toda la descripción** del show (y el botón de entradas o de la producción, si lo cargaste). Los shows ocultos no se muestran.' },
       { t: 'p', x: 'Con el ojito ocultás un show de la cartelera sin borrarlo. “Enlace de reserva” copia el enlace directo de ese show para compartirlo por WhatsApp o redes.' },
     ],
   },
