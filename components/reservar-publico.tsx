@@ -70,6 +70,9 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     const q = new URLSearchParams(window.location.search)
     setCampana(limpiarCampana(q.get('c')))
     const t = q.get('tipo'); if (t && tipos.some((x) => x.value === t)) setTipo(t)   // enlace que ya trae el tipo de reserva elegido
+    // enlace de un show: ya trae la fecha (dentro de lo que se puede reservar) y la ubicación del show
+    const f = q.get('fecha'); if (f && /^\d{4}-\d{2}-\d{2}$/.test(f) && f >= hoy && f <= sumarDias(hoy, cfgBase.dias_adelante)) setFecha(f)
+    const u = q.get('ubicacion'); const hit = u ? ubicaciones.find((x) => sinTildes(x) === sinTildes(u)) : null; if (hit) setUbicacion(hit)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [slots, setSlots] = useState<SlotWeb[] | null>(null)
   const [turnos, setTurnos] = useState<TurnoPublico[]>([])

@@ -160,9 +160,11 @@ export const MANUAL: SeccionManual[] = [
     ],
   },
   {
-    id: 'shows', grupo: 'Operación diaria', titulo: 'Shows', modulo: 'shows', resumen: 'Cartelera y cupos de shows (en preparación).',
+    id: 'shows', grupo: 'Operación diaria', titulo: 'Shows', modulo: 'shows', resumen: 'Cartelera pública de shows y eventos, con imagen, fecha y cómo reservar.',
     bloques: [
-      { t: 'p', x: 'Este módulo **todavía no tiene pantallas completas**. Está pensado para la cartelera de shows y eventos, con entradas y cupos. Mientras tanto, las cenas show se manejan como un **tipo de reserva** (“Cena show”).' },
+      { t: 'p', x: 'Acá cargás los shows y eventos del local. Cada uno tiene **nombre, fecha, hora (opcional), descripción e imagen (opcional)**, y puede ser de **una ubicación** (Salón, Patio…) o de **todo el local**. Se ven en la **cartelera pública** (botón “Ver cartelera pública”, con enlace para copiar); los que ya pasaron salen solos de ahí y quedan en la pestaña “Pasados”.' },
+      { t: 'p', x: 'Elegís **cómo se reserva o se entra**: **Reserva de mesa en el local** (el botón lleva al sitio de reservas con la fecha y la ubicación del show ya elegidas, y las reservas quedan anotadas con un código de campaña “show-…” para medir cuántas trajo cada show en Campañas), **Reservas con otra producción** (el botón lleva a su WhatsApp o su sitio) o **Solo entradas** (el botón lleva al enlace donde se venden). En una reserva de mesa también podés sumar un enlace de venta de entradas.' },
+      { t: 'p', x: 'Con el ojito ocultás un show de la cartelera sin borrarlo. “Enlace de reserva” copia el enlace directo de ese show para compartirlo por WhatsApp o redes.' },
     ],
   },
   {

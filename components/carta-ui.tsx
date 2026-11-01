@@ -11,6 +11,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
+import { achicarImagen } from '@/lib/achicar-imagen'
 import { ETIQUETAS, MAX_VARIANTES, etiquetaDe, formatearPrecio, textoPrecio, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta, type Variante } from '@/lib/carta'
 
 type Dialogo =
@@ -19,18 +20,6 @@ type Dialogo =
   | { t: 'ajustes' } | { t: 'importar' } | { t: 'qr' }
 
 interface Props { categorias: CategoriaCarta[]; productos: ProductoCarta[]; config: ConfigCarta; slug: string; negocio: string; puedeEscribir: boolean; puedeEliminar: boolean; puedeAjustes: boolean }
-
-/** Achica la foto en el navegador (máx. 1100 px de lado, WEBP) para que la carta cargue rápido y la subida sea liviana. */
-async function achicarImagen(file: File, max = 1100): Promise<File> {
-  const bmp = await createImageBitmap(file)
-  const escala = Math.min(1, max / Math.max(bmp.width, bmp.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bmp.width * escala); canvas.height = Math.round(bmp.height * escala)
-  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height)
-  const blob: Blob | null = await new Promise((ok) => canvas.toBlob(ok, 'image/webp', 0.82))
-  if (!blob) throw new Error('No se pudo procesar la foto')
-  return new File([blob], 'foto.webp', { type: 'image/webp' })
-}
 
 const Switch = ({ on, onClick, disabled, titulo, children }: { on: boolean; onClick: () => void; disabled?: boolean; titulo: string; children?: React.ReactNode }) => (
   <button type="button" role="switch" aria-checked={on} aria-label={titulo} title={titulo} disabled={disabled} onClick={onClick}
