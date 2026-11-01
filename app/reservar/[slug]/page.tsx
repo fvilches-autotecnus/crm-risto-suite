@@ -40,7 +40,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   if (!resolverModulos(negocio.modulos).reservas) notFound()
   const slugNegocio = negocio.slug as string   // las consultas a la base siempre van con el slug del negocio
   const [{ data: cfg }, { data: ubs }, { data: cat }, { data: cal }, { data: cfgSedes }] = await Promise.all([
-    admin.from('reservas_web_config').select('activo, elegir_mesa, tipos, dias_adelante, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple').eq('negocio_id', negocio.id).maybeSingle(),
+    admin.from('reservas_web_config').select('activo, elegir_mesa, tipos, dias_adelante, personas_min, personas_max, mensaje, modo_prueba, titulo, subtitulo, texto_whatsapp, max_mesas, cualquier_ubicacion, texto_cualquier_ubicacion, pedir_cumple, tolerancia_min').eq('negocio_id', negocio.id).maybeSingle(),
     admin.from('ubicaciones').select('nombre, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true).order('orden').order('nombre'),
     admin.from('reserva_tipos').select('clave, etiqueta, activo, orden, modo, dias_semana, fechas, descripcion').eq('negocio_id', negocio.id).order('orden'),
     admin.rpc('web_calendario', { p: { negocio: slugNegocio } }),
@@ -80,7 +80,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   }
   const tipos = armarTipos(cfg.tipos as string[] | null, catalogo)
   const porSede: Record<string, { cfg: Record<string, unknown>; tipos: TipoWeb[] }> = {}
-  const CLAVES_CFG = ['dias_adelante', 'personas_min', 'personas_max', 'titulo', 'subtitulo', 'texto_whatsapp', 'max_mesas', 'cualquier_ubicacion', 'texto_cualquier_ubicacion', 'pedir_cumple']
+  const CLAVES_CFG = ['dias_adelante', 'personas_min', 'personas_max', 'titulo', 'subtitulo', 'texto_whatsapp', 'max_mesas', 'cualquier_ubicacion', 'texto_cualquier_ubicacion', 'pedir_cumple', 'tolerancia_min']
   for (const c of (cfgSedes ?? []) as { sucursal_id: string; web: Record<string, unknown> | null; tipos: Record<string, { activo?: boolean; modo?: 'siempre' | 'semana' | 'fechas'; dias_semana?: number[]; fechas?: string[] }> | null }[]) {
     const w = c.web ?? {}, ovT = c.tipos ?? {}
     const cfgPropia = Object.fromEntries(CLAVES_CFG.filter((k) => k in w).map((k) => [k, w[k]]))
@@ -93,7 +93,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
     <>
     {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
     <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}}
-      cfg={{ elegir_mesa: cfg.elegir_mesa === true, dias_adelante: cfg.dias_adelante, personas_min: cfg.personas_min, personas_max: cfg.personas_max, mensaje: cfg.mensaje, modo_prueba: cfg.modo_prueba !== false, titulo: cfg.titulo, subtitulo: cfg.subtitulo, texto_whatsapp: cfg.texto_whatsapp, max_mesas: cfg.max_mesas ?? 6, cualquier_ubicacion: cfg.cualquier_ubicacion !== false, texto_cualquier_ubicacion: cfg.texto_cualquier_ubicacion, pedir_cumple: cfg.pedir_cumple !== false }}
+      cfg={{ elegir_mesa: cfg.elegir_mesa === true, dias_adelante: cfg.dias_adelante, personas_min: cfg.personas_min, personas_max: cfg.personas_max, mensaje: cfg.mensaje, modo_prueba: cfg.modo_prueba !== false, titulo: cfg.titulo, subtitulo: cfg.subtitulo, texto_whatsapp: cfg.texto_whatsapp, max_mesas: cfg.max_mesas ?? 6, cualquier_ubicacion: cfg.cualquier_ubicacion !== false, texto_cualquier_ubicacion: cfg.texto_cualquier_ubicacion, pedir_cumple: cfg.pedir_cumple !== false, tolerancia_min: (cfg.tolerancia_min as number | null) ?? null }}
       hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} />
     </>
   )

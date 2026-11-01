@@ -15,7 +15,7 @@ export const CONFIG_SEDE_VACIA = (sucursal_id: string): ConfigSede => ({ sucursa
 
 /** Grupos de ajustes del sitio de reservas que una sede puede personalizar (se pisan juntos o se heredan juntos). */
 export const GRUPOS_WEB = [
-  { id: 'reglas', titulo: 'Reglas de la reserva', claves: ['dias_adelante', 'horas_anticipacion', 'personas_min', 'personas_max', 'validez_horas', 'max_mesas'] },
+  { id: 'reglas', titulo: 'Reglas de la reserva', claves: ['dias_adelante', 'horas_anticipacion', 'personas_min', 'personas_max', 'validez_horas', 'max_mesas', 'tolerancia_min'] },
   { id: 'textos', titulo: 'Textos del sitio', claves: ['titulo', 'subtitulo', 'texto_whatsapp'] },
   { id: 'cualquiera', titulo: 'Cualquier ubicación disponible', claves: ['cualquier_ubicacion', 'texto_cualquier_ubicacion'] },
   { id: 'cumple', titulo: 'Cumpleaños', claves: ['pedir_cumple'] },

@@ -13,7 +13,7 @@ import EditorTurnos from '@/components/editor-turnos'
 import type { Marca } from '@/lib/marca'
 import type { TurnoWeb } from '@/lib/turnos-web'
 
-export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; personas_min: number; personas_max: number; mensaje: string | null
+export interface ConfigReservasWeb { activo: boolean; elegir_mesa: boolean; tipos: string[]; horarios: string[]; dias_adelante: number; horas_anticipacion: number; tolerancia_min?: number | null; personas_min: number; personas_max: number; mensaje: string | null
   modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; validez_horas: number; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; horarios_dias?: Record<string, string[]>; turnos?: TurnoWeb[]; escasez_modo?: 'off' | 'pocos' | 'cantidad'; escasez_umbral?: number; escasez_texto?: string | null; marca?: Marca }
 
 /** Configuración del sitio público de reservas (/reservar/<negocio>): qué ofrece y con qué reglas. Lo demás (ubicaciones, aforo, fechas bloqueadas, planos) sale de lo ya configurado en el CRM. */
@@ -84,13 +84,14 @@ export default function ReservasWebConfig({ config, slug, tiposDisponibles, hora
             {DIAS_SEMANA.map((d) => <div key={d.n}><label className="label" htmlFor={`rw_hd_${d.n}`}>{d.l}</label><input id={`rw_hd_${d.n}`} name={`horarios_dia_${d.n}`} defaultValue={(config.horarios_dias?.[String(d.n)] ?? []).map((h) => String(h).slice(0, 5)).join(', ')} placeholder="Los de arriba" className="input w-full" /></div>)}
           </div>
         </details>
-        <EditorTurnos name="turnos" inicial={config.turnos ?? []} tiposDisponibles={tiposDisponibles}ayudaHeredar={sedes.length > 0 ? 'Los turnos propios de una sede se arman al elegirla en Configuración (si la sede no tiene turnos ni horarios propios, usa estos).' : undefined} />
+        <EditorTurnos name="turnos" inicial={config.turnos ?? []} tiposDisponibles={tiposDisponibles} ayudaHeredar={sedes.length > 0 ? 'Los turnos propios de una sede se arman al elegirla en Configuración (si la sede no tiene turnos ni horarios propios, usa estos).' : undefined} />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><label className="label" htmlFor="rw_dias">Días hacia adelante</label><input id="rw_dias" name="dias_adelante" type="number" min={1} max={365} defaultValue={config.dias_adelante} className="input w-full" /></div>
         <div><label className="label" htmlFor="rw_horas">Anticipación (horas)</label><input id="rw_horas" name="horas_anticipacion" type="number" min={0} max={72} defaultValue={config.horas_anticipacion} className="input w-full" /></div>
         <div><label className="label" htmlFor="rw_pmin">Personas: mínimo</label><input id="rw_pmin" name="personas_min" type="number" min={1} max={100} defaultValue={config.personas_min} className="input w-full" /></div>
         <div><label className="label" htmlFor="rw_pmax">Personas: máximo</label><input id="rw_pmax" name="personas_max" type="number" min={1} max={200} defaultValue={config.personas_max} className="input w-full" /></div>
+        <div className="col-span-2 sm:col-span-4"><label className="label" htmlFor="rw_tol">Tolerancia (minutos)</label><input id="rw_tol" name="tolerancia_min" type="number" min={1} max={240} defaultValue={config.tolerancia_min ?? ''} placeholder="Sin tolerancia" className="input w-40" /><p className="mt-1 text-xs text-rs-muted">Cuántos minutos se espera al cliente pasado el horario de su reserva. Se le muestra en el sitio al elegir el horario (por ejemplo “Tolerancia: 15 minutos”). Vacío = no se muestra.</p></div>
       </div>
       <fieldset className="space-y-3 rounded-md border border-rs-border/60 p-3">
         <legend className="label px-1">Textos y reglas del sitio</legend>

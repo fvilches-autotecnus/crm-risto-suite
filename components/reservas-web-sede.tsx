@@ -79,6 +79,7 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
           <div><label className="label" htmlFor="ws_pmin">Personas: mínimo</label><input id="ws_pmin" name="personas_min" type="number" min={1} max={100} defaultValue={config.personas_min} className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_pmax">Personas: máximo</label><input id="ws_pmax" name="personas_max" type="number" min={1} max={200} defaultValue={config.personas_max} className="input w-full" /></div>
           <div><label className="label" htmlFor="ws_maxmesas">Máximo de mesas por reserva</label><input id="ws_maxmesas" name="max_mesas" type="number" min={1} max={12} defaultValue={config.max_mesas} className="input w-full" /></div>
+          <div><label className="label" htmlFor="ws_tol">Tolerancia (minutos)</label><input id="ws_tol" name="tolerancia_min" type="number" min={1} max={240} defaultValue={config.tolerancia_min ?? ''} placeholder="Sin tolerancia" className="input w-full" /></div>
         </div>
       </GrupoSede>
 

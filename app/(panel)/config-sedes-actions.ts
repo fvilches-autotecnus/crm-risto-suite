@@ -163,7 +163,9 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
     if (!pmin || !pmax || pmin > pmax) return fail('Revisá la cantidad de personas: el mínimo no puede superar al máximo')
     if (!validez) return fail('La solicitud puede esperar de 1 a 168 horas')
     if (!maxMesas) return fail('El máximo de mesas por reserva va de 1 a 12')
-    Object.assign(web, { dias_adelante: dias, horas_anticipacion: anticip, personas_min: pmin, personas_max: pmax, validez_horas: validez, max_mesas: maxMesas })
+    const tolTxt = text(fd, 'tolerancia_min'), tolN = tolTxt === '' ? 0 : entero(tolTxt, 0, 240)   // minutos de tolerancia (vacío o 0 = no se muestra)
+    if (tolN === null) return fail('La tolerancia va de 1 a 240 minutos (vacío = sin tolerancia)')
+    Object.assign(web, { dias_adelante: dias, horas_anticipacion: anticip, personas_min: pmin, personas_max: pmax, validez_horas: validez, max_mesas: maxMesas, tolerancia_min: tolN || null })
   }
   if (on('textos')) {
     const titulo = text(fd, 'titulo'), subtitulo = text(fd, 'subtitulo'), plantilla = String(fd.get('texto_whatsapp') ?? '').replace(/\r\n/g, '\n').trim()

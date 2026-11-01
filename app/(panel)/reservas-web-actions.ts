@@ -55,6 +55,9 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
   if (!escUmbral) return fail('El aviso de pocos lugares va de 1 a 500 lugares')
   const escTexto = text(fd, 'escasez_texto')
   if (escTexto.length > 40) return fail('El texto de “pocos lugares” puede tener hasta 40 letras')
+  // tolerancia: minutos que se espera al cliente pasado el horario (vacío o 0 = no se muestra)
+  const tolTxt = text(fd, 'tolerancia_min'), tolN = tolTxt === '' ? 0 : entero(tolTxt, 0, 240)
+  if (tolN === null) return fail('La tolerancia va de 1 a 240 minutos (vacío = sin tolerancia)')
   const validez = entero(text(fd, 'validez_horas'), 1, 168), maxMesas = entero(text(fd, 'max_mesas'), 1, 12)
   if (!validez) return fail('La solicitud puede esperar de 1 a 168 horas')
   if (!maxMesas) return fail('El máximo de mesas por reserva va de 1 a 12')
@@ -94,7 +97,7 @@ export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormDat
     negocio_id: ctx.negocio.id, activo: fd.get('activo') === 'on', elegir_mesa: fd.get('elegir_mesa') === 'on', tipos, horarios: horarios.sort(), horarios_dias: horariosDias, ...(turnos ? { turnos } : {}),
     dias_adelante: dias, horas_anticipacion: horas, personas_min: pmin, personas_max: pmax, mensaje: mensaje || null,
     modo_prueba: fd.get('modo_prueba') === 'on', titulo: titulo || null, subtitulo: subtitulo || null, texto_whatsapp: plantilla || null, validez_horas: validez, max_mesas: maxMesas, cualquier_ubicacion: fd.get('cualquier_ubicacion') === 'on', pedir_cumple: fd.get('pedir_cumple') === 'on', texto_cualquier_ubicacion: textoCualquiera || null,
-    escasez_modo: escModo, escasez_umbral: escUmbral, escasez_texto: escTexto || null, marca: marcaLeida.marca,
+    escasez_modo: escModo, escasez_umbral: escUmbral, escasez_texto: escTexto || null, marca: marcaLeida.marca, tolerancia_min: tolN || null,
   })
   if (error) return fail('No se pudo guardar la configuración')
   if (filasSede.length) {

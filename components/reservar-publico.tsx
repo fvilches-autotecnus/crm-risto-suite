@@ -20,7 +20,7 @@ import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, t
 type Cfg = Props['cfg']
 interface Props {
   slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
-  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean }; hoy: string; whatsapp: string
+  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; tolerancia_min: number | null }; hoy: string; whatsapp: string
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
@@ -303,6 +303,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                     {s.aviso && s.disponible ? <span className="flex flex-col items-center leading-tight"><span>{s.hora}</span><span className="text-[10px] font-semibold text-rs-warn">{s.aviso}</span></span> : s.hora}{!s.disponible && <span className="ml-1.5 text-[10px] font-semibold uppercase no-underline">{MOTIVO[s.motivo ?? 'fuera_de_rango']}</span>}
                   </button>
                 )} />
+                {cfg.tolerancia_min && slots && slots.length > 0 && <p data-tolerancia className="mt-2 flex items-center gap-1.5 text-xs text-rs-muted"><Clock size={13} className="shrink-0" />Tolerancia: {cfg.tolerancia_min} minutos. Pasado ese tiempo desde el horario reservado, la mesa puede liberarse.</p>}
                 {slots && slots.length === 0 && <p className="text-sm text-rs-muted">{tipos.length > 1 && tipoSel ? `No hay horarios de “${tipoSel.label}” para este día. Probá con otro día o con otro tipo de reserva.` : 'No hay horarios para este día.'}</p>}
               </>
             )}
