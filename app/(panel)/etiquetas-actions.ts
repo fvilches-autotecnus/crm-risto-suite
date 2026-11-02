@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto, type Contexto } from '@/lib/context'
 import { agregarEtiquetaBC, buscarSuscriptor, etiquetasBC, quitarEtiquetaBC, textoErrorBC } from '@/lib/botconversa'
@@ -10,7 +11,6 @@ import type { ActionResult } from './actions'
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 const refrescar = () => revalidatePath('/', 'layout')
-const UUID = /^[0-9a-f-]{36}$/i
 const norm = (s: string) => s.trim().toLowerCase()
 
 interface Entrada { clienteId?: string; telefono?: string; nombre?: string; etiquetaId?: string; etiquetaNueva?: string }

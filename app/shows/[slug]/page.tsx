@@ -1,11 +1,11 @@
+import { TarjetaShow } from '@/components/tarjeta-show'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Clock, MapPin } from 'lucide-react'
 import { urlImagen } from '@/lib/carta'
-import { fechaLarga, hoyEn, horaCorta } from '@/lib/fechas'
+import { hoyEn } from '@/lib/fechas'
 import { normalizarMarca, origenCrm, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
 import { resolverModulos } from '@/lib/modulos'
-import { enlaceReservaShow, modalidadDe, type Show } from '@/lib/shows'
+import { enlaceReservaShow, type Show } from '@/lib/shows'
 import { createAdminClient } from '@/lib/supabase/server'
 
 // Cartelera pública (sin iniciar sesión). Se regenera sola cada minuto y al instante cuando el negocio edita algo.
@@ -44,7 +44,6 @@ export default async function ShowsPublicosPage({ params }: { params: Promise<{ 
   const { marca } = d
   const vars = variablesMarca(marca)
   const logoRisto = `${origenCrm()}/logo.jpeg`
-  const boton = 'inline-flex h-10 items-center justify-center rounded-rs px-4 text-sm font-semibold transition'
   return (
     <>
       {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
@@ -63,26 +62,11 @@ export default async function ShowsPublicosPage({ params }: { params: Promise<{ 
           {d.shows.length === 0 && <p className="py-16 text-center text-sm text-rs-muted">Por ahora no hay shows programados. Volvé pronto.</p>}
           <ul className="space-y-5">
             {d.shows.map((s) => {
-              const img = urlImagen(s.imagen_path), ubic = s.ubicacion_id ? d.nombreUbic.get(s.ubicacion_id) ?? null : null
-              const m = modalidadDe(s.modalidad)
-              const reservar = s.modalidad === 'reserva' && d.sePuedeReservar
+              const ubic = s.ubicacion_id ? d.nombreUbic.get(s.ubicacion_id) ?? null : null
               return (
-                <li key={s.id} data-show={s.titulo} className="card overflow-hidden">
-                  {img && /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt={s.titulo} loading="lazy" className="aspect-video w-full object-cover" />}
-                  <div className="p-4">
-                    <h2 className="text-lg font-bold">{s.titulo}</h2>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-rs-muted">
-                      <span className="capitalize">{fechaLarga(s.fecha)}</span>
-                      {s.hora && <span className="inline-flex items-center gap-1"><Clock size={13} />{horaCorta(s.hora)} hs</span>}
-                      <span className="inline-flex items-center gap-1"><MapPin size={13} />{ubic ?? 'Todo el local'}</span>
-                    </p>
-                    {s.descripcion && <p className="mt-3 whitespace-pre-line text-sm">{s.descripcion}</p>}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {reservar && <a data-boton="reservar" href={enlaceReservaShow(slug, s, ubic)} className={`${boton} bg-rs-lime text-rs-on-lime`}>{m.boton}</a>}
-                      {s.modalidad !== 'reserva' && s.enlace && <a data-boton={s.modalidad} href={s.enlace} target="_blank" rel="noopener noreferrer" className={`${boton} bg-rs-lime text-rs-on-lime`}>{m.boton}</a>}
-                      {s.modalidad === 'reserva' && s.enlace && <a data-boton="entradas" href={s.enlace} target="_blank" rel="noopener noreferrer" className={`${boton} border border-rs-control hover:border-rs-lime/50 hover:text-rs-lime`}>Comprar entradas</a>}
-                    </div>
-                  </div>
+                <li key={s.id}>
+                  <TarjetaShow show={{ titulo: s.titulo, descripcion: s.descripcion, img: urlImagen(s.imagen_path), hora: s.hora, ubicacion: ubic, modalidad: s.modalidad, enlace: s.enlace }} fecha={s.fecha}
+                    reservarHref={s.modalidad === 'reserva' && d.sePuedeReservar ? enlaceReservaShow(slug, s, ubic) : null} />
                 </li>
               )
             })}

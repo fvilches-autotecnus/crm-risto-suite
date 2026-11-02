@@ -1,5 +1,6 @@
 'use client'
 
+import { CHIP_DIA_CHICO } from '@/lib/chips'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { DIAS_SEMANA } from '@/lib/dias'
@@ -51,7 +52,7 @@ export default function EditorTurnos({ name, inicial, ayudaHeredar, tiposDisponi
             <legend className="label">Días en que rige</legend>
             <div className="flex flex-wrap gap-1.5">
               {DIAS_SEMANA.map((d) => (
-                <label key={d.n} className="inline-flex h-8 cursor-pointer items-center rounded-full border border-rs-control px-3 text-xs font-medium text-rs-muted transition hover:border-rs-lime/40 has-[:checked]:border-rs-lime/70 has-[:checked]:bg-rs-lime/15 has-[:checked]:font-semibold has-[:checked]:text-rs-lime">
+                <label key={d.n} className={CHIP_DIA_CHICO}>
                   <input type="checkbox" checked={t.dias.includes(d.n)} onChange={(e) => cambiar(i, { dias: e.target.checked ? [...t.dias, d.n].sort() : t.dias.filter((x) => x !== d.n) })} className="sr-only" aria-label={`${d.l} (${t.nombre || 'turno'})`} />{d.c}
                 </label>
               ))}
@@ -63,7 +64,7 @@ export default function EditorTurnos({ name, inicial, ayudaHeredar, tiposDisponi
               <legend className="label">Para qué tipos de reserva</legend>
               <div className="flex flex-wrap gap-1.5">
                 {tiposDisponibles.map((x) => (
-                  <label key={x.value} className="inline-flex h-8 cursor-pointer items-center rounded-full border border-rs-control px-3 text-xs font-medium text-rs-muted transition hover:border-rs-lime/40 has-[:checked]:border-rs-lime/70 has-[:checked]:bg-rs-lime/15 has-[:checked]:font-semibold has-[:checked]:text-rs-lime">
+                  <label key={x.value} className={CHIP_DIA_CHICO}>
                     <input type="checkbox" checked={t.tipos.includes(x.value)} onChange={(e) => cambiar(i, { tipos: e.target.checked ? [...t.tipos, x.value] : t.tipos.filter((v) => v !== x.value) })} className="sr-only" aria-label={`${x.label} (${t.nombre || 'turno'})`} />{x.label}
                   </label>
                 ))}

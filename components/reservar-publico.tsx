@@ -1,5 +1,7 @@
 'use client'
 
+import type { CfgSitio } from '@/lib/cfg-sitio'
+import { sinTildes } from '@/lib/validar'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, Clock, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { CajaMesa, Derecho } from '@/components/mesa-sillas'
@@ -13,21 +15,21 @@ import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
 import { HorariosAgrupados } from '@/components/horarios-agrupados'
 import { limpiarCampana, resumenPromoElegida, textoPrecioPromo, totalPromo } from '@/lib/promos'
 import type { TurnoPublico } from '@/lib/turnos-web'
-import { modalidadDe, type ShowWeb } from '@/lib/shows'
+import { TarjetaShow } from '@/components/tarjeta-show'
+import type { ShowWeb } from '@/lib/shows'
 import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type PromoWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 type Cfg = Props['cfg']
 interface Props {
   slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
-  cfg: { elegir_mesa: boolean; dias_adelante: number; personas_min: number; personas_max: number; mensaje: string | null; modo_prueba: boolean; titulo: string | null; subtitulo: string | null; texto_whatsapp: string | null; max_mesas: number; cualquier_ubicacion: boolean; texto_cualquier_ubicacion: string | null; pedir_cumple: boolean; tolerancia_min: number | null }; hoy: string; whatsapp: string
+  cfg: CfgSitio; hoy: string; whatsapp: string
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
 const rango = (m: Pick<MesaWeb, 'capacidad' | 'capacidad_min'>) => (m.capacidad_min > 1 ? `${m.capacidad_min}–${m.capacidad}` : `${m.capacidad}`)
 const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible', corte: 'Cerrado' }
 
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, shows = [], cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
@@ -246,29 +248,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               </div>
             </div>
           </div>
-          {showsDelDia.map((s) => {
-            const m = modalidadDe(s.modalidad)
-            const boton = 'inline-flex h-9 items-center justify-center rounded-rs px-3.5 text-sm font-semibold transition'
-            return (
-              <div key={s.id} data-show-dia={s.titulo} className="overflow-hidden rounded-md border border-rs-lime/30 bg-rs-raised/40">
-                {s.img && /* eslint-disable-next-line @next/next/no-img-element */ <img src={s.img} alt={s.titulo} loading="lazy" className="aspect-video w-full object-cover" />}
-                <div className="space-y-2 p-3">
-                  <span className="badge bg-rs-lime/15 text-rs-lime">Ese día hay show</span>
-                  <h3 className="text-base font-bold">{s.titulo}</h3>
-                  <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-rs-muted">
-                    {s.hora && <span className="inline-flex items-center gap-1"><Clock size={13} />{s.hora.slice(0, 5)} hs</span>}
-                    <span className="inline-flex items-center gap-1"><MapPin size={13} />{s.ubicacion ?? 'Todo el local'}</span>
-                  </p>
-                  {s.descripcion && <p className="whitespace-pre-line text-sm">{s.descripcion}</p>}
-                  {s.enlace && (
-                    <a href={s.enlace} target="_blank" rel="noopener noreferrer" className={s.modalidad === 'reserva' ? `${boton} border border-rs-control hover:border-rs-lime/50 hover:text-rs-lime` : `${boton} bg-rs-lime text-rs-on-lime`}>
-                      {s.modalidad === 'reserva' ? 'Comprar entradas' : m.boton}
-                    </a>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+          {showsDelDia.map((s) => <TarjetaShow key={s.id} show={s} aviso="Ese día hay show" />)}
           {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(puedeElegir ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
           {tipos.length === 0 && <p role="status" className="rounded-md bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Ese día no hay reservas disponibles por acá. Probá con otro día.</p>}
           {tipos.length > 1 && <div><span className="label">Tipo de reserva</span><div className="flex flex-wrap gap-2">{tipos.map((t) => <button key={t.value} type="button" onClick={() => setTipo(t.value)} aria-pressed={tipo === t.value} className={chip(tipo === t.value)}>{t.label}</button>)}</div></div>}

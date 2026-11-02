@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { falloAlcance } from '@/lib/config-tecnica'
 import { getContexto } from '@/lib/context'
@@ -8,7 +9,6 @@ import type { ReglaConfirmacion, ResultadoConfirmacion } from '@/lib/confirmacio
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 const RES = ['confirmada', 'nueva']
 

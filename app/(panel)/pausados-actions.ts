@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -8,7 +9,6 @@ import { MAX_PAUSA_MIN, UNIDADES_PAUSA } from '@/lib/pausas'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f-]{36}$/i
 
 /** Mismo permiso que el botón de apagar el bot: el negocio tiene la función y el rol alcanza (encargado o superior). */
 async function permiso() {

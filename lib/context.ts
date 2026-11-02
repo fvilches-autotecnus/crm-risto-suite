@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TZ_AR } from '@/lib/fechas'
-import { aplicarSede, resolverModulos, unionModulos, type ModulosActivos } from '@/lib/modulos'
+import { aplicarSede, resolverModulos, unionModulos, type ModuloClave, type ModulosActivos } from '@/lib/modulos'
 import { CONFIG_SEDE_VACIA, type ConfigSede } from '@/lib/config-sedes'
 
 export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura'
@@ -17,7 +17,8 @@ export interface Negocio {
   zona_horaria: string
   aforo_maximo_reservas: number | null
   bot_activo: boolean
-  modulos: { mesas?: boolean; fidelizacion?: boolean; shows?: boolean; carta?: boolean; clientes?: boolean; consultas?: boolean; pedidos?: boolean; reservas?: boolean; crm?: boolean; apagado_bot?: boolean; metricas?: boolean; cumpleanos?: boolean; vouchers?: boolean; resenas?: boolean; conversaciones?: boolean; derivadas?: boolean; campanas?: boolean; promos?: boolean }
+  /** Lo que el negocio tiene guardado: un módulo por clave del catálogo (lib/modulos.ts) más dos banderas que no son módulos. */
+  modulos: Partial<Record<ModuloClave | 'crm' | 'apagado_bot', boolean>>
 }
 
 export interface Sede {

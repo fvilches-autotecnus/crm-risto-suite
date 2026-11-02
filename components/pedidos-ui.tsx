@@ -1,4 +1,5 @@
 'use client'
+import { CHIP_CHECK } from '@/lib/chips'
 import { NombreApellidoInput } from '@/components/inputs'
 import { diaMesDe } from '@/lib/fechas'
 
@@ -170,7 +171,7 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       <input type="hidden" name="items" value={JSON.stringify(items)} />
-      <div className="col-span-2"><span className="label">Tipo</span><div className="flex flex-wrap gap-2">{entregas.map((t) => <label key={t.clave} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="radio" name="tipo" value={t.clave} checked={tipo === t.clave} onChange={() => setTipo(t.clave)} className="sr-only" />{t.etiqueta}</label>)}</div></div>
+      <div className="col-span-2"><span className="label">Tipo</span><div className="flex flex-wrap gap-2">{entregas.map((t) => <label key={t.clave} className={CHIP_CHECK}><input type="radio" name="tipo" value={t.clave} checked={tipo === t.clave} onChange={() => setTipo(t.clave)} className="sr-only" />{t.etiqueta}</label>)}</div></div>
       <div className="col-span-2"><NombreApellidoInput id="pm_nombre" name="nombre" nombreRequerido={base !== 'mesa'} /></div>
       <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pm_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pm_tel" name="telefono" inputMode="tel" placeholder="Ej. 341 6582156" className="input w-full" required={base !== 'mesa'} /></div>
       {base === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pm_dir">Dirección *</label><input id="pm_dir" name="direccion" maxLength={200} className="input w-full" required /></div>}

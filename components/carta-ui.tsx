@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { ArrowDown, ArrowUp, BookOpen, Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, QrCode, Settings, Star, Trash2, Upload, X, ExternalLink, Download } from 'lucide-react'
+import { CHIP_CHECK_CHICO } from '@/lib/chips'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { ArrowDown, ArrowUp, BookOpen, Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, QrCode, Settings, Star, Trash2, X, ExternalLink, Download } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
   alternarCategoria, alternarProducto, descartarImagen, eliminarCategoria, eliminarProducto, guardarAjustesCarta, guardarCategoria, guardarProducto,
@@ -11,7 +12,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
-import { achicarImagen } from '@/lib/achicar-imagen'
+import { CampoImagen, useCampoImagen } from '@/components/campo-imagen'
 import { ETIQUETAS, MAX_VARIANTES, etiquetaDe, formatearPrecio, textoPrecio, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta, type Variante } from '@/lib/carta'
 
 type Dialogo =
@@ -216,36 +217,17 @@ function FormCategoria({ cat, onDone }: { cat?: CategoriaCarta; onDone: () => vo
 function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: { prod?: ProductoCarta; categorias: CategoriaCarta[]; categoriaInicial?: string; moneda: string; onClose: () => void }) {
   const toast = useToast()
   const { state, pending, formProps } = useAccionFormulario(guardarProducto)
-  const [imagen, setImagen] = useState<string | null>(prod?.imagen_path ?? null)
-  const [subidas, setSubidas] = useState<string[]>([])   // fotos subidas en este diálogo (si no se guarda, se descartan)
-  const [subiendo, setSubiendo] = useState(false)
+  const campo = useCampoImagen({ inicial: prod?.imagen_path, subir: subirImagen, descartar: descartarImagen, palabra: 'foto' })
   const [variantes, setVariantes] = useState<{ nombre: string; precio: string }[]>((prod?.variantes ?? []).map((v: Variante) => ({ nombre: v.nombre, precio: String(v.precio) })))
-  const archivo = useRef<HTMLInputElement>(null)
-  const guardado = useRef(false)
 
-  const cerrar = () => { if (!guardado.current) for (const p of subidas) if (p !== prod?.imagen_path) void descartarImagen(p); onClose() }
-  useEffect(() => { if (state?.ok) { guardado.current = true; toast({ texto: prod ? 'Producto guardado' : 'Producto creado' }); onClose() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cerrar = () => { campo.descartarPendientes(); onClose() }
+  useEffect(() => { if (state?.ok) { campo.guardado.current = true; toast({ texto: prod ? 'Producto guardado' : 'Producto creado' }); onClose() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const elegirFoto = async (f: File | undefined) => {
-    if (!f) return
-    setSubiendo(true)
-    try {
-      const chica = await achicarImagen(f)
-      const fd = new FormData(); fd.set('archivo', chica)
-      const r = await subirImagen(fd)
-      if (!r.ok) { toast({ tipo: 'error', texto: r.error }); return }
-      if (imagen && subidas.includes(imagen)) void descartarImagen(imagen)   // la foto anterior de este mismo diálogo ya no sirve
-      setSubidas((s) => [...s, r.path]); setImagen(r.path)
-    } catch { toast({ tipo: 'error', texto: 'No se pudo procesar la foto. Probá con otra (JPG, PNG o WEBP).' }) }
-    finally { setSubiendo(false); if (archivo.current) archivo.current.value = '' }
-  }
-  const img = urlImagen(imagen)
 
   return (
     <Modal titulo={prod ? 'Editar producto' : 'Nuevo producto'} onClose={cerrar} ancho="max-w-2xl">
       <form {...formProps} className="grid grid-cols-2 gap-3">
         {prod && <input type="hidden" name="id" value={prod.id} />}
-        <input type="hidden" name="imagen_path" value={imagen ?? ''} />
         <input type="hidden" name="variantes" value={JSON.stringify(variantes)} />
         <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="p_nombre">Nombre *</label><input id="p_nombre" name="nombre" defaultValue={prod?.nombre ?? ''} maxLength={100} className="input w-full" required /></div>
         <div className="col-span-2 sm:col-span-1">
@@ -259,15 +241,7 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
           <p className="mt-1 text-xs text-rs-muted">Dejalo vacío si el producto tiene opciones o si no querés mostrar precio.</p>
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <span className="label">Foto</span>
-          <div className="flex items-center gap-3">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-rs-raised">{img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="Vista previa" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-rs-muted"><ImageIcon size={20} /></div>}</div>
-            <div className="flex flex-wrap gap-2">
-              <input ref={archivo} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Elegir foto" onChange={(e) => void elegirFoto(e.target.files?.[0])} />
-              <button type="button" disabled={subiendo} onClick={() => archivo.current?.click()} className="btn btn-sm">{subiendo ? <Spinner /> : <Upload size={13} />}{subiendo ? 'Subiendo…' : img ? 'Cambiar' : 'Subir foto'}</button>
-              {img && <button type="button" onClick={() => setImagen(null)} className="btn btn-sm btn-danger"><X size={13} />Quitar</button>}
-            </div>
-          </div>
+          <CampoImagen campo={campo} etiqueta="Foto" />
         </div>
 
         <div className="col-span-2">
@@ -285,7 +259,7 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
         <div className="col-span-2">
           <span className="label">Etiquetas</span>
           <div className="flex flex-wrap gap-2">{ETIQUETAS.map((e) => (
-            <label key={e.clave} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-2.5 py-1 text-xs has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="checkbox" name="etiquetas" value={e.clave} defaultChecked={prod?.etiquetas.includes(e.clave)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{e.label}</label>
+            <label key={e.clave} className={CHIP_CHECK_CHICO}><input type="checkbox" name="etiquetas" value={e.clave} defaultChecked={prod?.etiquetas.includes(e.clave)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{e.label}</label>
           ))}</div>
         </div>
         <div className="col-span-2 flex flex-wrap gap-x-5 gap-y-2 text-sm">
@@ -294,7 +268,7 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
           <label className="flex items-center gap-2"><input type="checkbox" name="destacado" defaultChecked={prod?.destacado ?? false} className="h-4 w-4 accent-[#c8e62b]" />Destacado</label>
         </div>
         {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
-        <div className="col-span-2"><Acciones pending={pending || subiendo} texto={prod ? 'Guardar' : 'Crear producto'} onCancel={cerrar} /></div>
+        <div className="col-span-2"><Acciones pending={pending || campo.subiendo} texto={prod ? 'Guardar' : 'Crear producto'} onCancel={cerrar} /></div>
       </form>
     </Modal>
   )

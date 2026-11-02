@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { ESTADOS_PEDIDO, mensajeError } from '@/lib/pedidos'
@@ -9,7 +10,6 @@ import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const UUID = /^[0-9a-f-]{36}$/i
 const refrescar = (slug: string) => { revalidatePath('/pedidos'); revalidatePath(`/carta/${slug}`) }
 
 async function permiso(ajustes = false) {

@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID, entero } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
@@ -14,9 +15,7 @@ import { leerTurnos, type TurnoWeb } from '@/lib/turnos-web'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
 // Estos ajustes se guardan solos mientras se editan: no se redibuja toda la pantalla de Configuración, solo se renueva el sitio público
 // Se renueva el sitio público DESPUÉS de responder (after): estas pantallas se guardan solas mientras se escribe, y si la invalidación va dentro de la
 // respuesta el navegador recarga toda la pantalla y puede abortar el guardado siguiente (quedaba en "Guardando…").

@@ -1,12 +1,12 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { leerMarca } from '@/lib/marca'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 
 /** Crea o cambia un sitio de reservas que agrupa las sedes elegidas (/reservar/<dirección>). */

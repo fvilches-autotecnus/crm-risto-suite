@@ -1,5 +1,7 @@
 'use client'
 
+import { CHIP_CHECK } from '@/lib/chips'
+import { sinTildes } from '@/lib/validar'
 import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { guardarReservasWebSede } from '@/app/(panel)/config-sedes-actions'
@@ -13,7 +15,6 @@ import type { ConfigReservasWeb, SedeCfg } from '@/components/reservas-web-confi
 import { DIAS_SEMANA } from '@/lib/dias'
 import { PLANTILLA_WA_DEFECTO, VARIABLES_WA } from '@/lib/reservas-config'
 
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 /** Sitio de reservas de UNA sede: lo suyo de siempre (activa, horarios, mesa, mensaje) y los grupos de ajustes que puede personalizar o heredar del negocio.
  *  `config` es la configuración efectiva (la del negocio con lo propio de la sede encima); `pisados` dice qué grupos tiene personalizados. */
@@ -84,7 +85,7 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
       </GrupoSede>
 
       <GrupoSede id="tipos" titulo="Tipos de reserva que se ofrecen" {...g('tipos')}>
-        <div className="flex flex-wrap gap-2">{tiposDisponibles.map((t) => <label key={t.value} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-rs-control px-3 py-1 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10"><input type="checkbox" name="tipos" value={t.value} defaultChecked={config.tipos.includes(t.value)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{t.label}</label>)}</div>
+        <div className="flex flex-wrap gap-2">{tiposDisponibles.map((t) => <label key={t.value} className={CHIP_CHECK}><input type="checkbox" name="tipos" value={t.value} defaultChecked={config.tipos.includes(t.value)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{t.label}</label>)}</div>
         <p className="text-xs text-rs-muted">En qué días se ofrece cada tipo en esta sede se cambia en “Tipos de reserva” de esta misma pantalla.</p>
       </GrupoSede>
 

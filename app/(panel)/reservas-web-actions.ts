@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID, entero } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
@@ -10,9 +11,7 @@ import { leerTurnos, type TurnoWeb } from '@/lib/turnos-web'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
 
 /** Configura el sitio público de reservas del negocio (solo dueños y administradores). */
 export async function guardarReservasWeb(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {

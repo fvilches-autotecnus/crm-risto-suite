@@ -1,12 +1,12 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const UUID = /^[0-9a-f-]{36}$/i
 const refrescar = () => { revalidatePath('/fidelizacion'); revalidatePath('/reservas'); revalidatePath('/clientes', 'layout') }
 
 async function permiso(admin: boolean) {

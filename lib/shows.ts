@@ -4,6 +4,8 @@
  *  · derivada → las reservas las toma otra producción (enlace a su WhatsApp o su sitio)
  *  · entradas → solo entradas, a la venta en un sitio externo
  */
+import { sinTildes } from '@/lib/validar'
+
 export type ModalidadShow = 'reserva' | 'derivada' | 'entradas'
 
 export const MODALIDADES: { clave: ModalidadShow; label: string; ayuda: string; boton: string }[] = [
@@ -31,8 +33,6 @@ export function normalizarEnlace(texto: string): string | null | undefined {
   if (!url) return undefined
   try { const u = new URL(url); return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : undefined } catch { return undefined }
 }
-
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 /** Código de campaña de las reservas que vienen de un show: "show-tributo-a-queen-1114" (título + día y mes). Se ve en Campañas. */
 export const codigoCampanaShow = (titulo: string, fecha: string) =>

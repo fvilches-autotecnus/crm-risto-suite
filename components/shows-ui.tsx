@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { Clapperboard, Copy, ExternalLink, Eye, EyeOff, ImageIcon, Link2, MapPin, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { Clapperboard, Copy, ExternalLink, Eye, EyeOff, ImageIcon, Link2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { alternarShow, descartarImagenShow, eliminarShow, guardarShow, subirImagenShow } from '@/app/(panel)/shows-actions'
 import { useConfirm, useToast } from '@/components/feedback'
 import { FechaInput, HoraInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
-import { achicarImagen } from '@/lib/achicar-imagen'
+import { CampoImagen, useCampoImagen } from '@/components/campo-imagen'
 import { urlImagen } from '@/lib/carta'
 import { fechaLarga, horaCorta } from '@/lib/fechas'
 import { MODALIDADES, enlaceReservaShow, modalidadDe, type ModalidadShow, type Show } from '@/lib/shows'
@@ -99,37 +99,18 @@ export default function ShowsAdmin({ shows, ubicaciones, slug, negocio, hoy, pue
 function ModalShow({ show, ubicaciones, onClose }: { show?: Show; ubicaciones: { id: string; nombre: string }[]; onClose: () => void }) {
   const toast = useToast()
   const { state, pending, formProps } = useAccionFormulario(guardarShow)
-  const [imagen, setImagen] = useState<string | null>(show?.imagen_path ?? null)
-  const [subidas, setSubidas] = useState<string[]>([])   // imágenes subidas en este diálogo (si no se guarda, se descartan)
-  const [subiendo, setSubiendo] = useState(false)
+  const campo = useCampoImagen({ inicial: show?.imagen_path, subir: subirImagenShow, descartar: descartarImagenShow, palabra: 'imagen', lado: 1400 })
   const [modalidad, setModalidad] = useState<ModalidadShow>(show?.modalidad ?? 'reserva')
-  const archivo = useRef<HTMLInputElement>(null)
-  const guardado = useRef(false)
 
-  const cerrar = () => { if (!guardado.current) for (const p of subidas) if (p !== show?.imagen_path) void descartarImagenShow(p); onClose() }
-  useEffect(() => { if (state?.ok) { guardado.current = true; toast({ texto: show ? 'Show guardado' : 'Show creado' }); onClose() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cerrar = () => { campo.descartarPendientes(); onClose() }
+  useEffect(() => { if (state?.ok) { campo.guardado.current = true; toast({ texto: show ? 'Show guardado' : 'Show creado' }); onClose() } }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const elegirImagen = async (f: File | undefined) => {
-    if (!f) return
-    setSubiendo(true)
-    try {
-      const chica = await achicarImagen(f, 1400)
-      const fd = new FormData(); fd.set('archivo', chica)
-      const r = await subirImagenShow(fd)
-      if (!r.ok) { toast({ tipo: 'error', texto: r.error }); return }
-      if (imagen && subidas.includes(imagen)) void descartarImagenShow(imagen)   // la imagen anterior de este mismo diálogo ya no sirve
-      setSubidas((s) => [...s, r.path]); setImagen(r.path)
-    } catch { toast({ tipo: 'error', texto: 'No se pudo procesar la imagen. Probá con otra (JPG, PNG o WEBP).' }) }
-    finally { setSubiendo(false); if (archivo.current) archivo.current.value = '' }
-  }
-  const img = urlImagen(imagen)
   const m = modalidadDe(modalidad)
 
   return (
     <Modal titulo={show ? 'Editar show' : 'Nuevo show'} onClose={cerrar} ancho="max-w-2xl">
       <form {...formProps} className="grid grid-cols-2 gap-3">
         {show && <input type="hidden" name="id" value={show.id} />}
-        <input type="hidden" name="imagen_path" value={imagen ?? ''} />
         <div className="col-span-2"><label className="label" htmlFor="s_titulo">Nombre del show *</label><input id="s_titulo" name="titulo" defaultValue={show?.titulo ?? ''} maxLength={100} className="input w-full" required /></div>
         <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="s_fecha">Fecha *</label><FechaInput id="s_fecha" name="fecha" defaultValue={show?.fecha ?? ''} required /></div>
         <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="s_hora">Hora (opcional)</label><HoraInput id="s_hora" name="hora" defaultValue={show?.hora?.slice(0, 5) ?? ''} /></div>
@@ -143,16 +124,7 @@ function ModalShow({ show, ubicaciones, onClose }: { show?: Show; ubicaciones: {
         <div className="col-span-2"><label className="label" htmlFor="s_desc">Descripción</label><textarea id="s_desc" name="descripcion" defaultValue={show?.descripcion ?? ''} maxLength={1000} rows={4} placeholder="Artista, repertorio, qué incluye, valor de las entradas…" className="input w-full" /></div>
 
         <div className="col-span-2">
-          <span className="label">Imagen</span>
-          <div className="flex items-center gap-3">
-            <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md bg-rs-raised">{img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="Vista previa" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-rs-muted"><ImageIcon size={22} /></div>}</div>
-            <div className="flex flex-wrap gap-2">
-              <input ref={archivo} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Elegir imagen" onChange={(e) => void elegirImagen(e.target.files?.[0])} />
-              <button type="button" disabled={subiendo} onClick={() => archivo.current?.click()} className="btn btn-sm">{subiendo ? <Spinner /> : <Upload size={13} />}{subiendo ? 'Subiendo…' : img ? 'Cambiar' : 'Subir imagen'}</button>
-              {img && <button type="button" onClick={() => setImagen(null)} className="btn btn-sm btn-danger"><X size={13} />Quitar</button>}
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-rs-muted">Opcional. Se ve apaisada (16:9): un afiche vertical se recorta.</p>
+          <CampoImagen campo={campo} etiqueta="Imagen" vista="apaisada" ayuda="Opcional. Se ve apaisada (16:9): un afiche vertical se recorta." />
         </div>
 
         <div className="col-span-2">
@@ -175,7 +147,7 @@ function ModalShow({ show, ubicaciones, onClose }: { show?: Show; ubicaciones: {
         {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
         <div className="col-span-2 mt-2 flex justify-end gap-2">
           <button type="button" onClick={cerrar} className="btn">Cancelar</button>
-          <button disabled={pending || subiendo} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : show ? 'Guardar' : 'Crear show'}</button>
+          <button disabled={pending || campo.subiendo} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : show ? 'Guardar' : 'Crear show'}</button>
         </div>
       </form>
     </Modal>

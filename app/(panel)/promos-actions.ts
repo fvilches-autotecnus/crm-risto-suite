@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
@@ -8,7 +9,6 @@ import type { ModoPrecio } from '@/lib/promos'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface PromoEntrada { id: string; nombre: string; descripcion: string; precio: string; modo_precio: ModoPrecio; activa: boolean }
 export interface PromosTipoEntrada { clave: string; descripcion: string; promos: PromoEntrada[] }

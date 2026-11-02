@@ -1,5 +1,6 @@
 'use server'
 
+import { UUID, entero } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { guardarConfigSede } from '@/lib/config-sedes-servidor'
@@ -8,8 +9,6 @@ import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const UUID = /^[0-9a-f-]{36}$/i
-const entero = (v: string, min: number, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null }
 const refrescar = () => { revalidatePath('/mesas'); revalidatePath('/reservas'); revalidatePath('/') }
 
 async function permiso(estructura: boolean) {

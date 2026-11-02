@@ -1,5 +1,6 @@
 'use client'
 
+import { CHIP_DIA } from '@/lib/chips'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useConfirm, useResultado, useToast } from '@/components/feedback'
@@ -79,7 +80,7 @@ function ReglaForm({ regla, sedes, ubicaciones, puedeTodas, onDone }: { regla?: 
         <legend className="label">Días de la semana</legend>
         <div className="flex flex-wrap gap-2">
           {DIAS_SEMANA.map((d) => (
-            <label key={d.n} className="inline-flex h-9 cursor-pointer items-center rounded-full border border-rs-control px-3.5 text-sm font-medium text-rs-muted transition hover:border-rs-lime/40 has-[:checked]:border-rs-lime/70 has-[:checked]:bg-rs-lime/15 has-[:checked]:font-semibold has-[:checked]:text-rs-lime">
+            <label key={d.n} className={CHIP_DIA}>
               <input type="checkbox" name="dias" value={d.n} defaultChecked={!!regla?.dias_semana?.map(Number).includes(d.n)} className="sr-only" aria-label={d.l} />{d.c}
             </label>
           ))}

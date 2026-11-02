@@ -1,5 +1,6 @@
 'use client'
 
+import { sinTildes } from '@/lib/validar'
 import { useEffect, useState } from 'react'
 import { Copy, ExternalLink, Link2 } from 'lucide-react'
 import { useToast } from '@/components/feedback'
@@ -7,7 +8,6 @@ import { limpiarCampana } from '@/lib/promos'
 
 export interface ResultadoEnlace { codigo: string; reservas: number; personas: number; pedidos: number; ventas: number }
 
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const dinero = (n: number) => '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 })
 
 /**

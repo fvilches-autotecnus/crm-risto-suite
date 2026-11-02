@@ -1,12 +1,12 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { falloAlcance, sedeEnAlcance } from '@/lib/config-tecnica'
 import { getContexto } from '@/lib/context'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const refrescar = (slug: string) => { revalidatePath('/configuracion'); revalidatePath('/'); revalidatePath('/reservas'); revalidatePath(`/reservar/${slug}`) }
 // los días de apertura se guardan solos al marcar cada día: solo se renueva el sitio público
 const refrescarSitio = (slug: string) => { revalidatePath(`/reservar/${slug}`) }

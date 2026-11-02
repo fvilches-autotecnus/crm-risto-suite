@@ -1,17 +1,15 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { CLAVES_ETIQUETAS, MAX_VARIANTES, type Variante } from '@/lib/carta'
-import { createAdminClient } from '@/lib/supabase/server'
+import { borrarImagenBucket, imagenDelNegocio, subirImagenBucket, type ResultadoSubida } from '@/lib/imagenes-bucket'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const UUID = /^[0-9a-f-]{36}$/i
-const IMAGEN_RE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/i
 const MAX_PRECIO = 99_999_999
-const MAX_IMAGEN = 3 * 1024 * 1024
 
 async function permiso(opciones: { ajustes?: boolean } = {}) {
   const ctx = await getContexto()
@@ -29,11 +27,6 @@ function leerPrecio(t: string): number | null {
   const miles = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)
   const n = Number(miles || s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
   return Number.isFinite(n) && n >= 0 && n <= MAX_PRECIO ? Math.round(n * 100) / 100 : NaN
-}
-
-async function borrarImagen(path: string | null | undefined) {
-  if (!path || !IMAGEN_RE.test(path)) return
-  try { await createAdminClient().storage.from('carta').remove([path]) } catch { /* si no se pudo borrar queda huérfana, no afecta a la carta */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +118,7 @@ export async function guardarProducto(_prev: ActionResult | null, fd: FormData):
 
   const etiquetas = [...new Set(fd.getAll('etiquetas').map(String))].filter((e) => CLAVES_ETIQUETAS.includes(e))
   const imagen = text(fd, 'imagen_path') || null
-  if (imagen && (!IMAGEN_RE.test(imagen) || !imagen.startsWith(ctx.negocio.id + '/'))) return fail('La foto no es válida: volvé a subirla')
+  if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id)) return fail('La foto no es válida: volvé a subirla')
   const datos = {
     categoria_id: categoria, nombre, descripcion: descripcion || null, precio, variantes, etiquetas, imagen_path: imagen,
     disponible: fd.get('disponible') === 'on', visible: fd.get('visible') === 'on', destacado: fd.get('destacado') === 'on',
@@ -137,7 +130,7 @@ export async function guardarProducto(_prev: ActionResult | null, fd: FormData):
     if (!previo) return fail('Producto no encontrado')
     const { error: e } = await ctx.supabase.from('carta_productos').update(datos).eq('id', id).eq('negocio_id', ctx.negocio.id)
     if (e) return fail('No se pudo guardar el producto')
-    if (previo.imagen_path && previo.imagen_path !== imagen) await borrarImagen(previo.imagen_path)
+    if (previo.imagen_path && previo.imagen_path !== imagen) await borrarImagenBucket(previo.imagen_path)
   } else {
     const { data: ult } = await ctx.supabase.from('carta_productos').select('orden').eq('categoria_id', categoria).eq('negocio_id', ctx.negocio.id).order('orden', { ascending: false }).limit(1)
     const { error: e } = await ctx.supabase.from('carta_productos').insert({ ...datos, negocio_id: ctx.negocio.id, orden: (ult?.[0]?.orden ?? -1) + 1 })
@@ -153,7 +146,7 @@ export async function eliminarProducto(id: string): Promise<ActionResult> {
   const { data: p } = await ctx.supabase.from('carta_productos').select('imagen_path').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   const { error: e } = await ctx.supabase.from('carta_productos').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (e) return fail('No se pudo borrar el producto (para borrar hace falta ser dueño o administrador)')
-  await borrarImagen(p?.imagen_path)
+  await borrarImagenBucket(p?.imagen_path)
   refrescar(ctx.negocio.slug)
   return { ok: true }
 }
@@ -188,28 +181,18 @@ export async function alternarProducto(id: string, campo: 'disponible' | 'visibl
 // ---------------------------------------------------------------------------
 // Fotos
 // ---------------------------------------------------------------------------
-export type ResultadoSubida = { ok: true; path: string } | { ok: false; error: string }
-
 /** Sube una foto al bucket público "carta" (el navegador ya la achicó). Devuelve la ruta para guardarla en el producto. */
 export async function subirImagen(fd: FormData): Promise<ResultadoSubida> {
   const { ctx, error } = await permiso(); if (error) return { ok: false, error }
-  const archivo = fd.get('archivo')
-  if (!(archivo instanceof File) || archivo.size === 0) return { ok: false, error: 'No se recibió la foto' }
-  if (archivo.size > MAX_IMAGEN) return { ok: false, error: 'La foto pesa más de 3 MB' }
-  const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as Record<string, string>)[archivo.type]
-  if (!ext) return { ok: false, error: 'Usá una foto JPG, PNG o WEBP' }
-  const path = `${ctx.negocio.id}/${crypto.randomUUID()}.${ext}`
-  const { error: e } = await createAdminClient().storage.from('carta').upload(path, Buffer.from(await archivo.arrayBuffer()), { contentType: archivo.type, cacheControl: '31536000', upsert: false })
-  if (e) return { ok: false, error: 'No se pudo subir la foto. Probá de nuevo.' }
-  return { ok: true, path }
+  return subirImagenBucket(ctx.negocio.id, fd.get('archivo'), 'foto')
 }
 
 /** Borra una foto que se subió pero no se llegó a guardar en ningún producto (se cerró el diálogo). */
 export async function descartarImagen(path: string): Promise<ActionResult> {
   const { ctx, error } = await permiso(); if (error) return fail(error)
-  if (!IMAGEN_RE.test(path) || !path.startsWith(ctx.negocio.id + '/')) return fail('Foto no válida')
+  if (!imagenDelNegocio(path, ctx.negocio.id)) return fail('Foto no válida')
   const { count } = await ctx.supabase.from('carta_productos').select('id', { count: 'exact', head: true }).eq('imagen_path', path).eq('negocio_id', ctx.negocio.id)
-  if (!count) await borrarImagen(path)
+  if (!count) await borrarImagenBucket(path)
   return { ok: true }
 }
 

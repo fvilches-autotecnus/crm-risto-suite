@@ -1,16 +1,14 @@
 'use server'
 
+import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { createAdminClient } from '@/lib/supabase/server'
+import { borrarImagenBucket, imagenDelNegocio, subirImagenBucket, type ResultadoSubida } from '@/lib/imagenes-bucket'
 import { MODALIDADES, normalizarEnlace } from '@/lib/shows'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
-const UUID = /^[0-9a-f-]{36}$/i
-const IMAGEN_RE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/i
-const MAX_IMAGEN = 3 * 1024 * 1024
 
 async function permiso() {
   const ctx = await getContexto()
@@ -19,11 +17,6 @@ async function permiso() {
   return { ctx, error: null as string | null }
 }
 const refrescar = (slug: string) => { revalidatePath('/shows'); revalidatePath(`/shows/${slug}`) }
-
-async function borrarImagen(path: string | null | undefined) {
-  if (!path || !IMAGEN_RE.test(path)) return
-  try { await createAdminClient().storage.from('carta').remove([path]) } catch { /* si no se pudo borrar queda huérfana, no afecta al show */ }
-}
 
 export async function guardarShow(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const { ctx, error } = await permiso(); if (error) return fail(error)
@@ -45,7 +38,7 @@ export async function guardarShow(_prev: ActionResult | null, fd: FormData): Pro
     if (!count) return fail('Esa ubicación no existe')
   }
   const imagen = text(fd, 'imagen_path') || null
-  if (imagen && (!IMAGEN_RE.test(imagen) || !imagen.startsWith(ctx.negocio.id + '/'))) return fail('La imagen no es válida: volvé a subirla')
+  if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id)) return fail('La imagen no es válida: volvé a subirla')
   const fila = { titulo, descripcion: descripcion || null, imagen_path: imagen, fecha, hora: hora || null, ubicacion_id: ubicacion || null, modalidad, enlace, visible: fd.get('visible') === 'on' }
   if (id) {
     if (!UUID.test(id)) return fail('Show no válido')
@@ -53,7 +46,7 @@ export async function guardarShow(_prev: ActionResult | null, fd: FormData): Pro
     if (!previo) return fail('El show ya no existe')
     const { error: e } = await ctx.supabase.from('shows').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     if (e) return fail('No se pudo guardar el show')
-    if (previo.imagen_path && previo.imagen_path !== imagen) await borrarImagen(previo.imagen_path)
+    if (previo.imagen_path && previo.imagen_path !== imagen) await borrarImagenBucket(previo.imagen_path)
   } else {
     const { error: e } = await ctx.supabase.from('shows').insert({ negocio_id: ctx.negocio.id, ...fila })
     if (e) return fail('No se pudo crear el show')
@@ -80,7 +73,7 @@ export async function eliminarShow(id: string): Promise<ActionResult> {
   const { data: s } = await ctx.supabase.from('shows').select('imagen_path').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   const { error: e } = await ctx.supabase.from('shows').delete().eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (e) return fail('No se pudo eliminar el show')
-  await borrarImagen(s?.imagen_path)
+  await borrarImagenBucket(s?.imagen_path)
   refrescar(ctx.negocio.slug)
   return { ok: true }
 }
@@ -88,26 +81,16 @@ export async function eliminarShow(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 // Imagen (mismo bucket público que las fotos de la carta; el navegador ya la achicó)
 // ---------------------------------------------------------------------------
-export type ResultadoSubida = { ok: true; path: string } | { ok: false; error: string }
-
 export async function subirImagenShow(fd: FormData): Promise<ResultadoSubida> {
   const { ctx, error } = await permiso(); if (error) return { ok: false, error }
-  const archivo = fd.get('archivo')
-  if (!(archivo instanceof File) || archivo.size === 0) return { ok: false, error: 'No se recibió la imagen' }
-  if (archivo.size > MAX_IMAGEN) return { ok: false, error: 'La imagen pesa más de 3 MB' }
-  const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as Record<string, string>)[archivo.type]
-  if (!ext) return { ok: false, error: 'Usá una imagen JPG, PNG o WEBP' }
-  const path = `${ctx.negocio.id}/${crypto.randomUUID()}.${ext}`
-  const { error: e } = await createAdminClient().storage.from('carta').upload(path, Buffer.from(await archivo.arrayBuffer()), { contentType: archivo.type, cacheControl: '31536000', upsert: false })
-  if (e) return { ok: false, error: 'No se pudo subir la imagen. Probá de nuevo.' }
-  return { ok: true, path }
+  return subirImagenBucket(ctx.negocio.id, fd.get('archivo'), 'imagen')
 }
 
 /** Borra una imagen que se subió pero no se llegó a guardar en ningún show (se cerró el diálogo). */
 export async function descartarImagenShow(path: string): Promise<ActionResult> {
   const { ctx, error } = await permiso(); if (error) return fail(error)
-  if (!IMAGEN_RE.test(path) || !path.startsWith(ctx.negocio.id + '/')) return fail('Imagen no válida')
+  if (!imagenDelNegocio(path, ctx.negocio.id)) return fail('Imagen no válida')
   const { count } = await ctx.supabase.from('shows').select('id', { count: 'exact', head: true }).eq('imagen_path', path).eq('negocio_id', ctx.negocio.id)
-  if (!count) await borrarImagen(path)
+  if (!count) await borrarImagenBucket(path)
   return { ok: true }
 }
