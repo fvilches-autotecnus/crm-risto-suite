@@ -51,6 +51,10 @@ const TITULOS: Record<EstadoPedido, [string, string]> = {
 const ORIGENES = { web: 'Carta digital', bot: 'Chat de WhatsApp', manual: 'Cargado en el local' }
 const lineaItem = (i: { nombre: string; variante: string | null; cantidad: number }) => `${i.cantidad} x ${i.nombre}${i.variante ? ` (${i.variante})` : ''}`
 
+/** Dónde se entrega, en una sola línea para la tarjeta de BotConversa: la dirección (delivery), "Mesa 5" o el nombre del retiro ("Retiro en el local"). */
+export const direccionPedido = (d: Pick<DatosAvisoPedido, 'tipo' | 'entrega_nombre' | 'direccion' | 'mesa'>) =>
+  d.tipo === 'delivery' ? (d.direccion?.trim() || labelEntrega(d)) : d.tipo === 'mesa' ? (d.mesa ? `Mesa ${d.mesa}` : labelEntrega(d)) : labelEntrega(d)
+
 /** Mensaje para el EQUIPO del local ("qué pasó con este pedido"), listo para reenviar por WhatsApp (usa *negrita* de WhatsApp). */
 export function textoEquipoPedido(d: DatosAvisoPedido): string {
   const [icono, titulo] = TITULOS[d.estado]
@@ -85,11 +89,15 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
       evento: 'pedido_estado',
       id_pedido: d.numero,
       nombre: d.nombre,
+      nombre_titular: d.nombre,                               // mismos nombres que en la respuesta del flujo "Confirmar pedido web", para usar las mismas variables
       telefono,
       estado_pedido: d.estado,
       tipo_entrega: d.tipo,                                   // retiro · delivery · mesa
       tipo_pedido: labelEntrega(d),                           // nombre de la forma de entrega ("Retiro en el local")
+      direccion_pedido: direccionPedido(d),                   // delivery: la dirección · mesa: "Mesa 5" · retiro: "Retiro en el local"
+      monto_total: d.total,
       total: d.total, subtotal: d.subtotal, envio: d.envio, descuento: d.descuento ?? 0, descuento_nombre: d.descuento_nombre ?? '',
+      metodo_pago: d.medio_pago_nombre || d.medio_pago,
       medio_pago: d.medio_pago_nombre || d.medio_pago,
       direccion: d.direccion ?? '', mesa: d.mesa ?? '',
       observaciones: d.observaciones ?? '',
