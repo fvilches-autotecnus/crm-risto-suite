@@ -2,7 +2,9 @@
 
 import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { getContexto } from '@/lib/context'
+import { avisarPedido } from '@/lib/notify-pedidos'
 import { ESTADOS_PEDIDO, mensajeError } from '@/lib/pedidos'
 import { validarHorarios } from '@/lib/pedidos-horarios'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -33,9 +35,12 @@ export async function cambiarEstadoPedido(id: string, estado: string, motivo?: s
   const { ctx, error } = await permiso(); if (error) return fail(error)
   if (!UUID.test(id) || !ESTADOS_PEDIDO.some((e) => e.value === estado)) return fail('Pedido o estado no válido')
   const m = (motivo ?? '').trim().slice(0, 200)
+  const { data: previo } = await ctx.supabase.from('pedidos').select('estado').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   const { data, error: e } = await ctx.supabase.from('pedidos').update({ estado, motivo_cancelacion: estado === 'cancelado' ? m || null : null }).eq('id', id).eq('negocio_id', ctx.negocio.id).select('id').maybeSingle()
   if (e || !data) return fail('No se pudo cambiar el estado del pedido')
   refrescar(ctx.negocio.slug)
+  // webhook de pedidos: avisa el nuevo estado (solo si cambió de verdad) después de responder, sin demorar la pantalla
+  if (previo && previo.estado !== estado) { const negocioId = ctx.negocio.id; after(() => avisarPedido(negocioId, id)) }
   return { ok: true }
 }
 

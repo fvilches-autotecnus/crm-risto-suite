@@ -203,7 +203,8 @@ export const MANUAL: SeccionManual[] = [
       ] },
       { t: 'tip', x: 'Si estás fuera del horario de pedidos, arriba de la lista de Pedidos aparece un aviso que te dice cuándo se vuelve a recibir. El interruptor **Recibiendo pedidos** sigue valiendo siempre: apagado, no se toman pedidos aunque estés en horario.' },
       { t: 'p', x: '**Pedidos a la mesa:** imprimí la hoja de QR (Salón y mesas → QR de mesas). Cada QR abre la carta con el número de mesa ya cargado.' },
-      { t: 'ojo', x: 'Todavía no cobra online ni calcula el envío por zona: el pago se coordina con el cliente. El aviso por WhatsApp al cambiar de estado es un botón manual.' },
+      { t: 'p', x: '**Aviso automático al cliente y al equipo (webhook de pedidos).** Un superadmin lo configura en **Configuración → Funciones y módulos del negocio → Webhook de pedidos**: elige el destino (BotConversa o n8n), pega la URL y tilda los estados que avisan. Desde entonces el CRM avisa **solo, sin preguntar**, cuando entra un pedido de la carta digital (estado Nuevo) y cada vez que un pedido cambia a uno de esos estados. El aviso lleva el texto ya armado para el cliente (`mensaje_cliente`) y otro para el equipo (`notificacion_equipo`). Los pedidos hechos por el chat no se avisan al entrar (los contesta el flujo del bot). El botón **Enviar prueba** manda un aviso de ejemplo a tu teléfono. Si el webhook falla, el cambio de estado igual se guarda.' },
+      { t: 'ojo', x: 'Todavía no cobra online ni calcula el envío por zona: el pago se coordina con el cliente. Sin el webhook de pedidos, el aviso por WhatsApp al cambiar de estado es el botón manual.' },
     ],
   },
 

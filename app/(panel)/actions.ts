@@ -7,6 +7,8 @@ import { revalidatePath } from 'next/cache'
 import { getContexto, NEGOCIO_COOKIE, SEDE_COOKIE } from '@/lib/context'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { avisarCambioDeEstado, enviarPrueba } from '@/lib/notify'
+import { enviarPruebaPedido } from '@/lib/notify-pedidos'
+import { ESTADOS_AVISO_PEDIDO } from '@/lib/pedidos'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
 import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
 
@@ -179,6 +181,42 @@ export async function probarWebhookCliente(_prev: ActionResult | null, fd: FormD
   const sede = sedeId ? ctx.sedesTodas.find((x) => x.id === sedeId) : ctx.sedes[0]
   if (sedeId && !sede) return fail('La sede no es válida')
   const r = await enviarPrueba(ctx.negocio.id, tel, sedeId, sede?.nombre ?? null)
+  return r.ok ? { ok: true } : fail(r.error ?? 'No se pudo enviar la prueba')
+}
+
+// Webhook de pedidos (avisar al cliente y al equipo cuando entra o cambia de estado un pedido): destino, URL, secreto opcional y estados que avisan.
+// Solo superadmin, igual que el de reservas. Es automático: no se pregunta en cada cambio de estado.
+export async function guardarWebhookPedidos(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede cambiar el webhook de pedidos')
+  const destino = text(fd, 'destino')
+  if (destino !== 'n8n' && destino !== 'botconversa') return fail('Elegí el destino del webhook')
+  const url = text(fd, 'url')
+  const errUrl = validarUrlWebhook(url)
+  if (errUrl) return fail(errUrl)
+  const admin = createAdminClient()
+  const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
+  if (e1 || !actual) return fail('No se pudo leer el negocio')
+  const cambios: Record<string, unknown> = {
+    webhook_aviso_pedido_url: url || null,
+    modulos: { ...(actual.modulos as Record<string, unknown>), avisos_pedidos: ESTADOS_AVISO_PEDIDO.filter((e) => fd.get('avisop_' + e) === 'on'), webhook_pedido_destino: destino },
+  }
+  const secreto = text(fd, 'secreto')
+  if (fd.get('quitar_secreto') === 'on') cambios.webhook_pedido_secret = null   // sin secreto
+  else if (secreto) cambios.webhook_pedido_secret = secreto                      // en blanco = se conserva el actual
+  const { error } = await admin.from('negocios').update(cambios).eq('id', ctx.negocio.id)
+  if (error) return fail('No se pudo guardar')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+// Manda un aviso de pedido de ejemplo (prueba: true) al teléfono indicado, con el formato del destino elegido
+export async function probarWebhookPedidos(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return fail('Solo un superadmin puede probar el webhook de pedidos')
+  const tel = text(fd, 'telefono_prueba').replace(/\D/g, '')
+  if (tel.length < 8) return fail('Ingresá un teléfono de prueba (con código de país)')
+  const r = await enviarPruebaPedido(ctx.negocio.id, tel)
   return r.ok ? { ok: true } : fail(r.error ?? 'No se pudo enviar la prueba')
 }
 

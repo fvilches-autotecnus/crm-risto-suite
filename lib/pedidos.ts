@@ -112,6 +112,11 @@ export const ESTADOS_PEDIDO: { value: EstadoPedido; label: string; color: string
 export const labelEstadoPedido = (e: string) => ESTADOS_PEDIDO.find((x) => x.value === e)?.label ?? e
 export const ESTADOS_ACTIVOS: EstadoPedido[] = ['nuevo', 'aceptado', 'preparando', 'listo', 'en_camino']
 
+/** Estados para los que el webhook de pedidos puede avisar (se eligen en Configuración). "Nuevo" avisa cuando entra un pedido de la carta digital. */
+export const ESTADOS_AVISO_PEDIDO: EstadoPedido[] = ['nuevo', 'aceptado', 'preparando', 'listo', 'en_camino', 'entregado', 'cancelado']
+/** Los que avisan si el negocio no eligió otros: lo que al cliente le importa saber (que lo aceptaron, que está listo o en camino, o que se canceló). */
+export const ESTADOS_AVISO_PEDIDO_POR_DEFECTO: EstadoPedido[] = ['aceptado', 'listo', 'en_camino', 'cancelado']
+
 /** Siguiente paso "normal" de un pedido (el botón principal de la tarjeta). */
 export function siguientePaso(p: Pick<Pedido, 'estado' | 'tipo'>): { estado: EstadoPedido; label: string } | null {
   switch (p.estado) {

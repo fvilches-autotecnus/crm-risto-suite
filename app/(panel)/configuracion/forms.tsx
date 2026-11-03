@@ -9,7 +9,7 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
-import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookSede, probarWebhookCliente, quitarWebhookSede, type ActionResult } from '../actions'
+import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookPedidos, guardarWebhookSede, probarWebhookCliente, probarWebhookPedidos, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 import ModulosPicker from '@/components/modulos-picker'
 import type { ModulosActivos } from '@/lib/modulos'
@@ -17,6 +17,7 @@ import { guardarPausaAuto } from '../pausados-actions'
 import { UNIDADES_PAUSA, partirMinutos, type PausaAuto } from '@/lib/pausas'
 import { DIAS_SEMANA, textoDias } from '@/lib/dias'
 import { fechaCorta } from '@/lib/fechas'
+import { ESTADOS_AVISO_PEDIDO, labelEstadoPedido } from '@/lib/pedidos'
 
 function Guardar({ pending, children = 'Guardar' }: { pending: boolean; children?: React.ReactNode }) {
   return <button disabled={pending} className="btn btn-primary">{pending && <Spinner />}{pending ? 'Guardando…' : children}</button>
@@ -268,6 +269,60 @@ export function AvisosForm({ config, sedes }: { config: { destino: string; url: 
   )
 }
 
+const TITULO_ESTADO_PEDIDO: Record<string, string> = {
+  nuevo: 'Nuevo (cuando entra un pedido de la carta digital)', aceptado: 'Aceptado (manda la demora estimada)', preparando: 'Preparando', listo: 'Listo', en_camino: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado (manda el motivo)',
+}
+
+/** Webhook de pedidos: avisa solo, sin preguntar, cuando entra un pedido de la carta digital y cada vez que cambia de estado. */
+export function AvisosPedidosForm({ config }: { config: { destino: string; url: string; tieneSecreto: boolean; estados: string[]; disponible: boolean } }) {
+  const { state, pending, formProps } = useAccionFormulario(guardarWebhookPedidos)
+  useResultado(state, 'Webhook de pedidos guardado')
+  const [destino, setDestino] = useState(config.destino)
+  return (
+    <div className="mt-4 border-t border-rs-border pt-4" data-webhook-pedidos>
+      <h3 className="text-sm font-semibold">Webhook de pedidos</h3>
+      <p className="mt-1 text-xs text-rs-muted">
+        {config.disponible ? 'Listo: se avisa solo, sin preguntar, cuando entra un pedido de la carta digital y cada vez que un pedido cambia a uno de los estados marcados.' : 'Sin configurar: no se avisa nada cuando cambia un pedido.'} Los pedidos hechos por el chat los contesta el flujo del bot, por eso no se avisan al entrar.
+      </p>
+      <form {...formProps} className="mt-3 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+          <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Destino</span>
+            <select name="destino" value={destino} onChange={(e) => setDestino(e.target.value)} className="input w-full">
+              <option value="n8n">n8n</option>
+              <option value="botconversa">BotConversa</option>
+            </select>
+          </label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">URL del webhook de pedidos</span>
+            <input name="url" type="text" inputMode="url" defaultValue={config.url} placeholder="https://…" autoComplete="off" spellCheck={false} className="input w-full" />
+          </label>
+        </div>
+        <label className="block text-sm"><span className="mb-1 block text-xs text-rs-muted">Secreto {destino === 'n8n' ? '(n8n lo valida en el header X-Toque-Secret)' : '(opcional: BotConversa no lo necesita, su URL ya lleva el token)'}</span>
+          <input name="secreto" type="password" autoComplete="new-password" placeholder={config.tieneSecreto ? '•••••••• (cargado; dejalo vacío para conservarlo)' : 'Sin secreto'} className="input w-full sm:max-w-md" />
+        </label>
+        {config.tieneSecreto && (
+          <label className="flex cursor-pointer items-center gap-3 text-sm text-rs-muted">
+            <input type="checkbox" name="quitar_secreto" className="h-4 w-4 accent-[#c8e62b]" /> Quitar el secreto guardado
+          </label>
+        )}
+        <p className="text-xs text-rs-muted">{destino === 'botconversa'
+          ? 'Campos que recibe BotConversa: evento, id_pedido, nombre, telefono (solo dígitos), estado_pedido, tipo_entrega, tipo_pedido, total, subtotal, envio, medio_pago, direccion, mesa, observaciones, motivo_cancelacion, tiempo_estimado, items (un renglón por producto), cantidad_items, origen, mensaje_cliente (texto ya armado para el cliente) y notificacion_equipo (texto para el equipo).'
+          : 'Campos que recibe n8n: evento, telefono (solo dígitos), numero, estado, tipoEntrega (delivery o takeaway, como Toque), total, nombre, tipo, entrega, subtotal, envio, medioPago, direccion, mesa, observaciones, motivoCancelacion, tiempoEstimado, items, origen, mensaje_cliente y notificacion_equipo.'}</p>
+        <div className="space-y-2 pt-1">
+          <p className="text-xs text-rs-muted">Estados que avisan:</p>
+          {ESTADOS_AVISO_PEDIDO.map((e) => (
+            <label key={e} className="flex cursor-pointer items-center gap-3 text-sm">
+              <input type="checkbox" name={'avisop_' + e} defaultChecked={config.estados.includes(e)} className="h-4 w-4 accent-[#c8e62b]" />
+              <span className="font-medium">{TITULO_ESTADO_PEDIDO[e] ?? labelEstadoPedido(e)}</span>
+            </label>
+          ))}
+        </div>
+        <Guardar pending={pending} />
+      </form>
+      {config.disponible && <PruebaWebhook accion={probarWebhookPedidos} ejemplo="aviso de pedido" />}
+    </div>
+  )
+}
+
 function WebhookSedeForm({ sede, estadosNegocio, negocioListo }: { sede: SedeWebhookUI; estadosNegocio: string[]; negocioListo: boolean }) {
   const { state, pending, formProps } = useAccionFormulario(guardarWebhookSede)
   useResultado(state, `Webhook de ${sede.nombre} guardado`)
@@ -332,8 +387,8 @@ function WebhookSedeForm({ sede, estadosNegocio, negocioListo }: { sede: SedeWeb
   )
 }
 
-function PruebaWebhook({ sedeId }: { sedeId?: string }) {
-  const { state, pending, formProps } = useAccionFormulario(probarWebhookCliente)
+function PruebaWebhook({ sedeId, accion = probarWebhookCliente, ejemplo = 'aviso' }: { sedeId?: string; accion?: typeof probarWebhookCliente; ejemplo?: string }) {
+  const { state, pending, formProps } = useAccionFormulario(accion)
   useResultado(state, 'Prueba enviada: el webhook respondió bien')
   const confirmar = useConfirm()
   const yaConfirmado = useRef(false)
@@ -342,7 +397,7 @@ function PruebaWebhook({ sedeId }: { sedeId?: string }) {
       if (yaConfirmado.current) { yaConfirmado.current = false; formProps.onSubmit(e); return }
       e.preventDefault()
       const form = e.currentTarget
-      const ok = await confirmar({ titulo: 'Enviar aviso de prueba', texto: 'Se manda un aviso de ejemplo (con prueba: true) al webhook. Si el flujo del otro lado ya está armado, le va a escribir un WhatsApp al número que indicaste. ¿Enviarlo?', confirmar: 'Enviar prueba' })
+      const ok = await confirmar({ titulo: 'Enviar aviso de prueba', texto: `Se manda un ${ejemplo} de ejemplo (con prueba: true) al webhook. Si el flujo del otro lado ya está armado, le va a escribir un WhatsApp al número que indicaste. ¿Enviarlo?`, confirmar: 'Enviar prueba' })
       if (ok) { yaConfirmado.current = true; form.requestSubmit() }
     }} className="mt-4 rounded-rs-lg border border-rs-border bg-rs-raised/40 p-3">
       {sedeId && <input type="hidden" name="sede_id" value={sedeId} />}

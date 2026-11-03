@@ -1,6 +1,8 @@
 'use server'
 
+import { after } from 'next/server'
 import { mensajeError } from '@/lib/pedidos'
+import { avisarPedido } from '@/lib/notify-pedidos'
 import { limpiarCampana } from '@/lib/promos'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -27,8 +29,10 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
     mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items, campana: limpiarCampana(d.campana),
   } })
   if (error) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }
-  const r = data as { ok: boolean; error?: string; minimo?: number; numero?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; tiempo_estimado?: string | null; datos_pago?: string | null; instrucciones?: string | null; mensaje?: string | null; unidades?: number }
+  const r = data as { ok: boolean; error?: string; minimo?: number; id?: string; numero?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; tiempo_estimado?: string | null; datos_pago?: string | null; instrucciones?: string | null; mensaje?: string | null; unidades?: number }
   if (!r.ok) return { ok: false, error: (r.error === 'pedidos_cerrados' || r.error === 'fuera_de_horario' || r.error === 'dia_cerrado') && r.mensaje ? `${mensajeError(r.error)} ${r.mensaje}` : mensajeError(r.error, r) }
-  const { data: neg } = await admin.from('negocios').select('whatsapp_nro').eq('slug', slug).maybeSingle()
+  const { data: neg } = await admin.from('negocios').select('id, whatsapp_nro').eq('slug', slug).maybeSingle()
+  // webhook de pedidos: avisa que entró un pedido nuevo (si el negocio lo habilitó), después de responderle al cliente
+  if (neg?.id && r.id) { const negocioId = neg.id as string, pedidoId = r.id; after(() => avisarPedido(negocioId, pedidoId)) }
   return { ok: true, numero: r.numero!, total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, tiempo_estimado: r.tiempo_estimado ?? null, datos_pago: r.datos_pago ?? null, instrucciones: r.instrucciones ?? null, mensaje: r.mensaje ?? null, whatsapp: neg?.whatsapp_nro ?? null, unidades: r.unidades ?? 0 }
 }
