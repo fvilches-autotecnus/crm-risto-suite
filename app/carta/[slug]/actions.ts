@@ -27,6 +27,9 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
   if (d?.web) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }   // robot: se rechaza sin pistas
   const items = Array.isArray(d?.items) ? d.items.slice(0, 60).map((i) => ({ producto_id: corto(i.producto_id, 40), variante: i.variante ? corto(i.variante, 40) : null, cantidad: Math.trunc(Number(i.cantidad)) })) : []
   const admin = createAdminClient()
+  // si el negocio confirma por WhatsApp, el pedido no se crea directo: pasa por la solicitud (crearSolicitudPedidoPublico)
+  const { data: cfgConf } = await admin.from('pedidos_config').select('confirmar_whatsapp, negocios!inner(slug)').eq('negocios.slug', slug).maybeSingle()
+  if (cfgConf?.confirmar_whatsapp === true) return { ok: false, error: 'Este negocio confirma los pedidos por WhatsApp. Recargá la página y volvé a hacer el pedido.' }
   const { data, error } = await admin.rpc('crear_pedido', { p: {
     negocio: slug, origen: 'web', tipo: corto(d.tipo, 40), nombre: corto(d.nombre, 80), telefono: corto(d.telefono, 30), direccion: corto(d.direccion, 200),
     mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items, campana: limpiarCampana(d.campana), codigo: corto(d.codigo, 30),
@@ -53,4 +56,27 @@ export async function simularPedidoPublico(slug: string, d: { tipo: string; medi
   const r = data as { ok?: boolean; descuento?: number; descuento_nombre?: string | null; cupon?: string | null; cupon_usado?: boolean } | null
   if (error || !r?.ok) return { ok: false }
   return { ok: true, descuento: Number(r.descuento ?? 0), nombre: r.descuento_nombre ?? null, cupon: r.cupon ?? null, cuponUsado: r.cupon_usado === true }
+}
+
+export type ResultadoSolicitudPedido =
+  | { ok: true; codigo: string; whatsapp: string; validez_horas: number; subtotal: number; descuento: number; descuento_nombre: string | null; envio: number; total: number; tipo: string; entrega_nombre: string | null; medio_pago: string; medio_pago_nombre: string | null; unidades: number }
+  | { ok: false; error: string }
+
+/**
+ * Pedido de un negocio que confirma por WhatsApp: valida todo (precios de la carta, horarios, mínimo, cupón…) y deja una solicitud EN ESPERA con un código.
+ * No existe ningún pedido hasta que el cliente manda el mensaje con ese código por WhatsApp y el bot lo registra.
+ */
+export async function crearSolicitudPedidoPublico(slug: string, d: DatosPedidoPublico): Promise<ResultadoSolicitudPedido> {
+  if (!/^[a-z0-9-]{2,49}$/.test(slug)) return { ok: false, error: 'No encontramos este negocio.' }
+  if (d?.web) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }   // robot: se rechaza sin pistas
+  const items = Array.isArray(d?.items) ? d.items.slice(0, 60).map((i) => ({ producto_id: corto(i.producto_id, 40), variante: i.variante ? corto(i.variante, 40) : null, cantidad: Math.trunc(Number(i.cantidad)) })) : []
+  const cumple = leerCumple({ dia: d.cumple_dia, mes: d.cumple_mes, anio: d.cumple_anio })
+  const { data, error } = await createAdminClient().rpc('crear_solicitud_pedido', { p: {
+    negocio: slug, tipo: corto(d.tipo, 40), nombre: corto(d.nombre, 80), direccion: corto(d.direccion, 200), mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500),
+    items, campana: limpiarCampana(d.campana), codigo: corto(d.codigo, 30), cumple_dia: cumple?.dia ?? null, cumple_mes: cumple?.mes ?? null, cumple_anio: cumple?.anio ?? null,
+  } })
+  if (error) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }
+  const r = data as { ok: boolean; error?: string; minimo?: number; detalle?: string; mensaje?: string | null; codigo?: string; whatsapp?: string; validez_horas?: number; subtotal?: number; descuento?: number; descuento_nombre?: string | null; envio?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; unidades?: number }
+  if (!r.ok) return { ok: false, error: (r.error === 'pedidos_cerrados' || r.error === 'fuera_de_horario' || r.error === 'dia_cerrado') && r.mensaje ? `${mensajeError(r.error)} ${r.mensaje}` : mensajeError(r.error, r) }
+  return { ok: true, codigo: r.codigo!, whatsapp: r.whatsapp!, validez_horas: r.validez_horas ?? 6, subtotal: Number(r.subtotal), descuento: Number(r.descuento ?? 0), descuento_nombre: r.descuento_nombre ?? null, envio: Number(r.envio ?? 0), total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, unidades: r.unidades ?? 0 }
 }

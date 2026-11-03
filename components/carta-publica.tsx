@@ -2,11 +2,12 @@
 
 import { unirNombre } from '@/lib/nombres'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { ArrowUp, Check, Minus, Plus, Search, ShoppingBag, X } from 'lucide-react'
+import { ArrowUp, Check, MessageCircle, Minus, Plus, Search, ShoppingBag, X } from 'lucide-react'
 import type { Marca } from '@/lib/marca'
-import { crearPedidoPublico, simularPedidoPublico, type ResultadoPedidoPublico, type VistaPreviaPedido } from '@/app/carta/[slug]/actions'
+import { crearPedidoPublico, crearSolicitudPedidoPublico, simularPedidoPublico, type ResultadoPedidoPublico, type ResultadoSolicitudPedido, type VistaPreviaPedido } from '@/app/carta/[slug]/actions'
 import { limpiarCampana } from '@/lib/promos'
 import EtiquetaCarta from '@/components/etiqueta-carta'
+import FotoProducto from '@/components/foto-producto'
 import { formatearPrecio, textoPrecio, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import { CONFIG_PEDIDOS_POR_DEFECTO, dinero, labelPago, labelTipo, mensajeCupon, type ConfigPedidos, type EntregaPedido, type MedioPedido } from '@/lib/pedidos'
 import { costoEnvioFinal, estadoPedidos, mediosDisponibles } from '@/lib/pedidos-horarios'
@@ -165,7 +166,7 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
                         </div>
                       )}
                     </div>
-                    {p.img && /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.img} alt={p.nombre} loading="lazy" className="h-24 w-24 shrink-0 self-start rounded-md object-cover sm:h-28 sm:w-28" />}
+                    {p.img && <FotoProducto src={p.img} alt={p.nombre} />}
                   </li>
                 )
               })}
@@ -197,16 +198,16 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
       )}
       {abierto && pedidos && (
         <Pedido slug={slug} nombre={nombre} pedidos={pedidos} cfg={cfgPed!} pub={pedidos.medios} abiertas={abiertas} moneda={config.moneda} lineas={lineas} subtotal={subtotal} exito={exito}
-          onCerrar={() => setAbierto(false)} onCambiar={(l, d) => setCarrito((c) => { const k = clave(l.producto_id, l.variante), n = Math.max(0, Math.min(99, (c[k]?.cantidad ?? 0) + d)); const { [k]: _q, ...resto } = c; void _q; return n === 0 ? resto : { ...resto, [k]: { ...l, cantidad: n } } })}
+          onCerrar={() => setAbierto(false)} onVaciar={() => { setCarrito({}); setAbierto(false) }} onCambiar={(l, d) => setCarrito((c) => { const k = clave(l.producto_id, l.variante), n = Math.max(0, Math.min(99, (c[k]?.cantidad ?? 0) + d)); const { [k]: _q, ...resto } = c; void _q; return n === 0 ? resto : { ...resto, [k]: { ...l, cantidad: n } } })}
           onExito={(r) => { setExito(r); setCarrito({}) }} />
       )}
     </div>
   )
 }
 
-function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, subtotal, exito, onCerrar, onCambiar, onExito }: {
+function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, subtotal, exito, onCerrar, onVaciar, onCambiar, onExito }: {
   slug: string; nombre: string; pedidos: PedidosPublicos; cfg: ConfigPedidos; pub: PedidosPublicos['medios']; abiertas: EntregaPedido[]; moneda: string; lineas: Linea[]; subtotal: number; exito: Extract<ResultadoPedidoPublico, { ok: true }> | null
-  onCerrar: () => void; onCambiar: (l: Linea, d: number) => void; onExito: (r: Extract<ResultadoPedidoPublico, { ok: true }>) => void
+  onCerrar: () => void; onVaciar: () => void; onCambiar: (l: Linea, d: number) => void; onExito: (r: Extract<ResultadoPedidoPublico, { ok: true }>) => void
 }) {
   const sinTipo = abiertas.length === 0
   const mesaUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mesa') ?? '' : ''
@@ -217,6 +218,8 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const [codigo, setCodigo] = useState('')
   const [vista, setVista] = useState<Extract<VistaPreviaPedido, { ok: true }> | null>(null)
   const [textoWA, setTextoWA] = useState('')
+  const [pendiente, setPendiente] = useState<Extract<ResultadoSolicitudPedido, { ok: true }> | null>(null)   // pedido en espera del mensaje de WhatsApp
+  const confirmaWA = pedidos.confirmar_whatsapp
   const arriba = useRef<HTMLDivElement>(null)
   const ent = abiertas.find((e) => e.clave === tipo) ?? abiertas[0]
   const base = ent?.base ?? 'retiro'
@@ -249,6 +252,13 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     if (pedidos.pedir_cumple && !!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }); return }
+    if (confirmaWA) {
+      start(async () => {
+        const r = await crearSolicitudPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
+        if (r.ok) { setTextoWA(armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), solicitud: r, form, lineas, moneda })); setPendiente(r); arriba.current?.scrollTo({ top: 0 }) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+      })
+      return
+    }
     start(async () => {
       const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: pedidos.pedir_telefono ? form.telefono : '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
       if (r.ok) { setTextoWA(pedidos.pedir_telefono ? '' : armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), r, form, lineas, moneda })); onExito(r) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
@@ -259,9 +269,26 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   return (
     <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
       <div role="dialog" aria-modal="true" aria-label="Mi pedido" className="flex max-h-[94dvh] w-full max-w-lg animate-scale-in flex-col rounded-t-rs-lg border border-rs-control bg-rs-card shadow-2xl sm:rounded-rs-lg [&_.input]:text-base sm:[&_.input]:text-sm [&_input.input]:h-11 sm:[&_input.input]:h-9 [&_select.input]:h-11 sm:[&_select.input]:h-9">
-        <div className="flex items-center justify-between border-b border-rs-border px-4 py-3"><h2 className="font-bold">{exito ? '¡Pedido recibido!' : 'Mi pedido'}</h2><button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded-md p-1 text-rs-muted hover:bg-rs-raised hover:text-rs-text"><X size={18} /></button></div>
+        <div className="flex items-center justify-between border-b border-rs-border px-4 py-3"><h2 className="font-bold">{pendiente ? 'Falta un paso' : exito ? '¡Pedido recibido!' : 'Mi pedido'}</h2><button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded-md p-1 text-rs-muted hover:bg-rs-raised hover:text-rs-text"><X size={18} /></button></div>
         <div ref={arriba} className="overflow-y-auto px-4 py-4">
-          {exito ? (
+          {pendiente ? (
+            <div className="space-y-4 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><MessageCircle size={28} /></div>
+              <h3 className="text-xl font-bold">¡Último paso: mandá el mensaje por WhatsApp!</h3>
+              <p className="text-sm text-rs-muted">Tu pedido <b className="text-rs-text">todavía no está hecho</b>: queda en espera hasta que nos escribas. Se abre WhatsApp con tu pedido ya escrito: <b className="text-rs-text">enviálo sin cambiarlo</b> (lleva tu código).</p>
+              <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Tu código">{pendiente.codigo}</p>
+              <div className="card space-y-1 p-4 text-left text-sm">
+                {lineas.map((l) => <p key={clave(l.producto_id, l.variante)}>{l.cantidad} x <b>{l.nombre}</b>{l.variante ? ` (${l.variante})` : ''}</p>)}
+                <p className="border-t border-rs-border/60 pt-1.5 text-rs-muted">{pendiente.entrega_nombre || labelTipo(pendiente.tipo)} · {labelPago(pendiente.medio_pago, pendiente.medio_pago_nombre)}</p>
+                {pendiente.descuento > 0 && <p className="text-rs-ok">Descuento{pendiente.descuento_nombre ? ` “${pendiente.descuento_nombre}”` : ''}: -{dinero(pendiente.descuento, moneda)}</p>}
+                <p className="text-base font-bold">Total {dinero(pendiente.total, moneda)}</p>
+              </div>
+              <a href={`https://wa.me/${pendiente.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(textoWA)}`} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
+              <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera {pendiente.validez_horas} horas. Cuando recibamos tu mensaje te confirmamos el pedido por WhatsApp.</p>
+              <button type="button" onClick={() => setPendiente(null)} className="btn w-full">Volver a mi pedido</button>
+              <button type="button" onClick={onVaciar} className="btn w-full">Ya lo envié</button>
+            </div>
+          ) : exito ? (
             <div className="space-y-4 text-center">
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-ok/15 text-rs-ok"><Check size={28} /></div>
               <div><p className="text-3xl font-bold tabular-nums text-rs-lime">#{exito.numero}</p><p className="text-sm text-rs-muted">{nombre} recibió tu pedido · {exito.entrega_nombre || labelTipo(exito.tipo)} · {exito.unidades} producto{exito.unidades === 1 ? '' : 's'}</p></div>
@@ -298,7 +325,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_nombre">Nombre {base === 'mesa' ? '' : '*'}</label><input id="pp_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required={tipo !== 'mesa'} /></div>
                 <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_apellido">Apellido {base === 'mesa' ? '' : '*'}</label><input id="pp_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required={tipo !== 'mesa'} /></div>
-                {pedidos.pedir_telefono && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>}
+                {pedidos.pedir_telefono && !confirmaWA && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>}
                 {base === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pp_dir">Dirección de entrega *</label><input id="pp_dir" value={form.direccion} onChange={campo('direccion')} maxLength={200} autoComplete="street-address" placeholder="Calle, número, piso/depto, referencias" className="input w-full" required /></div>}
                 {base === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_mesa">Número de mesa *</label><input id="pp_mesa" value={form.mesa} onChange={campo('mesa')} maxLength={20} className="input w-full" required /></div>}
                 {pedidos.pedir_cumple && (
@@ -338,7 +365,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
               </div>
               {faltaMinimo && <p role="status" className="text-sm text-rs-warn">El pedido mínimo es {dinero(pedidos.pedido_minimo, moneda)}: te faltan {dinero(pedidos.pedido_minimo - subtotal, moneda)}.</p>}
               {pedidos.mensaje && <p className="whitespace-pre-line text-xs text-rs-muted">{pedidos.mensaje}</p>}
-              <button disabled={pend || lineas.length === 0 || faltaMinimo} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : `Hacer el pedido · ${dinero(totalFinal, moneda)}`}</button>
+              <button disabled={pend || lineas.length === 0 || faltaMinimo} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : confirmaWA ? `Continuar y confirmar por WhatsApp · ${dinero(totalFinal, moneda)}` : `Hacer el pedido · ${dinero(totalFinal, moneda)}`}</button>
             </form>
           )}
         </div>
@@ -348,19 +375,22 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
 }
 
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-/** Mensaje de WhatsApp con el pedido completo, para cuando no se pidió el teléfono: el negocio confirma el pedido por ahí (le llega con el número del cliente). */
-function armarTextoWA({ negocio, nombre, r, form, lineas, moneda }: { negocio: string; nombre: string; r: Extract<ResultadoPedidoPublico, { ok: true }>; form: { direccion: string; mesa: string; observaciones: string; cumple_dia: string; cumple_mes: string }; lineas: Linea[]; moneda: string }) {
-  const entrega = r.entrega_nombre || labelTipo(r.tipo)
+/**
+ * Mensaje de WhatsApp con el pedido completo. Sin teléfono (pedido ya hecho) el negocio lo confirma por ahí; con `solicitud` es el mensaje que registra el pedido:
+ * lleva "SOLICITUD DE PEDIDO" y el código, que es lo que lee el bot.
+ */
+function armarTextoWA({ negocio, nombre, r, solicitud, form, lineas, moneda }: { negocio: string; nombre: string; r?: Extract<ResultadoPedidoPublico, { ok: true }>; solicitud?: Extract<ResultadoSolicitudPedido, { ok: true }>; form: { direccion: string; mesa: string; observaciones: string; cumple_dia: string; cumple_mes: string }; lineas: Linea[]; moneda: string }) {
+  const d = (r ?? solicitud)!
+  const entrega = d.entrega_nombre || labelTipo(d.tipo)
   return [
-    `Hola ${negocio}, soy ${nombre}. Hice el pedido #${r.numero}:`,
+    ...(solicitud ? [`SOLICITUD DE PEDIDO - ${negocio}`, `Código: ${solicitud.codigo}`, '', `Nombre: ${nombre}`] : [`Hola ${negocio}, soy ${nombre}. Hice el pedido #${r!.numero}:`]),
     ...lineas.map((l) => `• ${l.cantidad} x ${l.nombre}${l.variante ? ` (${l.variante})` : ''}`),
-    `Entrega: ${entrega}${r.tipo === 'delivery' && form.direccion ? ` · ${form.direccion}` : ''}${r.tipo === 'mesa' && form.mesa ? ` · Mesa ${form.mesa}` : ''}`,
-    `Pago: ${labelPago(r.medio_pago, r.medio_pago_nombre)}`,
-    ...(r.descuento > 0 ? [`Descuento${r.descuento_nombre ? ` (${r.descuento_nombre})` : ''}: -${dinero(r.descuento, moneda)}`] : []),
-    `Total: ${dinero(r.total, moneda)}`,
-    ...(form.cumple_dia && form.cumple_mes ? [`Mi cumpleaños: ${form.cumple_dia} de ${MESES[Number(form.cumple_mes) - 1] ?? ''}`] : []),
-    ...(form.observaciones ? [`Aclaraciones: ${form.observaciones}`] : []),
-    '¿Me lo confirman? ¡Gracias!',
+    `Entrega: ${entrega}${d.tipo === 'delivery' && form.direccion ? ` · ${form.direccion}` : ''}${d.tipo === 'mesa' && form.mesa ? ` · Mesa ${form.mesa}` : ''}`,
+    `Pago: ${labelPago(d.medio_pago, d.medio_pago_nombre)}`,
+    ...(d.descuento > 0 ? [`Descuento${d.descuento_nombre ? ` (${d.descuento_nombre})` : ''}: -${dinero(d.descuento, moneda)}`] : []),
+    `Total: ${dinero(d.total, moneda)}`,
+    ...(form.cumple_dia && form.cumple_mes ? [`Cumpleaños: ${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}`] : []),
+    ...(form.observaciones ? [`Comentarios: ${form.observaciones}`] : []),
+    ...(solicitud ? [] : ['¿Me lo confirman? ¡Gracias!']),
   ].join('\n')
 }

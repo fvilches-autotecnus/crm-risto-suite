@@ -49,7 +49,7 @@ function claveNueva(nombre: string, existentes: string[]) { const base = claveDe
 // Recepción de pedidos
 // ---------------------------------------------------------------------------
 export function PedidosGeneral({ config }: { config: ConfigPedidos }) {
-  const [d, setD] = useState({ recibe: config.recibe, pedido_minimo: monto(config.pedido_minimo), tiempo_estimado: config.tiempo_estimado ?? '', mensaje: config.mensaje ?? '', aceptar_auto: config.aceptar_auto, pedir_cumple: config.pedir_cumple, pedir_telefono: config.pedir_telefono })
+  const [d, setD] = useState({ recibe: config.recibe, pedido_minimo: monto(config.pedido_minimo), tiempo_estimado: config.tiempo_estimado ?? '', mensaje: config.mensaje ?? '', aceptar_auto: config.aceptar_auto, pedir_cumple: config.pedir_cumple, pedir_telefono: config.pedir_telefono, confirmar_whatsapp: config.confirmar_whatsapp })
   const poner = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }))
   const { estado, error } = useAutoGuardar(JSON.stringify(d), () => guardarPedidosGeneral(d))
   return (
@@ -62,7 +62,8 @@ export function PedidosGeneral({ config }: { config: ConfigPedidos }) {
       <p className="-mt-2 text-xs text-rs-muted">Cada forma de entrega puede tener su propio tiempo, costo de envío y horarios (ver “Formas de entrega”).</p>
       <div><label className="label" htmlFor="pg_msg">Mensaje para el cliente</label><textarea id="pg_msg" value={d.mensaje} onChange={(e) => poner('mensaje', e.target.value)} maxLength={300} rows={2} placeholder="Ej. Avisanos si tenés alguna alergia." className="input w-full" /></div>
       <Check label="Aceptar los pedidos automáticamente" checked={d.aceptar_auto} onChange={(v) => poner('aceptar_auto', v)} texto="Los pedidos de la carta y del bot entran directo como “Aceptados” en lugar de esperar que alguien los acepte. Los que cargás a mano no cambian." />
-      <Check label="Pedir el teléfono en el formulario de la carta" checked={d.pedir_telefono} onChange={(v) => poner('pedir_telefono', v)} texto="Apagado, el cliente no escribe su teléfono: después de hacer el pedido te lo manda por WhatsApp para confirmarlo (te llega con su número). Sin teléfono no se guarda su ficha ni se le pueden mandar avisos automáticos de estado." />
+      <Check label="Confirmar los pedidos de la carta por WhatsApp" checked={d.confirmar_whatsapp} onChange={(v) => poner('confirmar_whatsapp', v)} texto="Igual que el sitio de reservas: al hacer el pedido el cliente no escribe su teléfono; se le abre WhatsApp con el pedido ya escrito y un código. El pedido recién se crea (con su teléfono, ficha y avisos de estado) cuando manda ese mensaje y el bot lo registra (flujo “Confirmar pedido web” de n8n). Si no lo manda, no existe ningún pedido. La solicitud espera 6 horas." />
+      <Check label="Pedir el teléfono en el formulario de la carta" disabled={d.confirmar_whatsapp} checked={d.pedir_telefono && !d.confirmar_whatsapp} onChange={(v) => poner('pedir_telefono', v)} texto="Apagado, el cliente no escribe su teléfono: después de hacer el pedido te lo manda por WhatsApp para confirmarlo (te llega con su número). Sin teléfono no se guarda su ficha ni se le pueden mandar avisos automáticos de estado." />
       <Check label="Preguntar el cumpleaños (opcional para el cliente)" checked={d.pedir_cumple} onChange={(v) => poner('pedir_cumple', v)} texto="Agrega al formulario del pedido el día y el mes (y el año, si quiere). Si lo completa, queda en su ficha (módulo Cumpleaños) para saludarlo." />
       <div className="flex justify-end"><EstadoGuardado estado={estado} error={error} /></div>
     </div>

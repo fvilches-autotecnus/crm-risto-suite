@@ -34,6 +34,8 @@ export interface ConfigPedidos {
   pedir_cumple: boolean
   /** Pide el teléfono en el formulario de la carta pública (por defecto sí). Apagado: el pedido se confirma por WhatsApp, sin teléfono ni ficha de cliente. */
   pedir_telefono: boolean
+  /** El pedido de la carta queda en espera hasta que el cliente manda un mensaje por WhatsApp con un código (igual que el sitio de reservas); recién ahí se crea, con su teléfono. */
+  confirmar_whatsapp: boolean
   usar_horarios: boolean; horarios: HorariosSemana; fechas_cerradas: string[]
   entregas: EntregaPedido[]; medios: MedioPedido[]
 }
@@ -49,11 +51,11 @@ export const MEDIOS_POR_DEFECTO: MedioPedido[] = [
   { clave: 'tarjeta', etiqueta: 'Tarjeta', aviso: null, datos: null, activo: false, orden: 3 },
 ]
 export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = {
-  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false, pedir_cumple: false, pedir_telefono: true,
+  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false, pedir_cumple: false, pedir_telefono: true, confirmar_whatsapp: false,
   usar_horarios: false, horarios: {}, fechas_cerradas: [], entregas: ENTREGAS_POR_DEFECTO, medios: MEDIOS_POR_DEFECTO,
 }
 /** Columnas de cada tabla que se leen en el panel y en la carta pública. */
-export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, pedir_cumple, pedir_telefono, usar_horarios, horarios, fechas_cerradas'
+export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, pedir_cumple, pedir_telefono, confirmar_whatsapp, usar_horarios, horarios, fechas_cerradas'
 export const COLS_ENTREGAS = 'clave, etiqueta, base, activo, orden, costo_envio, envio_gratis_desde, tiempo, horarios, medios'
 export const COLS_MEDIOS = 'clave, etiqueta, aviso, datos, activo, orden'
 
@@ -74,7 +76,7 @@ export function leerConfigPedidos(cfg: Fila | null | undefined, entregas?: Fila[
   const e = leerEntregas(entregas), m = leerMedios(medios)
   return {
     recibe: r.recibe === true, pedido_minimo: Number(r.pedido_minimo ?? 0), tiempo_estimado: (r.tiempo_estimado as string | null) || null,
-    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true, pedir_cumple: r.pedir_cumple === true, pedir_telefono: r.pedir_telefono !== false,
+    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true, pedir_cumple: r.pedir_cumple === true, pedir_telefono: r.pedir_telefono !== false, confirmar_whatsapp: r.confirmar_whatsapp === true,
     usar_horarios: r.usar_horarios === true, horarios: (obj(r.horarios) ?? {}) as HorariosSemana, fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
     entregas: e.length ? e : ENTREGAS_POR_DEFECTO, medios: m.length ? m : MEDIOS_POR_DEFECTO,
   }
@@ -165,6 +167,8 @@ export const ERRORES_PEDIDO: Record<string, string> = {
   falta_nombre: 'Escribí tu nombre.',
   telefono_invalido: 'Revisá el teléfono: lo necesitamos para avisarte de tu pedido.',
   cupon_invalido: 'El cupón no es válido.',
+  confirmacion_apagada: 'Este negocio no confirma los pedidos por WhatsApp.',
+  sin_whatsapp: 'Este negocio todavía no tiene un WhatsApp para confirmar pedidos. Escribinos por otro medio.',
   falta_direccion: 'Escribí la dirección de entrega.',
   falta_mesa: 'Indicá el número de mesa.',
   medio_pago_no_disponible: 'Ese medio de pago no está disponible.',
