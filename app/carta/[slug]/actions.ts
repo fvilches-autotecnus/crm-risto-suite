@@ -3,6 +3,7 @@
 import { after } from 'next/server'
 import { mensajeError } from '@/lib/pedidos'
 import { avisarPedido } from '@/lib/notify-pedidos'
+import { guardarCumplePedido, leerCumple } from '@/lib/cumple-pedido'
 import { limpiarCampana } from '@/lib/promos'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -11,6 +12,7 @@ export interface DatosPedidoPublico {
   items: { producto_id: string; variante: string | null; cantidad: number }[]
   web?: string   // campo trampa: las personas lo dejan vacío
   campana?: string   // código del enlace de campaña (?c=…)
+  cumple_dia?: string; cumple_mes?: string; cumple_anio?: string   // cumpleaños opcional (si el negocio lo pide)
 }
 export type ResultadoPedidoPublico =
   | { ok: true; numero: number; total: number; tipo: string; entrega_nombre: string | null; medio_pago: string; medio_pago_nombre: string | null; tiempo_estimado: string | null; datos_pago: string | null; instrucciones: string | null; mensaje: string | null; whatsapp: string | null; unidades: number }
@@ -33,6 +35,9 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
   if (!r.ok) return { ok: false, error: (r.error === 'pedidos_cerrados' || r.error === 'fuera_de_horario' || r.error === 'dia_cerrado') && r.mensaje ? `${mensajeError(r.error)} ${r.mensaje}` : mensajeError(r.error, r) }
   const { data: neg } = await admin.from('negocios').select('id, whatsapp_nro').eq('slug', slug).maybeSingle()
   // webhook de pedidos: avisa que entró un pedido nuevo (si el negocio lo habilitó), después de responderle al cliente
-  if (neg?.id && r.id) { const negocioId = neg.id as string, pedidoId = r.id; after(() => avisarPedido(negocioId, pedidoId)) }
+  if (neg?.id && r.id) {
+    const negocioId = neg.id as string, pedidoId = r.id, cumple = leerCumple({ dia: d.cumple_dia, mes: d.cumple_mes, anio: d.cumple_anio })
+    after(async () => { if (cumple) await guardarCumplePedido(negocioId, pedidoId, cumple); await avisarPedido(negocioId, pedidoId) })
+  }
   return { ok: true, numero: r.numero!, total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, tiempo_estimado: r.tiempo_estimado ?? null, datos_pago: r.datos_pago ?? null, instrucciones: r.instrucciones ?? null, mensaje: r.mensaje ?? null, whatsapp: neg?.whatsapp_nro ?? null, unidades: r.unidades ?? 0 }
 }

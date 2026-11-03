@@ -54,3 +54,14 @@ export function edadActual(fechaNac: string, hoy: string): number {
   const e = Number(hoy.slice(0, 4)) - Number(fechaNac.slice(0, 4))
   return hoy.slice(5) < fechaNac.slice(5) ? e - 1 : e
 }
+
+/** Día y mes que existen en el calendario (el 29 de febrero vale). */
+export const cumpleValido = (dia: number, mes: number) => Number.isInteger(dia) && Number.isInteger(mes) && mes >= 1 && mes <= 12 && dia >= 1 && new Date(Date.UTC(2000, mes - 1, dia)).getUTCMonth() === mes - 1
+
+/** AAAA-MM-DD de la fecha de nacimiento, o null si el año no sirve (antes de 1900 o con menos de 5 años). Un 29/2 en un año no bisiesto pasa al 28/2. Misma regla que app.fecha_nacimiento en la base. */
+export function fechaNacimiento(anio: number | null, mes: number, dia: number, hoyAnio = new Date().getFullYear()): string | null {
+  if (anio === null || !Number.isInteger(anio) || anio < 1900 || anio > hoyAnio - 5 || !cumpleValido(dia, mes)) return null
+  const bisiesto = anio % 4 === 0 && (anio % 100 !== 0 || anio % 400 === 0)
+  const d = mes === 2 && dia === 29 && !bisiesto ? 28 : dia
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}

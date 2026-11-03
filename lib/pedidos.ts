@@ -30,6 +30,8 @@ export interface ConfigPedidos {
   recibe: boolean; pedido_minimo: number; tiempo_estimado: string | null
   mensaje: string | null; mensaje_cerrado: string | null
   aceptar_auto: boolean
+  /** Pregunta el cumpleaños (opcional para el cliente) en el formulario del pedido: queda en su ficha. */
+  pedir_cumple: boolean
   usar_horarios: boolean; horarios: HorariosSemana; fechas_cerradas: string[]
   entregas: EntregaPedido[]; medios: MedioPedido[]
 }
@@ -45,11 +47,11 @@ export const MEDIOS_POR_DEFECTO: MedioPedido[] = [
   { clave: 'tarjeta', etiqueta: 'Tarjeta', aviso: null, datos: null, activo: false, orden: 3 },
 ]
 export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = {
-  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false,
+  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false, pedir_cumple: false,
   usar_horarios: false, horarios: {}, fechas_cerradas: [], entregas: ENTREGAS_POR_DEFECTO, medios: MEDIOS_POR_DEFECTO,
 }
 /** Columnas de cada tabla que se leen en el panel y en la carta pública. */
-export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, usar_horarios, horarios, fechas_cerradas'
+export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, pedir_cumple, usar_horarios, horarios, fechas_cerradas'
 export const COLS_ENTREGAS = 'clave, etiqueta, base, activo, orden, costo_envio, envio_gratis_desde, tiempo, horarios, medios'
 export const COLS_MEDIOS = 'clave, etiqueta, aviso, datos, activo, orden'
 
@@ -70,7 +72,7 @@ export function leerConfigPedidos(cfg: Fila | null | undefined, entregas?: Fila[
   const e = leerEntregas(entregas), m = leerMedios(medios)
   return {
     recibe: r.recibe === true, pedido_minimo: Number(r.pedido_minimo ?? 0), tiempo_estimado: (r.tiempo_estimado as string | null) || null,
-    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true,
+    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true, pedir_cumple: r.pedir_cumple === true,
     usar_horarios: r.usar_horarios === true, horarios: (obj(r.horarios) ?? {}) as HorariosSemana, fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
     entregas: e.length ? e : ENTREGAS_POR_DEFECTO, medios: m.length ? m : MEDIOS_POR_DEFECTO,
   }

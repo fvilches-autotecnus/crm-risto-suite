@@ -1,8 +1,8 @@
 'use client'
 
 import { unirNombre } from '@/lib/nombres'
-import { useEffect, useRef, useState, useTransition } from 'react'
-import { Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { ArrowUp, Check, Minus, Plus, Search, ShoppingBag, X } from 'lucide-react'
 import type { Marca } from '@/lib/marca'
 import { crearPedidoPublico, type ResultadoPedidoPublico } from '@/app/carta/[slug]/actions'
 import { limpiarCampana } from '@/lib/promos'
@@ -36,6 +36,24 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   useEffect(() => { try { const g = localStorage.getItem('carrito:' + slug); if (g) setCarrito(JSON.parse(g)) } catch { /* sin almacenamiento */ } setListo(true) }, [slug])
   useEffect(() => { if (!listo) return; try { localStorage.setItem('carrito:' + slug, JSON.stringify(carrito)) } catch { /* sin almacenamiento */ } }, [carrito, listo, slug])
 
+  // celular: buscador (carta larga), categoría activa según el scroll y botón de volver arriba
+  const [busqueda, setBusqueda] = useState('')
+  const [activa, setActiva] = useState<string | null>(null)
+  const [verArriba, setVerArriba] = useState(false)
+  const sinTilde = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const q = sinTilde(busqueda.trim())
+  const totalProductos = categorias.reduce((n, c) => n + c.productos.length, 0)
+  const visibles = useMemo(() => (!q ? categorias : categorias.map((c) => ({ ...c, productos: c.productos.filter((p) => sinTilde(`${p.nombre} ${p.descripcion ?? ''}`).includes(q)) })).filter((c) => c.productos.length > 0)), [categorias, q]) // eslint-disable-line react-hooks/exhaustive-deps
+  const navRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    if (visibles.length < 2) return
+    const obs = new IntersectionObserver((es) => { const v = es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]; if (v) setActiva(v.target.id.slice(2)) }, { rootMargin: '-100px 0px -65% 0px' })
+    visibles.forEach((c) => { const el = document.getElementById('c-' + c.id); if (el) obs.observe(el) })
+    return () => obs.disconnect()
+  }, [visibles])
+  useEffect(() => { const ul = navRef.current, chip = activa ? document.getElementById('chip-' + activa) : null; if (ul && chip) ul.scrollTo({ left: chip.offsetLeft - ul.clientWidth / 2 + chip.clientWidth / 2, behavior: 'smooth' }) }, [activa])
+  useEffect(() => { const f = () => setVerArriba(window.scrollY > 700); f(); window.addEventListener('scroll', f, { passive: true }); return () => window.removeEventListener('scroll', f) }, [])
+
   const lineas = Object.values(carrito)
   const unidades = lineas.reduce((s, l) => s + l.cantidad, 0)
   const subtotal = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0)
@@ -48,11 +66,11 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   const stepper = (p: ProductoCarta, variante: string | null, precio: number) => {
     const n = cant(p.id, variante)
     return n === 0
-      ? <button type="button" onClick={() => cambiar(p, variante, precio, 1)} aria-label={`Agregar ${p.nombre}${variante ? ' ' + variante : ''}`} className="inline-flex h-8 items-center gap-1 rounded-full bg-rs-lime px-3 text-sm font-semibold text-rs-on-lime transition hover:brightness-95"><Plus size={14} />Agregar</button>
-      : <span className="inline-flex h-8 items-center gap-1 rounded-full border border-rs-lime/50 bg-rs-lime/10">
-          <button type="button" onClick={() => cambiar(p, variante, precio, -1)} aria-label="Quitar uno" className="grid h-8 w-8 place-items-center text-rs-lime"><Minus size={14} /></button>
-          <span className="min-w-5 text-center text-sm font-bold tabular-nums" aria-live="polite">{n}</span>
-          <button type="button" onClick={() => cambiar(p, variante, precio, 1)} aria-label="Agregar uno más" className="grid h-8 w-8 place-items-center text-rs-lime"><Plus size={14} /></button>
+      ? <button type="button" onClick={() => cambiar(p, variante, precio, 1)} aria-label={`Agregar ${p.nombre}${variante ? ' ' + variante : ''}`} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-rs-lime px-4 text-sm font-semibold text-rs-on-lime transition hover:brightness-95 active:scale-[.97]"><Plus size={15} />Agregar</button>
+      : <span className="inline-flex h-10 items-center rounded-full border border-rs-lime/50 bg-rs-lime/10">
+          <button type="button" onClick={() => cambiar(p, variante, precio, -1)} aria-label="Quitar uno" className="grid h-10 w-10 place-items-center text-rs-lime"><Minus size={15} /></button>
+          <span className="min-w-6 text-center text-sm font-bold tabular-nums" aria-live="polite">{n}</span>
+          <button type="button" onClick={() => cambiar(p, variante, precio, 1)} aria-label="Agregar uno más" className="grid h-10 w-10 place-items-center text-rs-lime"><Plus size={15} /></button>
         </span>
   }
 
@@ -84,20 +102,35 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         )}
         {puedePedir && fuera.length > 0 && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{fuera.map((x) => x.e.etiqueta).join(' y ')} no {fuera.length > 1 ? 'están disponibles' : 'está disponible'} en este momento{fuera[0].proxima ? ` (vuelve ${fuera[0].proxima})` : ''}.</p>}
         {puedePedir && pedidos!.tiempo_estimado && <p className="mt-2 text-xs text-rs-muted">Demora estimada: {pedidos!.tiempo_estimado}</p>}
+        {totalProductos > 12 && (
+          <div className="relative mx-auto mt-4 max-w-md">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-rs-muted" />
+            <input type="search" inputMode="search" enterKeyHint="search" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar en la carta" aria-label="Buscar en la carta"
+              className="h-11 w-full rounded-full border border-rs-control bg-rs-card pl-10 pr-10 text-base text-rs-text outline-none placeholder:text-rs-muted/70 focus:border-rs-lime/70 focus:ring-2 focus:ring-rs-lime/20 [&::-webkit-search-cancel-button]:hidden" />
+            {busqueda && <button type="button" onClick={() => setBusqueda('')} aria-label="Borrar la búsqueda" className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center text-rs-muted"><X size={16} /></button>}
+          </div>
+        )}
       </header>
 
-      {categorias.length > 1 && (
+      {visibles.length > 1 && (
         <nav aria-label="Categorías" className="sticky top-0 z-10 border-b border-rs-raised bg-rs-header/95 backdrop-blur-md">
-          <ul className="mx-auto flex max-w-2xl gap-2 overflow-x-auto px-4 py-2.5">
-            {categorias.map((c) => <li key={c.id} className="shrink-0"><a href={`#c-${c.id}`} className="inline-flex h-8 items-center rounded-full border border-rs-control px-3.5 text-sm font-medium text-rs-muted transition hover:border-rs-lime/50 hover:text-rs-lime">{c.nombre}</a></li>)}
+          <ul ref={navRef} className="relative mx-auto flex max-w-2xl gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {visibles.map((c) => (
+              <li key={c.id} className="shrink-0">
+                <a id={`chip-${c.id}`} href={`#c-${c.id}`} aria-current={activa === c.id ? 'true' : undefined}
+                  onClick={(e) => { e.preventDefault(); document.getElementById(`c-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
+                  className={'inline-flex h-10 items-center rounded-full border px-4 text-sm font-medium transition active:scale-[.97] ' + (activa === c.id ? 'border-rs-lime/70 bg-rs-lime/15 text-rs-lime' : 'border-rs-control text-rs-muted hover:border-rs-lime/50 hover:text-rs-lime')}>{c.nombre}</a>
+              </li>
+            ))}
           </ul>
         </nav>
       )}
 
       <main className={'mx-auto max-w-2xl px-4 ' + (puedePedir && unidades > 0 ? 'pb-32' : 'pb-16')}>
         {categorias.length === 0 && <p className="py-16 text-center text-sm text-rs-muted">La carta se está actualizando. Volvé en un rato.</p>}
-        {categorias.map((c) => (
-          <section key={c.id} id={`c-${c.id}`} className="scroll-mt-16 pt-8">
+        {categorias.length > 0 && visibles.length === 0 && <p role="status" className="py-16 text-center text-sm text-rs-muted">No encontramos “{busqueda.trim()}” en la carta. Probá con otra palabra.</p>}
+        {visibles.map((c) => (
+          <section key={c.id} id={`c-${c.id}`} className="scroll-mt-[4.25rem] pt-8">
             <h2 className="text-lg font-bold">{c.nombre}</h2>
             {c.descripcion && <p className="mt-0.5 text-sm text-rs-muted">{c.descripcion}</p>}
             <ul className="mt-3 space-y-3">
@@ -144,8 +177,13 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         ) : <p className="mt-12 text-center text-xs text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'} · RistoSuite</p>}
       </main>
 
+      {verArriba && !abierto && (
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Volver arriba"
+          className={'fixed left-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-rs-control bg-rs-header/95 text-rs-lime shadow-lg backdrop-blur-md active:scale-95 ' + (puedePedir && unidades > 0 ? 'bottom-[calc(env(safe-area-inset-bottom)+5.25rem)]' : 'bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]')}><ArrowUp size={18} /></button>
+      )}
+
       {puedePedir && unidades > 0 && !abierto && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-rs-control bg-rs-header/95 p-3 backdrop-blur-md">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-rs-control bg-rs-header/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
           <button type="button" onClick={() => { setExito(null); setAbierto(true) }} className="mx-auto flex h-12 w-full max-w-2xl items-center justify-between rounded-rs bg-rs-lime px-4 font-semibold text-rs-on-lime shadow-[0_0_24px_-4px_rgba(200,230,43,.55)]">
             <span className="inline-flex items-center gap-2"><ShoppingBag size={18} />Ver mi pedido <span className="rounded-full bg-rs-on-lime/15 px-2 text-sm tabular-nums">{unidades}</span></span>
             <span className="tabular-nums">{dinero(subtotal, config.moneda)}</span>
@@ -168,7 +206,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const sinTipo = abiertas.length === 0
   const mesaUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mesa') ?? '' : ''
   const [tipo, setTipo] = useState<string>((mesaUrl && abiertas.find((e) => e.base === 'mesa')?.clave) || abiertas[0]?.clave || '')
-  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', direccion: '', mesa: abiertas.some((e) => e.base === 'mesa') ? mesaUrl : '', medio_pago: mediosDisponibles(cfg, (mesaUrl && abiertas.find((e) => e.base === 'mesa')) || abiertas[0] || { medios: null })[0]?.clave ?? '', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', direccion: '', mesa: abiertas.some((e) => e.base === 'mesa') ? mesaUrl : '', medio_pago: mediosDisponibles(cfg, (mesaUrl && abiertas.find((e) => e.base === 'mesa')) || abiertas[0] || { medios: null })[0]?.clave ?? '', observaciones: '', web: '' })
   const [error, setError] = useState<string | null>(null)
   const [pend, start] = useTransition()
   const arriba = useRef<HTMLDivElement>(null)
@@ -188,8 +226,9 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
+    if (pedidos.pedir_cumple && !!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }); return }
     start(async () => {
-      const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), ...form, nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
+      const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), ...form, cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
       if (r.ok) onExito(r); else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
     })
   }
@@ -197,7 +236,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const textoWA = exito ? `Hola, soy ${unirNombre(form.nombre, form.apellido)}. Hice el pedido #${exito.numero} por ${dinero(exito.total, moneda)} (${exito.entrega_nombre || labelTipo(exito.tipo)}). ¡Gracias!` : ''
   return (
     <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
-      <div role="dialog" aria-modal="true" aria-label="Mi pedido" className="flex max-h-[94vh] w-full max-w-lg animate-scale-in flex-col rounded-t-rs-lg border border-rs-control bg-rs-card shadow-2xl sm:rounded-rs-lg">
+      <div role="dialog" aria-modal="true" aria-label="Mi pedido" className="flex max-h-[94dvh] w-full max-w-lg animate-scale-in flex-col rounded-t-rs-lg border border-rs-control bg-rs-card shadow-2xl sm:rounded-rs-lg [&_.input]:text-base sm:[&_.input]:text-sm [&_input.input]:h-11 sm:[&_input.input]:h-9 [&_select.input]:h-11 sm:[&_select.input]:h-9">
         <div className="flex items-center justify-between border-b border-rs-border px-4 py-3"><h2 className="font-bold">{exito ? '¡Pedido recibido!' : 'Mi pedido'}</h2><button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded-md p-1 text-rs-muted hover:bg-rs-raised hover:text-rs-text"><X size={18} /></button></div>
         <div ref={arriba} className="overflow-y-auto px-4 py-4">
           {exito ? (
@@ -220,9 +259,9 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
                   <li key={clave(l.producto_id, l.variante)} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                     <span className="min-w-0"><span className="block truncate font-medium">{l.nombre}</span>{l.variante && <span className="block text-xs text-rs-muted">{l.variante}</span>}<span className="text-xs text-rs-muted">{dinero(l.precio, moneda)} c/u</span></span>
                     <span className="inline-flex shrink-0 items-center gap-1">
-                      <button type="button" onClick={() => onCambiar(l, -1)} aria-label={`Quitar uno de ${l.nombre}`} className="grid h-8 w-8 place-items-center rounded-full border border-rs-control"><Minus size={13} /></button>
+                      <button type="button" onClick={() => onCambiar(l, -1)} aria-label={`Quitar uno de ${l.nombre}`} className="grid h-10 w-10 place-items-center rounded-full border border-rs-control"><Minus size={13} /></button>
                       <span className="w-6 text-center font-bold tabular-nums">{l.cantidad}</span>
-                      <button type="button" onClick={() => onCambiar(l, 1)} aria-label={`Agregar uno de ${l.nombre}`} className="grid h-8 w-8 place-items-center rounded-full border border-rs-control"><Plus size={13} /></button>
+                      <button type="button" onClick={() => onCambiar(l, 1)} aria-label={`Agregar uno de ${l.nombre}`} className="grid h-10 w-10 place-items-center rounded-full border border-rs-control"><Plus size={13} /></button>
                     </span>
                     <span className="w-20 shrink-0 text-right font-semibold tabular-nums">{dinero(l.precio * l.cantidad, moneda)}</span>
                   </li>
@@ -238,6 +277,17 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
                 <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_tel">Teléfono {base === 'mesa' ? '' : '*'}</label><input id="pp_tel" value={form.telefono} onChange={campo('telefono')} type="tel" inputMode="tel" autoComplete="tel" placeholder="Ej. 341 6582156" className="input w-full" required={tipo !== 'mesa'} /></div>
                 {base === 'delivery' && <div className="col-span-2"><label className="label" htmlFor="pp_dir">Dirección de entrega *</label><input id="pp_dir" value={form.direccion} onChange={campo('direccion')} maxLength={200} autoComplete="street-address" placeholder="Calle, número, piso/depto, referencias" className="input w-full" required /></div>}
                 {base === 'mesa' && <div className="col-span-2 sm:col-span-1"><label className="label" htmlFor="pp_mesa">Número de mesa *</label><input id="pp_mesa" value={form.mesa} onChange={campo('mesa')} maxLength={20} className="input w-full" required /></div>}
+                {pedidos.pedir_cumple && (
+                  <div className="col-span-2" data-cumple-pedido>
+                    <span className="label">Tu cumpleaños (opcional)</span>
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] gap-2">
+                      <select aria-label="Día de cumpleaños" value={form.cumple_dia} onChange={campo('cumple_dia')} className="input w-full"><option value="">Día</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}</select>
+                      <select aria-label="Mes de cumpleaños" value={form.cumple_mes} onChange={campo('cumple_mes')} className="input w-full"><option value="">Mes</option>{['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'].map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}</select>
+                      <select aria-label="Año de nacimiento" value={form.cumple_anio} onChange={campo('cumple_anio')} className="input w-full"><option value="">Año</option>{Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}</select>
+                    </div>
+                    <p className="mt-1 text-xs text-rs-muted">Recibí un regalo en ese día 🎁</p>
+                  </div>
+                )}
               </div>
               <fieldset><legend className="label">Forma de pago</legend>
                 <div className="flex flex-wrap gap-2">{medios.map((m) => <label key={m.clave} className="flex cursor-pointer items-center rounded-full border border-rs-control px-3.5 py-1.5 text-sm has-[:checked]:border-rs-lime/60 has-[:checked]:bg-rs-lime/10 has-[:checked]:font-semibold"><input type="radio" name="pago" value={m.clave} checked={form.medio_pago === m.clave} onChange={campo('medio_pago')} className="sr-only" />{m.etiqueta}</label>)}</div>

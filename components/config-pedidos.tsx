@@ -49,7 +49,7 @@ function claveNueva(nombre: string, existentes: string[]) { const base = claveDe
 // Recepción de pedidos
 // ---------------------------------------------------------------------------
 export function PedidosGeneral({ config }: { config: ConfigPedidos }) {
-  const [d, setD] = useState({ recibe: config.recibe, pedido_minimo: monto(config.pedido_minimo), tiempo_estimado: config.tiempo_estimado ?? '', mensaje: config.mensaje ?? '', aceptar_auto: config.aceptar_auto })
+  const [d, setD] = useState({ recibe: config.recibe, pedido_minimo: monto(config.pedido_minimo), tiempo_estimado: config.tiempo_estimado ?? '', mensaje: config.mensaje ?? '', aceptar_auto: config.aceptar_auto, pedir_cumple: config.pedir_cumple })
   const poner = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }))
   const { estado, error } = useAutoGuardar(JSON.stringify(d), () => guardarPedidosGeneral(d))
   return (
@@ -62,6 +62,7 @@ export function PedidosGeneral({ config }: { config: ConfigPedidos }) {
       <p className="-mt-2 text-xs text-rs-muted">Cada forma de entrega puede tener su propio tiempo, costo de envío y horarios (ver “Formas de entrega”).</p>
       <div><label className="label" htmlFor="pg_msg">Mensaje para el cliente</label><textarea id="pg_msg" value={d.mensaje} onChange={(e) => poner('mensaje', e.target.value)} maxLength={300} rows={2} placeholder="Ej. Avisanos si tenés alguna alergia." className="input w-full" /></div>
       <Check label="Aceptar los pedidos automáticamente" checked={d.aceptar_auto} onChange={(v) => poner('aceptar_auto', v)} texto="Los pedidos de la carta y del bot entran directo como “Aceptados” en lugar de esperar que alguien los acepte. Los que cargás a mano no cambian." />
+      <Check label="Preguntar el cumpleaños (opcional para el cliente)" checked={d.pedir_cumple} onChange={(v) => poner('pedir_cumple', v)} texto="Agrega al formulario del pedido el día y el mes (y el año, si quiere). Si lo completa, queda en su ficha (módulo Cumpleaños) para saludarlo." />
       <div className="flex justify-end"><EstadoGuardado estado={estado} error={error} /></div>
     </div>
   )

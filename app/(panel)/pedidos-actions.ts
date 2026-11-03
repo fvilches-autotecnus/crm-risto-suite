@@ -61,7 +61,7 @@ const limpio = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n)
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
 const RE_CLAVE = /^[a-z0-9_]{1,40}$/
 
-export interface AjustesGenerales { recibe: boolean; pedido_minimo: string; tiempo_estimado: string; mensaje: string; aceptar_auto: boolean }
+export interface AjustesGenerales { recibe: boolean; pedido_minimo: string; tiempo_estimado: string; mensaje: string; aceptar_auto: boolean; pedir_cumple: boolean }
 /** Recepción de pedidos: interruptor general, pedido mínimo, tiempo estimado, mensaje para el cliente y aceptación automática. */
 export async function guardarPedidosGeneral(d: AjustesGenerales): Promise<ActionResult> {
   const { ctx, error } = await permisoAjustes(); if (error) return fail(error)
@@ -74,7 +74,7 @@ export async function guardarPedidosGeneral(d: AjustesGenerales): Promise<Action
   const tiempo = limpio(d.tiempo_estimado, 61), mensaje = limpio(d.mensaje, 301)
   if (tiempo.length > 60) return fail('El tiempo estimado puede tener hasta 60 letras')
   if (mensaje.length > 300) return fail('El mensaje puede tener hasta 300 letras')
-  return guardar(ctx, { recibe: !!d.recibe, pedido_minimo: minimo, tiempo_estimado: tiempo || null, mensaje: mensaje || null, aceptar_auto: !!d.aceptar_auto })
+  return guardar(ctx, { recibe: !!d.recibe, pedido_minimo: minimo, tiempo_estimado: tiempo || null, mensaje: mensaje || null, aceptar_auto: !!d.aceptar_auto, pedir_cumple: !!d.pedir_cumple })
 }
 
 export interface AjustesHorarios { usar_horarios: boolean; horarios: unknown; fechas_cerradas: string[]; mensaje_cerrado: string }
