@@ -14,7 +14,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
   const ctx = await getContexto()
   if (!ctx.modulosActivos.pedidos) notFound()
   const { data: p } = await ctx.supabase.from('pedidos')
-    .select('numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal)')
+    .select('numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal)')
     .eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!p) notFound()
   const items = (p.items ?? []) as { id: string; nombre: string; variante: string | null; cantidad: number; observaciones: string | null; subtotal: number }[]
@@ -38,7 +38,9 @@ export default async function Ticket({ params, searchParams }: { params: Promise
           </div>
         ))}
         <hr className="my-2 border-dashed border-black" />
-        {Number(p.envio) > 0 && <><div className="flex justify-between"><span>Subtotal</span><span>{dinero(Number(p.subtotal))}</span></div><div className="flex justify-between"><span>Envío</span><span>{dinero(Number(p.envio))}</span></div></>}
+        {(Number(p.envio) > 0 || Number(p.descuento) > 0) && <div className="flex justify-between"><span>Subtotal</span><span>{dinero(Number(p.subtotal))}</span></div>}
+        {Number(p.descuento) > 0 && <div className="flex justify-between"><span>Descuento{p.descuento_nombre ? ` (${p.descuento_nombre})` : ''}</span><span>-{dinero(Number(p.descuento))}</span></div>}
+        {Number(p.envio) > 0 && <div className="flex justify-between"><span>Envío</span><span>{dinero(Number(p.envio))}</span></div>}
         <div className="flex justify-between text-lg font-bold"><span>TOTAL</span><span>{dinero(Number(p.total))}</span></div>
         <p>Pago: {labelPago(p.medio_pago, p.medio_pago_nombre)}</p>
         {p.observaciones && <><hr className="my-2 border-dashed border-black" /><p className="font-bold">NOTAS: {p.observaciones}</p></>}

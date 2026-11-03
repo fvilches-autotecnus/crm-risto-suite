@@ -39,7 +39,7 @@ export async function configuracionWebhookPedidos(negocioId: string): Promise<Co
 // ---------------------------------------------------------------------------
 export interface DatosAvisoPedido {
   numero: number; nombre: string; telefono: string | null; estado: EstadoPedido; tipo: Pedido['tipo']; entrega_nombre?: string | null
-  subtotal: number; envio: number; total: number; medio_pago: string; medio_pago_nombre?: string | null; direccion: string | null; mesa: string | null; observaciones: string | null
+  subtotal: number; envio: number; total: number; descuento?: number; descuento_nombre?: string | null; medio_pago: string; medio_pago_nombre?: string | null; direccion: string | null; mesa: string | null; observaciones: string | null
   motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'; items: { nombre: string; variante: string | null; cantidad: number; precio_unit: number }[]
   tiempo_estimado?: string | null; negocio: string; prueba?: boolean
 }
@@ -59,6 +59,7 @@ export function textoEquipoPedido(d: DatosAvisoPedido): string {
     `${d.prueba ? '🧪 *AVISO DE PRUEBA*\n' : ''}${icono} *${titulo} #${d.numero}* · ${d.negocio}`,
     `👤 *${d.nombre}*${tel ? ` · 📞 +${tel}` : ''}`,
     ...d.items.map((i) => `• ${lineaItem(i)}`),
+    ...((d.descuento ?? 0) > 0 ? [`🏷️ Descuento${d.descuento_nombre ? ` “${d.descuento_nombre}”` : ''}: -${dinero(d.descuento!)}`] : []),
     `💵 Total ${dinero(d.total)}${d.envio > 0 ? ` (envío ${dinero(d.envio)})` : ''} · ${d.medio_pago_nombre || d.medio_pago}`,
     `🚚 ${labelEntrega(d)}${d.tipo === 'delivery' && d.direccion ? ` · 📍 ${d.direccion}` : ''}${d.tipo === 'mesa' && d.mesa ? ` · Mesa ${d.mesa}` : ''}`,
     ...(d.observaciones ? [`📝 ${d.observaciones}`] : []),
@@ -88,7 +89,7 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
       estado_pedido: d.estado,
       tipo_entrega: d.tipo,                                   // retiro · delivery · mesa
       tipo_pedido: labelEntrega(d),                           // nombre de la forma de entrega ("Retiro en el local")
-      total: d.total, subtotal: d.subtotal, envio: d.envio,
+      total: d.total, subtotal: d.subtotal, envio: d.envio, descuento: d.descuento ?? 0, descuento_nombre: d.descuento_nombre ?? '',
       medio_pago: d.medio_pago_nombre || d.medio_pago,
       direccion: d.direccion ?? '', mesa: d.mesa ?? '',
       observaciones: d.observaciones ?? '',
@@ -112,7 +113,7 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
     nombre: d.nombre,
     tipo: d.tipo,
     entrega: labelEntrega(d),
-    subtotal: d.subtotal, envio: d.envio,
+    subtotal: d.subtotal, envio: d.envio, descuento: d.descuento ?? 0, descuentoNombre: d.descuento_nombre ?? null,
     medioPago: d.medio_pago_nombre || d.medio_pago,
     direccion: d.direccion, mesa: d.mesa, observaciones: d.observaciones,
     motivoCancelacion: d.motivo_cancelacion,
@@ -150,13 +151,13 @@ export async function avisarPedido(negocioId: string, pedidoId: string): Promise
     const c = await leer(negocioId)
     if (!c || !listo(c)) return 'no_disponible'
     const admin = createAdminClient()
-    const { data: p } = await admin.from('pedidos').select('numero, nombre, telefono, estado, tipo, entrega_nombre, subtotal, envio, total, medio_pago, medio_pago_nombre, direccion, mesa, observaciones, motivo_cancelacion, origen, pedido_items(nombre, variante, cantidad, precio_unit)').eq('id', pedidoId).eq('negocio_id', negocioId).maybeSingle()
+    const { data: p } = await admin.from('pedidos').select('numero, nombre, telefono, estado, tipo, entrega_nombre, subtotal, envio, total, descuento, descuento_nombre, medio_pago, medio_pago_nombre, direccion, mesa, observaciones, motivo_cancelacion, origen, pedido_items(nombre, variante, cantidad, precio_unit)').eq('id', pedidoId).eq('negocio_id', negocioId).maybeSingle()
     if (!p || !soloDigitos(p.telefono as string | null) || !c.estados.includes(p.estado as EstadoPedido)) return 'no_disponible'
     const { data: cfg } = await admin.from('pedidos_config').select('tiempo_estimado').eq('negocio_id', negocioId).maybeSingle()
     const items = ((p.pedido_items ?? []) as { nombre: string; variante: string | null; cantidad: number; precio_unit: number }[]).map((i) => ({ ...i, precio_unit: Number(i.precio_unit) }))
     const datos: DatosAvisoPedido = {
       numero: p.numero as number, nombre: p.nombre as string, telefono: p.telefono as string | null, estado: p.estado as EstadoPedido, tipo: p.tipo as Pedido['tipo'], entrega_nombre: p.entrega_nombre as string | null,
-      subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), medio_pago: p.medio_pago as string, medio_pago_nombre: p.medio_pago_nombre as string | null,
+      subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), descuento: Number(p.descuento ?? 0), descuento_nombre: p.descuento_nombre as string | null, medio_pago: p.medio_pago as string, medio_pago_nombre: p.medio_pago_nombre as string | null,
       direccion: p.direccion as string | null, mesa: p.mesa as string | null, observaciones: p.observaciones as string | null, motivo_cancelacion: p.motivo_cancelacion as string | null,
       origen: p.origen as 'web' | 'bot' | 'manual', items, tiempo_estimado: (cfg?.tiempo_estimado as string | null) ?? null, negocio: c.negocio,
     }

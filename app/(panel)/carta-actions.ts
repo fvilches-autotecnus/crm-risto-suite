@@ -3,7 +3,8 @@
 import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
-import { CLAVES_ETIQUETAS, MAX_VARIANTES, type Variante } from '@/lib/carta'
+import { CLAVES_ETIQUETAS, ETIQUETAS, MAX_ETIQUETAS_PROPIAS, MAX_VARIANTES, PALETA_ETIQUETAS, leerEtiquetasPropias, type EtiquetaPropia, type Variante } from '@/lib/carta'
+import { claveDeNombre } from '@/lib/pedidos'
 import { borrarImagenBucket, imagenDelNegocio, subirImagenBucket, type ResultadoSubida } from '@/lib/imagenes-bucket'
 import type { ActionResult } from './actions'
 
@@ -116,7 +117,8 @@ export async function guardarProducto(_prev: ActionResult | null, fd: FormData):
   } catch { return fail('Las opciones de precio no son válidas') }
   if (variantes.length > MAX_VARIANTES) return fail(`Hasta ${MAX_VARIANTES} opciones de precio por producto`)
 
-  const etiquetas = [...new Set(fd.getAll('etiquetas').map(String))].filter((e) => CLAVES_ETIQUETAS.includes(e))
+  const validas = [...CLAVES_ETIQUETAS, ...(await etiquetasPropias(ctx)).map((e) => e.clave)]
+  const etiquetas = [...new Set(fd.getAll('etiquetas').map(String))].filter((e) => validas.includes(e))
   const imagen = text(fd, 'imagen_path') || null
   if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id)) return fail('La foto no es válida: volvé a subirla')
   const datos = {
@@ -194,6 +196,50 @@ export async function descartarImagen(path: string): Promise<ActionResult> {
   const { count } = await ctx.supabase.from('carta_productos').select('id', { count: 'exact', head: true }).eq('imagen_path', path).eq('negocio_id', ctx.negocio.id)
   if (!count) await borrarImagenBucket(path)
   return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Etiquetas de colores (propias del negocio)
+// ---------------------------------------------------------------------------
+type CtxCarta = Awaited<ReturnType<typeof permiso>>['ctx']
+async function etiquetasPropias(ctx: CtxCarta): Promise<EtiquetaPropia[]> {
+  const { data } = await ctx.supabase.from('carta_config').select('etiquetas').eq('negocio_id', ctx.negocio.id).maybeSingle()
+  return leerEtiquetasPropias(data?.etiquetas)
+}
+const guardarEtiquetas = async (ctx: CtxCarta, lista: EtiquetaPropia[]) => (await ctx.supabase.from('carta_config').upsert({ negocio_id: ctx.negocio.id, etiquetas: lista })).error
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/** Crea una etiqueta propia (nombre y color de la paleta). Devuelve la lista completa para que la pantalla se actualice. */
+export async function crearEtiquetaCarta(label: string, color: string): Promise<ActionResult & { etiquetas?: EtiquetaPropia[] }> {
+  const { ctx, error } = await permiso(); if (error) return fail(error)
+  const nombre = String(label ?? '').trim().replace(/\s+/g, ' ')
+  if (!nombre) return fail('Escribí el nombre de la etiqueta')
+  if (nombre.length > 24) return fail('El nombre puede tener hasta 24 letras')
+  const hex = String(color ?? '').toLowerCase()
+  if (!PALETA_ETIQUETAS.some((c) => c.hex === hex)) return fail('Elegí uno de los colores')
+  const propias = await etiquetasPropias(ctx)
+  if (propias.length >= MAX_ETIQUETAS_PROPIAS) return fail(`Hasta ${MAX_ETIQUETAS_PROPIAS} etiquetas propias`)
+  if ([...ETIQUETAS.map((e) => e.label), ...propias.map((e) => e.label)].some((l) => sinTildes(l) === sinTildes(nombre))) return fail('Ya hay una etiqueta con ese nombre')
+  const base = ('x_' + claveDeNombre(nombre)).slice(0, 26)
+  let clave = base, n = 2
+  while (propias.some((e) => e.clave === clave)) clave = `${base}_${n++}`
+  const lista = [...propias, { clave, label: nombre, color: hex }]
+  if (await guardarEtiquetas(ctx, lista)) return fail('No se pudo crear la etiqueta')
+  refrescar(ctx.negocio.slug)
+  return { ok: true, etiquetas: lista }
+}
+
+/** Borra una etiqueta propia y se la saca a los productos que la tenían. */
+export async function borrarEtiquetaCarta(clave: string): Promise<ActionResult & { etiquetas?: EtiquetaPropia[] }> {
+  const { ctx, error } = await permiso(); if (error) return fail(error)
+  const propias = await etiquetasPropias(ctx)
+  if (!propias.some((e) => e.clave === clave)) return fail('La etiqueta no existe')
+  const lista = propias.filter((e) => e.clave !== clave)
+  if (await guardarEtiquetas(ctx, lista)) return fail('No se pudo borrar la etiqueta')
+  const { data: usados } = await ctx.supabase.from('carta_productos').select('id, etiquetas').eq('negocio_id', ctx.negocio.id).contains('etiquetas', [clave])
+  for (const p of usados ?? []) await ctx.supabase.from('carta_productos').update({ etiquetas: (p.etiquetas as string[]).filter((e) => e !== clave) }).eq('id', p.id).eq('negocio_id', ctx.negocio.id)
+  refrescar(ctx.negocio.slug)
+  return { ok: true, etiquetas: lista }
 }
 
 // ---------------------------------------------------------------------------

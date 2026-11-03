@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { ArrowDown, ArrowUp, BookOpen, Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, QrCode, Settings, Star, Trash2, X, ExternalLink, Download } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
-  alternarCategoria, alternarProducto, descartarImagen, eliminarCategoria, eliminarProducto, guardarAjustesCarta, guardarCategoria, guardarProducto,
+  alternarCategoria, alternarProducto, borrarEtiquetaCarta, crearEtiquetaCarta, descartarImagen, eliminarCategoria, eliminarProducto, guardarAjustesCarta, guardarCategoria, guardarProducto,
   importarCarta, moverCategoria, moverProducto, subirImagen,
 } from '@/app/(panel)/carta-actions'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -13,7 +13,8 @@ import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { CampoImagen, useCampoImagen } from '@/components/campo-imagen'
-import { ETIQUETAS, MAX_VARIANTES, etiquetaDe, formatearPrecio, textoPrecio, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta, type Variante } from '@/lib/carta'
+import EtiquetaCarta from '@/components/etiqueta-carta'
+import { ETIQUETAS, MAX_ETIQUETAS_PROPIAS, MAX_VARIANTES, PALETA_ETIQUETAS, estiloEtiqueta, formatearPrecio, textoPrecio, urlImagen, type CategoriaCarta, type ConfigCarta, type EtiquetaPropia, type ProductoCarta, type Variante } from '@/lib/carta'
 
 type Dialogo =
   | { t: 'categoria'; cat?: CategoriaCarta }
@@ -151,7 +152,7 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-semibold text-rs-lime">{precio ?? <span className="font-normal text-rs-muted">Sin precio</span>}</span>
                         {p.variantes.length > 0 && <span className="text-xs text-rs-muted">· {p.variantes.map((v) => `${v.nombre} ${formatearPrecio(v.precio, config.moneda)}`).join(' · ')}</span>}
-                        {p.etiquetas.map((e) => { const d = etiquetaDe(e); return d ? <span key={e} className={'badge ' + d.color}>{d.label}</span> : null })}
+                        {p.etiquetas.map((e) => <EtiquetaCarta key={e} clave={e} propias={config.etiquetas} />)}
                       </div>
                     </div>
                     {puedeEscribir && (
@@ -179,7 +180,7 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
       </div>
 
       {modal?.t === 'categoria' && <Modal titulo={modal.cat ? 'Editar categoría' : 'Nueva categoría'} onClose={cerrar}><FormCategoria cat={modal.cat} onDone={cerrar} /></Modal>}
-      {modal?.t === 'producto' && <ModalProducto prod={modal.prod} categorias={categorias} categoriaInicial={catSel?.id} moneda={config.moneda} onClose={cerrar} />}
+      {modal?.t === 'producto' && <ModalProducto prod={modal.prod} categorias={categorias} categoriaInicial={catSel?.id} moneda={config.moneda} propias={config.etiquetas} onClose={cerrar} />}
       {modal?.t === 'ajustes' && <Modal titulo="Ajustes de la carta pública" onClose={cerrar}><FormAjustes config={config} onDone={cerrar} pedidosActivo={pedidosActivo} /></Modal>}
       {modal?.t === 'importar' && <Modal titulo="Importar productos" onClose={cerrar} ancho="max-w-2xl"><FormImportar onDone={cerrar} /></Modal>}
       {modal?.t === 'qr' && <Modal titulo="Código QR de la carta" onClose={cerrar}><PanelQR enlace={enlace} enlaceLectura={config.lectura ? enlaceLectura : null} pedidosActivo={pedidosActivo} nombre={negocio} onCopiar={copiar} /></Modal>}
@@ -217,7 +218,7 @@ function FormCategoria({ cat, onDone }: { cat?: CategoriaCarta; onDone: () => vo
   )
 }
 
-function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: { prod?: ProductoCarta; categorias: CategoriaCarta[]; categoriaInicial?: string; moneda: string; onClose: () => void }) {
+function ModalProducto({ prod, categorias, categoriaInicial, moneda, propias, onClose }: { prod?: ProductoCarta; categorias: CategoriaCarta[]; categoriaInicial?: string; moneda: string; propias: EtiquetaPropia[]; onClose: () => void }) {
   const toast = useToast()
   const { state, pending, formProps } = useAccionFormulario(guardarProducto)
   const campo = useCampoImagen({ inicial: prod?.imagen_path, subir: subirImagen, descartar: descartarImagen, palabra: 'foto' })
@@ -259,12 +260,7 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
           )}
         </div>
 
-        <div className="col-span-2">
-          <span className="label">Etiquetas</span>
-          <div className="flex flex-wrap gap-2">{ETIQUETAS.map((e) => (
-            <label key={e.clave} className={CHIP_CHECK_CHICO}><input type="checkbox" name="etiquetas" value={e.clave} defaultChecked={prod?.etiquetas.includes(e.clave)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{e.label}</label>
-          ))}</div>
-        </div>
+        <EditorEtiquetas inicial={propias} marcadas={prod?.etiquetas ?? []} />
         <div className="col-span-2 flex flex-wrap gap-x-5 gap-y-2 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="disponible" defaultChecked={prod?.disponible ?? true} className="h-4 w-4 accent-[#c8e62b]" />Disponible <span className="text-xs text-rs-muted">(si no, se muestra “Agotado”)</span></label>
           <label className="flex items-center gap-2"><input type="checkbox" name="visible" defaultChecked={prod?.visible ?? true} className="h-4 w-4 accent-[#c8e62b]" />Visible en la carta</label>
@@ -274,6 +270,57 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
         <div className="col-span-2"><Acciones pending={pending || campo.subiendo} texto={prod ? 'Guardar' : 'Crear producto'} onCancel={cerrar} /></div>
       </form>
     </Modal>
+  )
+}
+
+/** Etiquetas del producto: las de siempre, las propias del negocio (con su color) y un mini-formulario para crear más. Se crean y borran al instante. */
+function EditorEtiquetas({ inicial, marcadas }: { inicial: EtiquetaPropia[]; marcadas: string[] }) {
+  const toast = useToast(), confirmar = useConfirm()
+  const [propias, setPropias] = useState(inicial)
+  const [creando, setCreando] = useState(false), [nombre, setNombre] = useState(''), [color, setColor] = useState(PALETA_ETIQUETAS[0].hex)
+  const [error, setError] = useState<string | null>(null), [pend, start] = useTransition()
+  const crear = () => start(async () => {
+    setError(null)
+    const r = await crearEtiquetaCarta(nombre, color)
+    if (!r.ok) return setError(r.error ?? 'No se pudo crear la etiqueta')
+    setPropias(r.etiquetas ?? []); setNombre(''); setCreando(false); toast({ texto: 'Etiqueta creada' })
+  })
+  const borrar = async (e: EtiquetaPropia) => {
+    if (!(await confirmar({ titulo: `Borrar la etiqueta “${e.label}”`, texto: 'Se la saca a todos los productos que la tengan.', confirmar: 'Borrar', peligro: true }))) return
+    start(async () => { const r = await borrarEtiquetaCarta(e.clave); if (r.ok) setPropias(r.etiquetas ?? []); else toast({ texto: r.error ?? 'No se pudo borrar', tipo: 'error' }) })
+  }
+  return (
+    <div className="col-span-2">
+      <span className="label">Etiquetas</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {ETIQUETAS.map((e) => (
+          <label key={e.clave} className={CHIP_CHECK_CHICO}><input type="checkbox" name="etiquetas" value={e.clave} defaultChecked={marcadas.includes(e.clave)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{e.label}</label>
+        ))}
+        {propias.map((e) => (
+          <span key={e.clave} className="inline-flex items-center gap-1">
+            <label className={CHIP_CHECK_CHICO} style={estiloEtiqueta(e.color)}><input type="checkbox" name="etiquetas" value={e.clave} defaultChecked={marcadas.includes(e.clave)} className="h-3.5 w-3.5 accent-[#c8e62b]" />{e.label}</label>
+            <button type="button" onClick={() => borrar(e)} disabled={pend} aria-label={`Borrar la etiqueta ${e.label}`} title="Borrar esta etiqueta" className="text-rs-muted hover:text-rs-danger"><X size={13} /></button>
+          </span>
+        ))}
+        {!creando && propias.length < MAX_ETIQUETAS_PROPIAS && <button type="button" onClick={() => setCreando(true)} className="btn btn-sm"><Plus size={12} />Nueva etiqueta</button>}
+      </div>
+      {creando && (
+        <div className="mt-2 space-y-2 rounded-md border border-rs-border/60 bg-rs-raised/30 p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[160px] flex-1"><label className="label" htmlFor="et_nombre">Nombre de la etiqueta</label><input id="et_nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); crear() } }} maxLength={24} placeholder="Ej. 2x1, Promo, Sin alcohol" className="input w-full" /></div>
+            {nombre.trim() && <span className="badge mb-1" style={estiloEtiqueta(color)}>{nombre.trim()}</span>}
+          </div>
+          <div role="radiogroup" aria-label="Color de la etiqueta" className="flex flex-wrap gap-2">
+            {PALETA_ETIQUETAS.map((c) => (
+              <button key={c.hex} type="button" role="radio" aria-checked={color === c.hex} aria-label={c.nombre} title={c.nombre} onClick={() => setColor(c.hex)}
+                className={'h-7 w-7 rounded-full border-2 transition ' + (color === c.hex ? 'scale-110 border-rs-text' : 'border-transparent')} style={{ backgroundColor: c.hex }} />
+            ))}
+          </div>
+          {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
+          <div className="flex gap-2"><button type="button" onClick={crear} disabled={pend || !nombre.trim()} className="btn btn-primary btn-sm">Crear etiqueta</button><button type="button" onClick={() => { setCreando(false); setError(null) }} className="btn btn-sm">Cancelar</button></div>
+        </div>
+      )}
+    </div>
   )
 }
 

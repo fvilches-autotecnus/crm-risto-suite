@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Metadata } from 'next'
-import { CONFIG_POR_DEFECTO, leerVariantes, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
+import { CONFIG_POR_DEFECTO, leerEtiquetasPropias, leerVariantes, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import type { CategoriaPublica, PedidosPublicos } from '@/components/carta-publica'
 import { iconosMarca, normalizarMarca, urlAbsoluta, type Marca } from '@/lib/marca'
 import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
@@ -22,13 +22,14 @@ export async function cargarCartaPublica(slug: string, modo: ModoCarta) {
   if (!negocio || !resolverModulos(negocio.modulos as Record<string, unknown> | null).carta) return null
   const modulos = resolverModulos(negocio.modulos as Record<string, unknown> | null)
   const [{ data: cfg }, { data: cats }, { data: prods }, { data: web }, ped] = await Promise.all([
-    admin.from('carta_config').select('publica, titulo, mensaje, mostrar_precios, moneda, lectura').eq('negocio_id', negocio.id).maybeSingle(),
+    admin.from('carta_config').select('publica, titulo, mensaje, mostrar_precios, moneda, lectura, etiquetas').eq('negocio_id', negocio.id).maybeSingle(),
     admin.from('carta_categorias').select('id, nombre, descripcion, orden, visible').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en'),
     admin.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, orden').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en').limit(5000),
     admin.from('reservas_web_config').select('marca').eq('negocio_id', negocio.id).maybeSingle(),
     modo === 'pedir' && modulos.pedidos ? cargarConfigPedidos(admin, negocio.id) : Promise.resolve(null),
   ])
-  const config = { ...CONFIG_POR_DEFECTO, ...(cfg ?? {}) } as ConfigCarta
+  const { data: desc } = ped?.hayConfig ? await admin.from('pedido_descuentos').select('codigo').eq('negocio_id', negocio.id).eq('activo', true) : { data: null }
+  const config = { ...CONFIG_POR_DEFECTO, ...(cfg ?? {}), etiquetas: leerEtiquetasPropias(cfg?.etiquetas) } as ConfigCarta
   if (!config.publica) return null
   if (modo === 'ver' && config.lectura !== true) return null   // la carta de solo lectura está apagada: el enlace deja de andar
   const productos: ProductoCarta[] = (prods ?? []).map((p) => ({ ...p, precio: p.precio === null ? null : Number(p.precio), variantes: leerVariantes(p.variantes), etiquetas: p.etiquetas ?? [] }))
@@ -37,7 +38,8 @@ export async function cargarCartaPublica(slug: string, modo: ModoCarta) {
   // (a los clientes no se les muestra lo que no es suyo: las formas de entrega y medios apagados, ni los datos para pagar hasta que confirman el pedido)
   const pedidos: PedidosPublicos | null = ped?.hayConfig ? (() => {
     const { aceptar_auto: _a, ...publico } = ped.config; void _a
-    return { ...publico, entregas: ped.config.entregas.filter((e) => e.activo), medios: ped.config.medios.filter((m) => m.activo).map(({ datos, ...m }) => ({ ...m, tieneDatos: !!datos })), ahora: new Date().toISOString() }
+    const descuentos = { auto: (desc ?? []).some((d) => !d.codigo), cupones: (desc ?? []).some((d) => !!d.codigo) }
+    return { ...publico, descuentos, entregas: ped.config.entregas.filter((e) => e.activo), medios: ped.config.medios.filter((m) => m.activo).map(({ datos, ...m }) => ({ ...m, tieneDatos: !!datos })), ahora: new Date().toISOString() }
   })() : null
   const m = normalizarMarca(web?.marca)
   // La marca del local (logo y colores) es la misma del sitio de reservas: se carga una sola vez, en Configuración

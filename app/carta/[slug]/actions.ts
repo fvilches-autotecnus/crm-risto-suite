@@ -9,13 +9,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export interface DatosPedidoPublico {
   tipo: string; nombre: string; telefono: string; direccion: string; mesa: string; medio_pago: string; observaciones: string
+  codigo?: string   // cupón de descuento (opcional)
   items: { producto_id: string; variante: string | null; cantidad: number }[]
   web?: string   // campo trampa: las personas lo dejan vacío
   campana?: string   // código del enlace de campaña (?c=…)
   cumple_dia?: string; cumple_mes?: string; cumple_anio?: string   // cumpleaños opcional (si el negocio lo pide)
 }
 export type ResultadoPedidoPublico =
-  | { ok: true; numero: number; total: number; tipo: string; entrega_nombre: string | null; medio_pago: string; medio_pago_nombre: string | null; tiempo_estimado: string | null; datos_pago: string | null; instrucciones: string | null; mensaje: string | null; whatsapp: string | null; unidades: number }
+  | { ok: true; numero: number; total: number; tipo: string; entrega_nombre: string | null; medio_pago: string; medio_pago_nombre: string | null; tiempo_estimado: string | null; datos_pago: string | null; instrucciones: string | null; mensaje: string | null; whatsapp: string | null; unidades: number; subtotal: number; descuento: number; descuento_nombre: string | null }
   | { ok: false; error: string }
 
 const corto = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n)
@@ -28,10 +29,10 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
   const admin = createAdminClient()
   const { data, error } = await admin.rpc('crear_pedido', { p: {
     negocio: slug, origen: 'web', tipo: corto(d.tipo, 40), nombre: corto(d.nombre, 80), telefono: corto(d.telefono, 30), direccion: corto(d.direccion, 200),
-    mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items, campana: limpiarCampana(d.campana),
+    mesa: corto(d.mesa, 20), medio_pago: corto(d.medio_pago, 40), observaciones: corto(d.observaciones, 500), items, campana: limpiarCampana(d.campana), codigo: corto(d.codigo, 30),
   } })
   if (error) return { ok: false, error: 'No pudimos registrar tu pedido. Probá de nuevo.' }
-  const r = data as { ok: boolean; error?: string; minimo?: number; id?: string; numero?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; tiempo_estimado?: string | null; datos_pago?: string | null; instrucciones?: string | null; mensaje?: string | null; unidades?: number }
+  const r = data as { ok: boolean; error?: string; minimo?: number; id?: string; numero?: number; total?: number; tipo?: string; entrega_nombre?: string | null; medio_pago?: string; medio_pago_nombre?: string | null; tiempo_estimado?: string | null; datos_pago?: string | null; instrucciones?: string | null; mensaje?: string | null; unidades?: number; subtotal?: number; descuento?: number; descuento_nombre?: string | null; detalle?: string }
   if (!r.ok) return { ok: false, error: (r.error === 'pedidos_cerrados' || r.error === 'fuera_de_horario' || r.error === 'dia_cerrado') && r.mensaje ? `${mensajeError(r.error)} ${r.mensaje}` : mensajeError(r.error, r) }
   const { data: neg } = await admin.from('negocios').select('id, whatsapp_nro').eq('slug', slug).maybeSingle()
   // webhook de pedidos: avisa que entró un pedido nuevo (si el negocio lo habilitó), después de responderle al cliente
@@ -39,5 +40,17 @@ export async function crearPedidoPublico(slug: string, d: DatosPedidoPublico): P
     const negocioId = neg.id as string, pedidoId = r.id, cumple = leerCumple({ dia: d.cumple_dia, mes: d.cumple_mes, anio: d.cumple_anio })
     after(async () => { if (cumple) await guardarCumplePedido(negocioId, pedidoId, cumple); await avisarPedido(negocioId, pedidoId) })
   }
-  return { ok: true, numero: r.numero!, total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, tiempo_estimado: r.tiempo_estimado ?? null, datos_pago: r.datos_pago ?? null, instrucciones: r.instrucciones ?? null, mensaje: r.mensaje ?? null, whatsapp: neg?.whatsapp_nro ?? null, unidades: r.unidades ?? 0 }
+  return { ok: true, numero: r.numero!, total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, tiempo_estimado: r.tiempo_estimado ?? null, datos_pago: r.datos_pago ?? null, instrucciones: r.instrucciones ?? null, mensaje: r.mensaje ?? null, whatsapp: neg?.whatsapp_nro ?? null, unidades: r.unidades ?? 0, subtotal: Number(r.subtotal ?? r.total), descuento: Number(r.descuento ?? 0), descuento_nombre: r.descuento_nombre ?? null }
+}
+
+export type VistaPreviaPedido = { ok: true; descuento: number; nombre: string | null; cupon: string | null; cuponUsado: boolean } | { ok: false }
+
+/** Cuánto se descontaría con lo que hay en el carrito (mismo cálculo que al hacer el pedido, sin guardar nada). Se usa para mostrar el total antes de confirmar. */
+export async function simularPedidoPublico(slug: string, d: { tipo: string; medio_pago: string; codigo?: string; items: { producto_id: string; variante: string | null; cantidad: number }[] }): Promise<VistaPreviaPedido> {
+  if (!/^[a-z0-9-]{2,49}$/.test(slug)) return { ok: false }
+  const items = Array.isArray(d?.items) ? d.items.slice(0, 60).map((i) => ({ producto_id: corto(i.producto_id, 40), variante: i.variante ? corto(i.variante, 40) : null, cantidad: Math.trunc(Number(i.cantidad)) })) : []
+  const { data, error } = await createAdminClient().rpc('simular_pedido', { p: { negocio: slug, tipo: corto(d?.tipo, 40), medio_pago: corto(d?.medio_pago, 40), codigo: corto(d?.codigo, 30), items } })
+  const r = data as { ok?: boolean; descuento?: number; descuento_nombre?: string | null; cupon?: string | null; cupon_usado?: boolean } | null
+  if (error || !r?.ok) return { ok: false }
+  return { ok: true, descuento: Number(r.descuento ?? 0), nombre: r.descuento_nombre ?? null, cupon: r.cupon ?? null, cuponUsado: r.cupon_usado === true }
 }

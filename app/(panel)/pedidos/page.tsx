@@ -13,7 +13,7 @@ import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
 
 const TABS = [{ v: 'activos', l: 'En curso' }, { v: 'entregados', l: 'Entregados' }, { v: 'cancelados', l: 'Cancelados' }, { v: 'todos', l: 'Todos' }]
 const PERIODOS = [{ v: 'hoy', l: 'Hoy' }, { v: '7', l: '7 días' }, { v: '30', l: '30 días' }, { v: 'todos', l: 'Todo' }]
-const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, motivo_cancelacion, origen, campana, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
+const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, descuento_codigo, motivo_cancelacion, origen, campana, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal)'
 
 export default async function PedidosPage({ searchParams }: { searchParams: Promise<{ tab?: string; periodo?: string; q?: string; pagina?: string }> }) {
   const ctx = await getContexto()
@@ -39,7 +39,7 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
     supabase.from('pedidos').select('estado, total').eq('negocio_id', negocio.id).gte('creado_en', `${hoy}T00:00:00-03:00`).limit(2000),
     supabase.from('carta_productos').select('id, nombre, precio, variantes, categoria:carta_categorias(nombre, visible, orden)').eq('negocio_id', negocio.id).eq('visible', true).eq('disponible', true).order('orden').limit(3000),
   ])
-  const pedidos: Pedido[] = (data ?? []).map((p) => ({ ...p, subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), items: ((p as unknown as { items: Pedido['items'] }).items ?? []).map((i) => ({ ...i, precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal) })) })) as unknown as Pedido[]
+  const pedidos: Pedido[] = (data ?? []).map((p) => ({ ...p, subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), descuento: Number(p.descuento ?? 0), items: ((p as unknown as { items: Pedido['items'] }).items ?? []).map((i) => ({ ...i, precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal) })) })) as unknown as Pedido[]
 
   const catalogo: OpcionCatalogo[] = []
   for (const p of (prods ?? []) as unknown as { id: string; nombre: string; precio: number | null; variantes: { nombre: string; precio: number }[]; categoria: { nombre: string; visible: boolean; orden: number } | null }[]) {

@@ -130,7 +130,7 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
               {p.observaciones && <p className="rounded-md border border-rs-warn/30 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">📝 {p.observaciones}</p>}
               {p.estado === 'cancelado' && p.motivo_cancelacion && <p className="text-sm text-rs-danger">Motivo: {p.motivo_cancelacion}</p>}
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-rs-muted">{labelPago(p.medio_pago, p.medio_pago_nombre)}{p.envio > 0 ? ` · envío ${dinero(p.envio)}` : ''}</span>
+                <span className="text-rs-muted">{labelPago(p.medio_pago, p.medio_pago_nombre)}{p.envio > 0 ? ` · envío ${dinero(p.envio)}` : ''}{(p.descuento ?? 0) > 0 ? ` · descuento ${dinero(p.descuento!)}${p.descuento_nombre ? ` (${p.descuento_nombre}${p.descuento_codigo ? ` · cupón ${p.descuento_codigo}` : ''})` : ''}` : ''}</span>
                 <span className="text-lg font-bold tabular-nums text-rs-lime">{dinero(p.total)}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-rs-border/60 pt-3">

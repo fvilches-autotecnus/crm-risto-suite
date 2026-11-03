@@ -33,7 +33,9 @@ import { cargarConfigReservas, cargarTiposReserva } from '@/lib/config-reservas-
 import type { ConfigReservas } from '@/lib/reservas-config'
 import { sumarDias } from '@/lib/fechas'
 import { CatalogosPedidos, PedidosEntregas, PedidosGeneral, PedidosHorarios, PedidosMedios } from '@/components/config-pedidos'
-import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
+import { cargarConfigPedidos, cargarDescuentos } from '@/lib/pedidos-servidor'
+import { PedidosDescuentos } from '@/components/config-descuentos'
+import type { DescuentoPedido } from '@/lib/descuentos'
 import { CONFIG_PEDIDOS_POR_DEFECTO } from '@/lib/pedidos'
 
 const ROL: Record<string, string> = { owner: 'Dueño', admin: 'Administrador', encargado: 'Encargado', staff: 'Staff', solo_lectura: 'Solo lectura' }
@@ -98,6 +100,17 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   // Pedidos: ajustes del negocio entero (no de una sede), para dueños, administradores y encargados con acceso a todas las sedes
   const veAjustesPedidos = mods.pedidos && (ctx.puedeAdministrar || ctx.rol === 'encargado') && !restringido && !esSede
   const cfgPedidos = veAjustesPedidos ? (await cargarConfigPedidos(supabase, negocio.id)).config : CONFIG_PEDIDOS_POR_DEFECTO
+  // Descuentos de pedidos: las reglas y lo que hace falta para armarlas (categorías y productos de la carta)
+  let descuentos: DescuentoPedido[] = [], catDescuentos: { id: string; nombre: string }[] = [], prodDescuentos: { id: string; nombre: string; categoria_id: string }[] = [], monedaCarta = '$'
+  if (veAjustesPedidos) {
+    const [d, { data: cs }, { data: ps }, { data: cc }] = await Promise.all([
+      cargarDescuentos(supabase, negocio.id),
+      supabase.from('carta_categorias').select('id, nombre').eq('negocio_id', negocio.id).order('orden').order('creado_en'),
+      supabase.from('carta_productos').select('id, nombre, categoria_id').eq('negocio_id', negocio.id).order('orden').order('creado_en').limit(5000),
+      supabase.from('carta_config').select('moneda').eq('negocio_id', negocio.id).maybeSingle(),
+    ])
+    descuentos = d; catDescuentos = (cs ?? []) as typeof catDescuentos; prodDescuentos = (ps ?? []) as typeof prodDescuentos; monedaCarta = (cc?.moneda as string | undefined) ?? '$'
+  }
   // Sitio público de reservas: su configuración, los tipos de reserva que ya existen y los horarios que más se usan
   let webCfg: ConfigReservasWeb | null = null
   let webTipos: { value: string; label: string }[] = []
@@ -207,7 +220,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
       ...(hay.confirmacion ? [{ id: 'confirmacion', label: 'Confirmación' }] : []), ...(hay.parametros ? [{ id: 'parametros', label: 'Parámetros' }] : []),
     ] },
     { id: 'g-web', titulo: 'Sitio de reservas', texto: 'La página donde tus clientes reservan solos.', items: hay.web ? [{ id: 'reservas-web', label: 'Sitio de reservas' }] : [] },
-    { id: 'g-pedidos', titulo: 'Pedidos', texto: 'Cuándo y cómo se reciben los pedidos de la carta y del bot.', items: hay.pedidos ? [{ id: 'pedidos-general', label: 'Recepción' }, { id: 'pedidos-entregas', label: 'Formas de entrega' }, { id: 'pedidos-horarios', label: 'Horarios de pedidos' }, { id: 'pedidos-pagos', label: 'Medios de pago' }] : [] },
+    { id: 'g-pedidos', titulo: 'Pedidos', texto: 'Cuándo y cómo se reciben los pedidos de la carta y del bot.', items: hay.pedidos ? [{ id: 'pedidos-general', label: 'Recepción' }, { id: 'pedidos-entregas', label: 'Formas de entrega' }, { id: 'pedidos-horarios', label: 'Horarios de pedidos' }, { id: 'pedidos-pagos', label: 'Medios de pago' }, { id: 'pedidos-descuentos', label: 'Descuentos' }] : [] },
     { id: 'g-clientes', titulo: 'Clientes', texto: 'Cómo clasificás a tus clientes.', items: hay.etiquetas ? [{ id: 'etiquetas', label: 'Etiquetas' }] : [] },
     { id: 'g-equipo', titulo: 'Equipo', texto: 'Quién entra al sistema y con qué permisos.', items: hay.usuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : [] },
     { id: 'g-tecnico', titulo: 'Técnico', texto: 'Conexiones y módulos del negocio.', items: [...(hay.funciones ? [{ id: 'funciones', label: 'Funciones y módulos' }] : []), ...(hay.pausas ? [{ id: 'pausas', label: 'Pausa de chats' }] : [])] },
@@ -329,6 +342,9 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
             </Seccion>
             <Seccion id="pedidos-pagos" i={n++} titulo="Medios de pago" texto="Cómo pueden pagar tus clientes. Podés cambiar los nombres, ordenarlos, desactivarlos y agregar los tuyos (Mercado Pago, débito, un QR…).">
               <PedidosMedios />
+            </Seccion>
+            <Seccion id="pedidos-descuentos" i={n++} titulo="Descuentos" texto="Promos automáticas por categoría, producto, medio de pago, día de la semana o fecha, y cupones que el cliente escribe al pedir.">
+              <PedidosDescuentos descuentos={descuentos} categorias={catDescuentos} productos={prodDescuentos} moneda={monedaCarta} />
             </Seccion>
           </CatalogosPedidos>
         )}

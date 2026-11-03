@@ -32,6 +32,8 @@ export interface ConfigPedidos {
   aceptar_auto: boolean
   /** Pregunta el cumpleaños (opcional para el cliente) en el formulario del pedido: queda en su ficha. */
   pedir_cumple: boolean
+  /** Pide el teléfono en el formulario de la carta pública (por defecto sí). Apagado: el pedido se confirma por WhatsApp, sin teléfono ni ficha de cliente. */
+  pedir_telefono: boolean
   usar_horarios: boolean; horarios: HorariosSemana; fechas_cerradas: string[]
   entregas: EntregaPedido[]; medios: MedioPedido[]
 }
@@ -47,11 +49,11 @@ export const MEDIOS_POR_DEFECTO: MedioPedido[] = [
   { clave: 'tarjeta', etiqueta: 'Tarjeta', aviso: null, datos: null, activo: false, orden: 3 },
 ]
 export const CONFIG_PEDIDOS_POR_DEFECTO: ConfigPedidos = {
-  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false, pedir_cumple: false,
+  recibe: false, pedido_minimo: 0, tiempo_estimado: null, mensaje: null, mensaje_cerrado: null, aceptar_auto: false, pedir_cumple: false, pedir_telefono: true,
   usar_horarios: false, horarios: {}, fechas_cerradas: [], entregas: ENTREGAS_POR_DEFECTO, medios: MEDIOS_POR_DEFECTO,
 }
 /** Columnas de cada tabla que se leen en el panel y en la carta pública. */
-export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, pedir_cumple, usar_horarios, horarios, fechas_cerradas'
+export const COLS_CONFIG_PEDIDOS = 'recibe, pedido_minimo, tiempo_estimado, mensaje, mensaje_cerrado, aceptar_auto, pedir_cumple, pedir_telefono, usar_horarios, horarios, fechas_cerradas'
 export const COLS_ENTREGAS = 'clave, etiqueta, base, activo, orden, costo_envio, envio_gratis_desde, tiempo, horarios, medios'
 export const COLS_MEDIOS = 'clave, etiqueta, aviso, datos, activo, orden'
 
@@ -72,7 +74,7 @@ export function leerConfigPedidos(cfg: Fila | null | undefined, entregas?: Fila[
   const e = leerEntregas(entregas), m = leerMedios(medios)
   return {
     recibe: r.recibe === true, pedido_minimo: Number(r.pedido_minimo ?? 0), tiempo_estimado: (r.tiempo_estimado as string | null) || null,
-    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true, pedir_cumple: r.pedir_cumple === true,
+    mensaje: (r.mensaje as string | null) || null, mensaje_cerrado: (r.mensaje_cerrado as string | null) || null, aceptar_auto: r.aceptar_auto === true, pedir_cumple: r.pedir_cumple === true, pedir_telefono: r.pedir_telefono !== false,
     usar_horarios: r.usar_horarios === true, horarios: (obj(r.horarios) ?? {}) as HorariosSemana, fechas_cerradas: Array.isArray(r.fechas_cerradas) ? (r.fechas_cerradas as string[]) : [],
     entregas: e.length ? e : ENTREGAS_POR_DEFECTO, medios: m.length ? m : MEDIOS_POR_DEFECTO,
   }
@@ -83,7 +85,10 @@ export const claveDeNombre = (nombre: string) => nombre.normalize('NFD').replace
 export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number }
 export interface Pedido {
   id: string; numero: number; nombre: string; telefono: string | null; tipo: TipoPedido; mesa: string | null; direccion: string | null; observaciones: string | null
-  medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number; motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'; campana?: string | null
+  medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number
+  /** Lo que se descontó del subtotal (0 = sin descuento) y cuál fue (nombre y, si era un cupón, su código). */
+  descuento?: number; descuento_nombre?: string | null; descuento_codigo?: string | null
+  motivo_cancelacion: string | null; origen: 'web' | 'bot' | 'manual'; campana?: string | null
   creado_en: string; aceptado_en: string | null; listo_en: string | null; entregado_en: string | null; cancelado_en: string | null
   items: ItemPedido[]
 }
@@ -159,6 +164,7 @@ export const ERRORES_PEDIDO: Record<string, string> = {
   tipo_no_disponible: 'Esa forma de entrega no está disponible.',
   falta_nombre: 'Escribí tu nombre.',
   telefono_invalido: 'Revisá el teléfono: lo necesitamos para avisarte de tu pedido.',
+  cupon_invalido: 'El cupón no es válido.',
   falta_direccion: 'Escribí la dirección de entrega.',
   falta_mesa: 'Indicá el número de mesa.',
   medio_pago_no_disponible: 'Ese medio de pago no está disponible.',
@@ -172,5 +178,8 @@ export const ERRORES_PEDIDO: Record<string, string> = {
   total_excedido: 'El total supera el máximo permitido.',
   error_interno: 'No pudimos registrar tu pedido. Probá de nuevo.',
 }
-export const mensajeError = (codigo: string | undefined, extra?: { minimo?: number }) =>
-  codigo === 'pedido_minimo' ? `El pedido mínimo es ${dinero(extra?.minimo ?? 0)}.` : ERRORES_PEDIDO[codigo ?? ''] ?? 'No pudimos registrar tu pedido. Probá de nuevo.'
+/** Por qué no sirve un cupón (lo que devuelve la base: invalido · no_aplica · agotado). */
+export const mensajeCupon = (estado: string | null | undefined) =>
+  estado === 'agotado' ? 'Ese cupón ya no tiene usos disponibles.' : estado === 'no_aplica' ? 'Ese cupón no aplica a este pedido (revisá los productos, el medio de pago o la fecha).' : 'No encontramos ese cupón. Revisá cómo está escrito.'
+export const mensajeError = (codigo: string | undefined, extra?: { minimo?: number; detalle?: string }) =>
+  codigo === 'pedido_minimo' ? `El pedido mínimo es ${dinero(extra?.minimo ?? 0)}.` : codigo === 'cupon_invalido' ? mensajeCupon(extra?.detalle) : ERRORES_PEDIDO[codigo ?? ''] ?? 'No pudimos registrar tu pedido. Probá de nuevo.'
