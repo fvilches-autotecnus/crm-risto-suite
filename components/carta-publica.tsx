@@ -255,13 +255,13 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
     if (confirmaWA) {
       start(async () => {
         const r = await crearSolicitudPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
-        if (r.ok) { setTextoWA(armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), solicitud: r, form, lineas, moneda })); setPendiente(r); arriba.current?.scrollTo({ top: 0 }) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+        if (r.ok) { setTextoWA(armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), solicitud: r, form, lineas })); setPendiente(r); arriba.current?.scrollTo({ top: 0 }) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
       })
       return
     }
     start(async () => {
       const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: pedidos.pedir_telefono ? form.telefono : '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
-      if (r.ok) { setTextoWA(pedidos.pedir_telefono ? '' : armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), r, form, lineas, moneda })); onExito(r) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+      if (r.ok) { setTextoWA(pedidos.pedir_telefono ? '' : armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), r, form, lineas })); onExito(r) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
     })
   }
 
@@ -376,21 +376,21 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
 
 
 /**
- * Mensaje de WhatsApp con el pedido completo. Sin teléfono (pedido ya hecho) el negocio lo confirma por ahí; con `solicitud` es el mensaje que registra el pedido:
- * lleva "SOLICITUD DE PEDIDO" y el código, que es lo que lee el bot.
+ * Mensaje de WhatsApp con el pedido, sin precios (el cliente ve el total en la confirmación que le responde el bot). Sin teléfono (pedido ya hecho) el negocio lo confirma por ahí;
+ * con `solicitud` es el mensaje que registra el pedido: lleva "SOLICITUD DE PEDIDO" y, al final, el código que lee el bot.
  */
-function armarTextoWA({ negocio, nombre, r, solicitud, form, lineas, moneda }: { negocio: string; nombre: string; r?: Extract<ResultadoPedidoPublico, { ok: true }>; solicitud?: Extract<ResultadoSolicitudPedido, { ok: true }>; form: { direccion: string; mesa: string; observaciones: string; cumple_dia: string; cumple_mes: string }; lineas: Linea[]; moneda: string }) {
+function armarTextoWA({ negocio, nombre, r, solicitud, form, lineas }: { negocio: string; nombre: string; r?: Extract<ResultadoPedidoPublico, { ok: true }>; solicitud?: Extract<ResultadoSolicitudPedido, { ok: true }>; form: { direccion: string; mesa: string; observaciones: string; cumple_dia: string; cumple_mes: string }; lineas: Linea[] }) {
   const d = (r ?? solicitud)!
   const entrega = d.entrega_nombre || labelTipo(d.tipo)
-  return [
-    ...(solicitud ? [`SOLICITUD DE PEDIDO - ${negocio}`, `Código: ${solicitud.codigo}`, '', `Nombre: ${nombre}`] : [`Hola ${negocio}, soy ${nombre}. Hice el pedido #${r!.numero}:`]),
-    ...lineas.map((l) => `• ${l.cantidad} x ${l.nombre}${l.variante ? ` (${l.variante})` : ''}`),
+  const items = lineas.map((l) => `${l.cantidad}x ${l.nombre}${l.variante ? ` (${l.variante})` : ''}`)
+  const datosEntrega = [
     `Entrega: ${entrega}${d.tipo === 'delivery' && form.direccion ? ` · ${form.direccion}` : ''}${d.tipo === 'mesa' && form.mesa ? ` · Mesa ${form.mesa}` : ''}`,
-    `Pago: ${labelPago(d.medio_pago, d.medio_pago_nombre)}`,
-    ...(d.descuento > 0 ? [`Descuento${d.descuento_nombre ? ` (${d.descuento_nombre})` : ''}: -${dinero(d.descuento, moneda)}`] : []),
-    `Total: ${dinero(d.total, moneda)}`,
+    `Medio de pago: ${labelPago(d.medio_pago, d.medio_pago_nombre)}`,
+  ]
+  const extras = [
     ...(form.cumple_dia && form.cumple_mes ? [`Cumpleaños: ${form.cumple_dia.padStart(2, '0')}-${form.cumple_mes.padStart(2, '0')}`] : []),
     ...(form.observaciones ? [`Comentarios: ${form.observaciones}`] : []),
-    ...(solicitud ? [] : ['¿Me lo confirman? ¡Gracias!']),
-  ].join('\n')
+  ]
+  if (!solicitud) return [`Hola ${negocio}, soy ${nombre}. Hice el pedido #${r!.numero}:`, '', ...items, '', ...datosEntrega, ...extras, '', '¿Me lo confirman? ¡Gracias!'].join('\n')
+  return [`SOLICITUD DE PEDIDO - ${negocio}`, '', ...items, '', `Nombre: ${nombre}`, '', ...datosEntrega, ...extras, '', `Código: ${solicitud.codigo}`].join('\n')
 }
