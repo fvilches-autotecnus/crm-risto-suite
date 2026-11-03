@@ -40,6 +40,7 @@ const luz = (c: RGB) => { const f = (v: number) => { const s = v / 255; return s
  */
 export function variablesMarca(m: Marca): Record<string, string> | null {
   if (!m.color_fondo && !m.color_acento) return null
+  if (m.color_fondo && luz(aRgb(m.color_fondo)) > 0.4) return variablesClaras(m.color_fondo, m.color_acento)   // fondo claro (crema, papel…): tema claro
   const v: Record<string, string> = {}
   if (m.color_fondo) {
     let f = aRgb(m.color_fondo)
@@ -58,6 +59,25 @@ export function variablesMarca(m: Marca): Record<string, string> | null {
     v['--rs-on-lime'] = canal(mezcla(m.color_fondo ? aRgb(m.color_fondo) : [13, 20, 0], NEGRO, 0.65))
   }
   return v
+}
+
+/**
+ * Tema CLARO para un local cuyo color de fondo es claro (por ejemplo un crema): el fondo es ese color, las tarjetas un poco más claras, el texto un verde (o el tono del acento)
+ * casi negro y el acento —que se usa en botones, precios y títulos— siempre oscuro para que se lea sobre el fondo claro. Los estados (ok, aviso, error) también pasan a tonos oscuros.
+ */
+function variablesClaras(fondo: string, acento: string | null): Record<string, string> {
+  const f = aRgb(fondo)
+  let a: RGB = acento ? aRgb(acento) : [31, 58, 31]
+  while (luz(a) > 0.2) a = mezcla(a, NEGRO, 0.12)
+  const texto = mezcla(a, NEGRO, 0.62)
+  return {
+    'color-scheme': 'light',
+    '--rs-bg': canal(f), '--rs-header': canal(mezcla(f, NEGRO, 0.05)), '--rs-card': canal(mezcla(f, BLANCO, 0.55)), '--rs-raised': canal(mezcla(f, NEGRO, 0.07)),
+    '--rs-border': canal(mezcla(f, NEGRO, 0.16)), '--rs-control': canal(mezcla(f, NEGRO, 0.3)), '--rs-input': canal(mezcla(f, BLANCO, 0.65)),
+    '--rs-text': canal(texto), '--rs-muted': canal(mezcla(texto, f, 0.35)),
+    '--rs-lime': canal(a), '--rs-on-lime': canal(mezcla(f, BLANCO, 0.3)),
+    '--rs-ok': '30 110 60', '--rs-warn': '150 92 8', '--rs-danger': '176 42 36', '--rs-lav': '84 70 168',
+  }
 }
 
 /** Nombre que encabeza el sitio: el del negocio y, si la dirección es de una sede, el de la sede (sin repetir el del negocio). */
