@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { notFound } from 'next/navigation'
 import { getContexto } from '@/lib/context'
-import { dinero, labelEntrega, labelPago } from '@/lib/pedidos'
+import { categoriaDeItem, dinero, labelEntrega, labelPago } from '@/lib/pedidos'
 import BotonImprimir from './boton-imprimir'
 
 export const metadata: Metadata = { title: 'Ticket de pedido', robots: { index: false } }
@@ -14,10 +14,10 @@ export default async function Ticket({ params, searchParams }: { params: Promise
   const ctx = await getContexto()
   if (!ctx.modulosActivos.pedidos) notFound()
   const { data: p } = await ctx.supabase.from('pedidos')
-    .select('numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal)')
+    .select('numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal, producto:carta_productos(categoria:carta_categorias(nombre)))')
     .eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!p) notFound()
-  const items = (p.items ?? []) as { id: string; nombre: string; variante: string | null; cantidad: number; observaciones: string | null; subtotal: number }[]
+  const items = ((p.items ?? []) as unknown as { id: string; nombre: string; variante: string | null; cantidad: number; observaciones: string | null; subtotal: number; producto?: unknown }[]).map((i) => ({ ...i, categoria: categoriaDeItem(i) }))
   const fecha = fechaHoraLarga(p.creado_en)
   return (
     <div className="min-h-screen bg-white p-4 text-black print:p-0">
@@ -34,6 +34,7 @@ export default async function Ticket({ params, searchParams }: { params: Promise
         {items.map((i) => (
           <div key={i.id} className="mb-1.5">
             <div className="flex justify-between gap-2"><span className="font-bold">{i.cantidad} x {i.nombre}{i.variante ? ` (${i.variante})` : ''}</span><span>{dinero(Number(i.subtotal))}</span></div>
+            {i.categoria && <p className="pl-3">[{i.categoria}]</p>}
             {i.observaciones && <p className="pl-3">» {i.observaciones}</p>}
           </div>
         ))}

@@ -122,7 +122,7 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
               <ul className="divide-y divide-rs-border/50 rounded-md bg-rs-raised/40 px-3 text-sm">
                 {p.items.map((i) => (
                   <li key={i.id} className="flex items-start justify-between gap-3 py-2">
-                    <span><span className="font-semibold tabular-nums">{i.cantidad}×</span> {i.nombre}{i.variante ? <span className="text-rs-muted"> · {i.variante}</span> : null}{i.observaciones && <span className="block text-xs text-rs-warn">“{i.observaciones}”</span>}</span>
+                    <span><span className="font-semibold tabular-nums">{i.cantidad}×</span> {i.nombre}{i.variante ? <span className="text-rs-muted"> · {i.variante}</span> : null}{i.categoria && <span className="block text-xs text-rs-muted">{i.categoria}</span>}{i.observaciones && <span className="block text-xs text-rs-warn">“{i.observaciones}”</span>}</span>
                     <span className="shrink-0 tabular-nums text-rs-muted">{dinero(i.subtotal)}</span>
                   </li>
                 ))}

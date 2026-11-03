@@ -84,7 +84,15 @@ export function leerConfigPedidos(cfg: Fila | null | undefined, entregas?: Fila[
 /** "retiro" → "retiro_en_el_local": identificador estable a partir de un nombre. */
 export const claveDeNombre = (nombre: string) => nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'otro'
 
-export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number }
+export interface ItemPedido { id: string; nombre: string; variante: string | null; precio_unit: number; cantidad: number; observaciones: string | null; subtotal: number
+  /** Categoría de la carta a la que pertenece el producto hoy (null si el producto ya no existe). */
+  categoria?: string | null }
+
+/** Categoría del producto de un ítem leído con `producto:carta_productos(categoria:carta_categorias(nombre))`. */
+export const categoriaDeItem = (i: object): string | null => {
+  const p = (i as { producto?: unknown }).producto as { categoria?: { nombre?: string } | null } | null | undefined
+  return p?.categoria?.nombre ?? null
+}
 export interface Pedido {
   id: string; numero: number; nombre: string; telefono: string | null; tipo: TipoPedido; mesa: string | null; direccion: string | null; observaciones: string | null
   medio_pago: string; entrega?: string | null; entrega_nombre?: string | null; medio_pago_nombre?: string | null; estado: EstadoPedido; subtotal: number; envio: number; total: number
