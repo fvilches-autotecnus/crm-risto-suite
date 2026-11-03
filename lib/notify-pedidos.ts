@@ -99,7 +99,7 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
       nombre_titular: d.nombre,                               // mismos nombres que en la respuesta del flujo "Confirmar pedido web", para usar las mismas variables
       telefono,
       estado_pedido: d.estado,
-      tipo_entrega: d.tipo,                                   // retiro · delivery · mesa
+      tipo_entrega: d.tipo.toUpperCase(),                    // RETIRO · DELIVERY · MESA
       tipo_pedido: labelEntrega(d).toUpperCase(),                           // nombre de la forma de entrega ("RETIRO EN EL LOCAL")
       direccion_pedido: direccionPedido(d).toUpperCase(),                   // delivery: la dirección · mesa: "Mesa 5" · retiro: "RETIRO EN EL LOCAL" (todo en mayúsculas)
       monto_total: montoConPuntos(d.total),
