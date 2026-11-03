@@ -218,7 +218,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Cada persona que reservó, pidió o escribió queda como cliente, identificada por su **teléfono**. Podés buscar por nombre o teléfono y filtrar por **etiqueta** y por **origen** (de dónde llegó: WhatsApp, QR de la carta, Wifi…).' },
       { t: 'p', x: '**Por sede:** si el negocio tiene sedes, un filtro **Sede** deja solo los clientes que reservaron en esa sede (también respeta la sede elegida arriba). Con una sede elegida, “Reservas” y “Última reserva” cuentan solo las de esa sede.' },
-      { t: 'p', x: 'La **ficha del cliente** reúne su teléfono, origen, desde cuándo es cliente, su cumpleaños, su tarjeta de fidelidad, sus vouchers, sus reseñas y el **historial de reservas**. Desde ahí podés corregir su nombre y emitirle un voucher.' },
+      { t: 'p', x: 'La **ficha del cliente** reúne su teléfono, origen, desde cuándo es cliente, su cumpleaños, su tarjeta de fidelidad, sus vouchers, sus reseñas, el **historial de pedidos** (si usás Pedidos: qué pidió, cuánto y en qué estado quedó cada uno) y el **historial de reservas**. Desde ahí podés corregir su nombre y emitirle un voucher.' },
       { t: 'p', x: '**Etiquetas:** sirven para clasificar (por ejemplo “post visita”, “VIP”). Se crean en Configuración → Etiquetas de clientes. Si tu negocio tiene el bot conectado, la etiqueta también se aplica en el chat del cliente.' },
     ],
   },

@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { getContexto } from '@/lib/context'
-import { fechaCorta, horaCorta } from '@/lib/fechas'
+import { fechaCorta, fechaHoraCorta, horaCorta } from '@/lib/fechas'
+import { ESTADOS_PEDIDO, dinero, labelEntrega } from '@/lib/pedidos'
 import { labelTipo } from '@/lib/reservas'
 import { cargarTiposReserva } from '@/lib/config-reservas-servidor'
 import { EstadoBadge } from '@/components/reservas-ui'
@@ -38,6 +39,18 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
     .eq('cliente_id', id)
     .is('eliminado_en', null)
     .order('fecha', { ascending: false, nullsFirst: true })
+
+  const { data: pedidosDb } = ctx.modulosActivos.pedidos
+    ? await supabase
+        .from('pedidos')
+        .select('id, numero, creado_en, tipo, entrega_nombre, estado, total, descuento, items:pedido_items(nombre, variante, cantidad)')
+        .eq('negocio_id', negocio.id)
+        .eq('cliente_id', id)
+        .order('creado_en', { ascending: false })
+        .limit(100)
+    : { data: null }
+  const pedidosCliente = (pedidosDb ?? []) as unknown as { id: string; numero: number; creado_en: string; tipo: string; entrega_nombre: string | null; estado: string; total: number | string; descuento: number | string | null; items: { nombre: string; variante: string | null; cantidad: number }[] }[]
+  const pedidosValidos = pedidosCliente.filter((p) => p.estado !== 'cancelado')
 
   const hoy = hoyEn(negocio.zona_horaria)
   // Fidelización: visitas del cliente, próxima meta y premios recibidos
@@ -156,6 +169,38 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
             {ctx.puedeEscribir && <NuevaResenaBtn chico sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} hoy={hoy} prefill={{ cliente_id: cliente.id, nombre: cliente.nombre, telefono: cliente.telefono ?? '' }} />}
           </div>
           <ListaResenas resenas={(resenasCliente ?? []) as ResenaUI[]} mostrarCliente={false} sedes={ctx.sedes.map((x) => ({ id: x.id, nombre: x.nombre }))} nombresSede={Object.fromEntries(ctx.sedesTodas.map((x) => [x.id, x.nombre]))} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
+        </section>
+      )}
+
+      {ctx.modulosActivos.pedidos && (
+        <section>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="card-title">Historial de pedidos</h2>
+            {pedidosValidos.length > 0 && <p className="text-xs text-rs-muted">{pedidosValidos.length} {pedidosValidos.length === 1 ? 'pedido' : 'pedidos'} · {dinero(pedidosValidos.reduce((s, p) => s + Number(p.total), 0))} en total (sin contar cancelados)</p>}
+          </div>
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              <thead className="border-b border-rs-border">
+                <tr><th className="th">#</th><th className="th">Fecha</th><th className="th">Pedido</th><th className="th">Entrega</th><th className="th text-right">Total</th><th className="th">Estado</th></tr>
+              </thead>
+              <tbody>
+                {pedidosCliente.length === 0 && <tr><td colSpan={6} className="td py-8 text-center text-rs-muted">Sin pedidos.</td></tr>}
+                {pedidosCliente.map((p) => {
+                  const estado = ESTADOS_PEDIDO.find((e) => e.value === p.estado)
+                  return (
+                    <tr key={p.id} className="border-b border-rs-border/60 last:border-0">
+                      <td className="td font-semibold"><Link href={`/pedidos?tab=todos&periodo=todos&q=${encodeURIComponent(`#${p.numero}`)}`} className="text-rs-lime hover:underline">#{p.numero}</Link></td>
+                      <td className="td whitespace-nowrap">{fechaHoraCorta(p.creado_en, negocio.zona_horaria)}</td>
+                      <td className="td">{p.items.map((i) => `${i.cantidad} x ${i.nombre}${i.variante ? ` (${i.variante})` : ''}`).join(' · ') || '—'}</td>
+                      <td className="td text-rs-muted">{labelEntrega(p)}</td>
+                      <td className="td text-right tabular-nums">{dinero(Number(p.total))}{Number(p.descuento) > 0 && <span className="block text-xs text-rs-muted">desc. −{dinero(Number(p.descuento))}</span>}</td>
+                      <td className="td"><span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${estado?.color ?? 'bg-rs-raised text-rs-muted'}`}><span className={`h-1.5 w-1.5 rounded-full ${estado?.punto ?? 'bg-rs-muted'}`} />{estado?.label ?? p.estado}</span></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
