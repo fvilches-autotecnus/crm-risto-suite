@@ -100,8 +100,8 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
       telefono,
       estado_pedido: d.estado,
       tipo_entrega: d.tipo,                                   // retiro · delivery · mesa
-      tipo_pedido: labelEntrega(d),                           // nombre de la forma de entrega ("Retiro en el local")
-      direccion_pedido: direccionPedido(d),                   // delivery: la dirección · mesa: "Mesa 5" · retiro: "Retiro en el local"
+      tipo_pedido: labelEntrega(d).toUpperCase(),                           // nombre de la forma de entrega ("RETIRO EN EL LOCAL")
+      direccion_pedido: direccionPedido(d).toUpperCase(),                   // delivery: la dirección · mesa: "Mesa 5" · retiro: "RETIRO EN EL LOCAL" (todo en mayúsculas)
       monto_total: montoConPuntos(d.total),
       total: d.total, subtotal: d.subtotal, envio: d.envio, descuento: d.descuento ?? 0, descuento_nombre: d.descuento_nombre ?? '',
       metodo_pago: d.medio_pago_nombre || d.medio_pago,
