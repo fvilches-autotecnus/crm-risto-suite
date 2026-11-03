@@ -181,6 +181,7 @@ export const MANUAL: SeccionManual[] = [
         '**Importar texto:** pegás una lista con el formato “Categoría | Producto | Precio | Descripción” y se cargan todos juntos.',
         'En **Ajustes** elegís si se muestran precios, el título y un mensaje. Desde ahí sacás también el **QR** de la carta para imprimir.',
       ] },
+      { t: 'p', x: '**Carta de solo lectura.** Si el negocio toma pedidos, la carta pública (`/carta/<negocio>`) tiene carrito. En **Ajustes** podés encender además la **carta de solo lectura** (`/carta/<negocio>/ver`): es la **misma carta, con los mismos precios y siempre sincronizada**, pero sin carrito ni pedidos. Sirve para el QR de las mesas, las redes o para ofrecer la carta sin tomar pedidos. Viene apagada y la podés apagar cuando quieras (el enlace deja de funcionar). Con la lectura encendida, el panel muestra los dos enlaces y el QR de cada una.' },
       { t: 'tip', x: 'El enlace de la carta se puede usar en el menú del bot, para que mande siempre la carta actualizada (pedíselo a Risto Suite).' },
     ],
   },

@@ -18,7 +18,7 @@ async function permiso(opciones: { ajustes?: boolean } = {}) {
   if (opciones.ajustes && !(ctx.puedeAdministrar || ctx.rol === 'encargado')) return { ctx, error: 'Solo dueños, administradores y encargados pueden cambiar los ajustes de la carta' }
   return { ctx, error: null as string | null }
 }
-const refrescar = (slug: string) => { revalidatePath('/carta'); revalidatePath(`/carta/${slug}`) }
+const refrescar = (slug: string) => { revalidatePath('/carta'); revalidatePath(`/carta/${slug}`); revalidatePath(`/carta/${slug}/ver`) }
 
 /** "12.500,50" / "12.500" (formato argentino, el punto separa miles), "12500.5" o "$ 12500" → número; vacío → null; inválido → NaN. */
 function leerPrecio(t: string): number | null {
@@ -206,7 +206,7 @@ export async function guardarAjustesCarta(_prev: ActionResult | null, fd: FormDa
   if (mensaje.length > 400) return fail('El mensaje puede tener hasta 400 letras')
   if (moneda.length > 4) return fail('La moneda puede tener hasta 4 caracteres')
   const { error: e } = await ctx.supabase.from('carta_config').upsert({
-    negocio_id: ctx.negocio.id, publica: fd.get('publica') === 'on', titulo: titulo || null, mensaje: mensaje || null, mostrar_precios: fd.get('mostrar_precios') === 'on', moneda,
+    negocio_id: ctx.negocio.id, publica: fd.get('publica') === 'on', titulo: titulo || null, mensaje: mensaje || null, mostrar_precios: fd.get('mostrar_precios') === 'on', moneda, lectura: fd.get('lectura') === 'on',
   })
   if (e) return fail('No se pudieron guardar los ajustes')
   refrescar(ctx.negocio.slug)

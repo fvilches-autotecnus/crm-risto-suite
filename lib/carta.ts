@@ -12,9 +12,9 @@ export interface ProductoCarta {
   disponible: boolean; visible: boolean; destacado: boolean; orden: number
 }
 
-export interface ConfigCarta { publica: boolean; titulo: string | null; mensaje: string | null; mostrar_precios: boolean; moneda: string }
+export interface ConfigCarta { publica: boolean; titulo: string | null; mensaje: string | null; mostrar_precios: boolean; moneda: string; /** Carta de solo lectura encendida: /carta/<negocio>/ver, el mismo catálogo sin carrito. */ lectura: boolean }
 
-export const CONFIG_POR_DEFECTO: ConfigCarta = { publica: true, titulo: null, mensaje: null, mostrar_precios: true, moneda: '$' }
+export const CONFIG_POR_DEFECTO: ConfigCarta = { publica: true, titulo: null, mensaje: null, mostrar_precios: true, moneda: '$', lectura: false }
 
 export const ETIQUETAS: { clave: string; label: string; color: string }[] = [
   { clave: 'recomendado', label: 'Recomendado', color: 'bg-rs-lime/15 text-rs-lime' },

@@ -20,7 +20,7 @@ type Dialogo =
   | { t: 'producto'; prod?: ProductoCarta }
   | { t: 'ajustes' } | { t: 'importar' } | { t: 'qr' }
 
-interface Props { categorias: CategoriaCarta[]; productos: ProductoCarta[]; config: ConfigCarta; slug: string; negocio: string; puedeEscribir: boolean; puedeEliminar: boolean; puedeAjustes: boolean }
+interface Props { categorias: CategoriaCarta[]; productos: ProductoCarta[]; config: ConfigCarta; slug: string; negocio: string; puedeEscribir: boolean; puedeEliminar: boolean; puedeAjustes: boolean; pedidosActivo: boolean }
 
 const Switch = ({ on, onClick, disabled, titulo, children }: { on: boolean; onClick: () => void; disabled?: boolean; titulo: string; children?: React.ReactNode }) => (
   <button type="button" role="switch" aria-checked={on} aria-label={titulo} title={titulo} disabled={disabled} onClick={onClick}
@@ -29,7 +29,7 @@ const Switch = ({ on, onClick, disabled, titulo, children }: { on: boolean; onCl
   </button>
 )
 
-export default function CartaAdmin({ categorias, productos, config, slug, negocio, puedeEscribir, puedeEliminar, puedeAjustes }: Props) {
+export default function CartaAdmin({ categorias, productos, config, slug, negocio, puedeEscribir, puedeEliminar, puedeAjustes, pedidosActivo }: Props) {
   const toast = useToast()
   const confirmar = useConfirm()
   const [pend, start] = useTransition()
@@ -62,8 +62,9 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
   }
 
   const agotados = productos.filter((p) => !p.disponible).length, ocultos = productos.filter((p) => !p.visible).length
-  const enlace = typeof window !== 'undefined' ? `${window.location.origin}/carta/${slug}` : `/carta/${slug}`
-  const copiar = async () => { try { await navigator.clipboard.writeText(enlace); toast({ texto: 'Enlace de la carta copiado' }) } catch { toast({ tipo: 'error', texto: 'No se pudo copiar: ' + enlace }) } }
+  const origen = typeof window !== 'undefined' ? window.location.origin : ''
+  const enlace = `${origen}/carta/${slug}`, enlaceLectura = `${origen}/carta/${slug}/ver`   // la de pedidos y la de solo lectura (mismo catálogo, siempre sincronizadas)
+  const copiar = async (url: string = enlace) => { try { await navigator.clipboard.writeText(url); toast({ texto: url === enlaceLectura ? 'Enlace de la carta de solo lectura copiado' : 'Enlace de la carta copiado' }) } catch { toast({ tipo: 'error', texto: 'No se pudo copiar: ' + url }) } }
 
   return (
     <div className="space-y-5">
@@ -73,8 +74,10 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
           <p className="text-sm text-rs-muted">Categorías y productos de {negocio}, con precio, foto y disponibilidad</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a href={`/carta/${slug}`} target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={14} />Ver carta pública</a>
-          <button type="button" onClick={copiar} className="btn"><Copy size={14} />Copiar enlace</button>
+          <a href={`/carta/${slug}`} target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={14} />{pedidosActivo ? 'Ver carta con pedidos' : 'Ver carta pública'}</a>
+          <button type="button" onClick={() => copiar(enlace)} className="btn"><Copy size={14} />Copiar enlace</button>
+          {config.lectura && <a href={`/carta/${slug}/ver`} target="_blank" rel="noopener noreferrer" className="btn" data-carta-lectura><ExternalLink size={14} />Ver carta de solo lectura</a>}
+          {config.lectura && <button type="button" onClick={() => copiar(enlaceLectura)} className="btn" data-copiar-lectura><Copy size={14} />Copiar enlace de solo lectura</button>}
           <button type="button" onClick={() => setModal({ t: 'qr' })} className="btn"><QrCode size={14} />QR</button>
           {puedeAjustes && <button type="button" onClick={() => setModal({ t: 'ajustes' })} className="btn"><Settings size={14} />Ajustes</button>}
         </div>
@@ -177,9 +180,9 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
 
       {modal?.t === 'categoria' && <Modal titulo={modal.cat ? 'Editar categoría' : 'Nueva categoría'} onClose={cerrar}><FormCategoria cat={modal.cat} onDone={cerrar} /></Modal>}
       {modal?.t === 'producto' && <ModalProducto prod={modal.prod} categorias={categorias} categoriaInicial={catSel?.id} moneda={config.moneda} onClose={cerrar} />}
-      {modal?.t === 'ajustes' && <Modal titulo="Ajustes de la carta pública" onClose={cerrar}><FormAjustes config={config} onDone={cerrar} /></Modal>}
+      {modal?.t === 'ajustes' && <Modal titulo="Ajustes de la carta pública" onClose={cerrar}><FormAjustes config={config} onDone={cerrar} pedidosActivo={pedidosActivo} /></Modal>}
       {modal?.t === 'importar' && <Modal titulo="Importar productos" onClose={cerrar} ancho="max-w-2xl"><FormImportar onDone={cerrar} /></Modal>}
-      {modal?.t === 'qr' && <Modal titulo="Código QR de la carta" onClose={cerrar}><PanelQR enlace={enlace} nombre={negocio} onCopiar={copiar} /></Modal>}
+      {modal?.t === 'qr' && <Modal titulo="Código QR de la carta" onClose={cerrar}><PanelQR enlace={enlace} enlaceLectura={config.lectura ? enlaceLectura : null} pedidosActivo={pedidosActivo} nombre={negocio} onCopiar={copiar} /></Modal>}
     </div>
   )
 }
@@ -274,12 +277,13 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, onClose }: 
   )
 }
 
-function FormAjustes({ config, onDone }: { config: ConfigCarta; onDone: () => void }) {
+function FormAjustes({ config, onDone, pedidosActivo }: { config: ConfigCarta; onDone: () => void; pedidosActivo: boolean }) {
   const { state, pending, formProps } = useAccionFormulario(guardarAjustesCarta)
   useCerrarAlGuardar(state, 'Ajustes guardados', onDone)
   return (
     <form {...formProps} className="space-y-3">
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="publica" defaultChecked={config.publica} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Carta pública activa</span><span className="block text-xs text-rs-muted">Si la desactivás, el enlace y el QR muestran “carta no disponible”.</span></span></label>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="lectura" defaultChecked={config.lectura} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Carta de solo lectura (sin pedidos)</span><span className="block text-xs text-rs-muted">Un segundo enlace con la <b>misma carta y los mismos precios</b>, siempre sincronizados, pero sin carrito: solo para mirar. Sirve para el QR de las mesas, redes o para ofrecer la carta sin tomar pedidos{pedidosActivo ? '' : ' (hoy esta carta ya es de solo lectura porque no tomás pedidos por acá)'}. Podés apagarla cuando quieras: el enlace deja de funcionar.</span></span></label>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="mostrar_precios" defaultChecked={config.mostrar_precios} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Mostrar precios</span><span className="block text-xs text-rs-muted">Desmarcalo para una carta solo de menú, sin precios.</span></span></label>
       <div><label className="label" htmlFor="a_titulo">Título (opcional)</label><input id="a_titulo" name="titulo" defaultValue={config.titulo ?? ''} maxLength={80} placeholder="Por defecto: el nombre del negocio" className="input w-full" /></div>
       <div><label className="label" htmlFor="a_msg">Mensaje de cabecera (opcional)</label><textarea id="a_msg" name="mensaje" defaultValue={config.mensaje ?? ''} maxLength={400} rows={3} placeholder="Ej. Precios con IVA incluido. Avisanos si tenés alguna alergia." className="input w-full" /></div>
@@ -309,17 +313,25 @@ Postres | Flan casero | 6000 | Con dulce de leche`}</pre>
   )
 }
 
-function PanelQR({ enlace, nombre, onCopiar }: { enlace: string; nombre: string; onCopiar: () => void }) {
+function PanelQR({ enlace: enlacePedidos, enlaceLectura, pedidosActivo, nombre, onCopiar }: { enlace: string; enlaceLectura: string | null; pedidosActivo: boolean; nombre: string; onCopiar: (url: string) => void }) {
+  const [vista, setVista] = useState<'pedir' | 'ver'>('pedir')
+  const enlace = vista === 'ver' && enlaceLectura ? enlaceLectura : enlacePedidos
   const [png, setPng] = useState<string | null>(null)
   useEffect(() => { QRCode.toDataURL(enlace, { width: 800, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } }).then(setPng).catch(() => setPng(null)) }, [enlace])
   return (
     <div className="space-y-4 text-center">
+      {enlaceLectura && (
+        <div role="tablist" className="mx-auto flex w-fit gap-1 rounded-full border border-rs-control p-1 text-sm">
+          <button type="button" role="tab" aria-selected={vista === 'pedir'} onClick={() => setVista('pedir')} className={'rounded-full px-3 py-1 ' + (vista === 'pedir' ? 'bg-rs-lime/15 font-semibold text-rs-lime' : 'text-rs-muted')}>{pedidosActivo ? 'Con pedidos' : 'Carta'}</button>
+          <button type="button" role="tab" aria-selected={vista === 'ver'} onClick={() => setVista('ver')} className={'rounded-full px-3 py-1 ' + (vista === 'ver' ? 'bg-rs-lime/15 font-semibold text-rs-lime' : 'text-rs-muted')}>Solo lectura</button>
+        </div>
+      )}
       <div className="mx-auto grid h-64 w-64 place-items-center rounded-lg bg-white p-2">{png ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={png} alt={`Código QR de la carta de ${nombre}`} className="h-full w-full" /> : <Spinner size={22} />}</div>
       <p className="break-all text-xs text-rs-muted">{enlace}</p>
       <p className="text-xs text-rs-muted">Imprimilo y pegalo en las mesas, la entrada o el ticket: quien lo escanee ve la carta actualizada, sin instalar nada.</p>
       <div className="flex flex-wrap justify-center gap-2">
-        {png && <a href={png} download={`qr-carta-${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`} className="btn btn-primary"><Download size={14} />Descargar PNG</a>}
-        <button type="button" onClick={onCopiar} className="btn"><Copy size={14} />Copiar enlace</button>
+        {png && <a href={png} download={`qr-carta${vista === 'ver' && enlaceLectura ? '-solo-lectura' : ''}-${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`} className="btn btn-primary"><Download size={14} />Descargar PNG</a>}
+        <button type="button" onClick={() => onCopiar(enlace)} className="btn"><Copy size={14} />Copiar enlace</button>
       </div>
     </div>
   )
