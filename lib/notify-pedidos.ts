@@ -51,6 +51,13 @@ const TITULOS: Record<EstadoPedido, [string, string]> = {
 const ORIGENES = { web: 'Carta digital', bot: 'Chat de WhatsApp', manual: 'Cargado en el local' }
 const lineaItem = (i: { nombre: string; variante: string | null; cantidad: number }) => `${i.cantidad} x ${i.nombre}${i.variante ? ` (${i.variante})` : ''}`
 
+/** Monto para mostrar en la tarjeta de BotConversa: punto de mil y coma decimal, sin símbolo (26500 → "26.500", 26500.5 → "26.500,50"). El campo `total` sigue siendo el número. */
+export const montoConPuntos = (n: number) => {
+  const x = Number(n)
+  const [i, dec] = x.toFixed(Number.isInteger(x) ? 0 : 2).split('.')
+  return i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (dec ? `,${dec}` : '')
+}
+
 /** Dónde se entrega, en una sola línea para la tarjeta de BotConversa: la dirección (delivery), "Mesa 5" o el nombre del retiro ("Retiro en el local"). */
 export const direccionPedido = (d: Pick<DatosAvisoPedido, 'tipo' | 'entrega_nombre' | 'direccion' | 'mesa'>) =>
   d.tipo === 'delivery' ? (d.direccion?.trim() || labelEntrega(d)) : d.tipo === 'mesa' ? (d.mesa ? `Mesa ${d.mesa}` : labelEntrega(d)) : labelEntrega(d)
@@ -95,7 +102,7 @@ export function armarPayloadPedido(destino: DestinoWebhook, d: DatosAvisoPedido)
       tipo_entrega: d.tipo,                                   // retiro · delivery · mesa
       tipo_pedido: labelEntrega(d),                           // nombre de la forma de entrega ("Retiro en el local")
       direccion_pedido: direccionPedido(d),                   // delivery: la dirección · mesa: "Mesa 5" · retiro: "Retiro en el local"
-      monto_total: d.total,
+      monto_total: montoConPuntos(d.total),
       total: d.total, subtotal: d.subtotal, envio: d.envio, descuento: d.descuento ?? 0, descuento_nombre: d.descuento_nombre ?? '',
       metodo_pago: d.medio_pago_nombre || d.medio_pago,
       medio_pago: d.medio_pago_nombre || d.medio_pago,
