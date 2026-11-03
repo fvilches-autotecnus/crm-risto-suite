@@ -34,6 +34,12 @@ export default function HojaQR({ negocio, slug, grupos, conPedidos, conCarta }: 
                   {qrs[m] ? <img src={qrs[m]} alt={`Código QR de la mesa ${m}`} className="mx-auto my-1 h-40 w-40" /> : <div className="mx-auto my-1 h-40 w-40 animate-pulse bg-gray-100" />}
                   <p className="text-xs font-semibold">{conPedidos ? 'Escaneá, mirá la carta y pedí desde tu mesa' : 'Escaneá y mirá nuestra carta'}</p>
                   <p className="text-[10px] text-gray-500">{negocio}</p>
+                  <div className="mt-1 flex items-center justify-center gap-1 text-[9px] text-gray-400">
+                    <span>Powered by</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/brand/mark-light.png" alt="" className="h-3 w-3" />
+                    <span className="font-semibold">QRtsapp.com</span>
+                  </div>
                 </li>
               ))}
             </ul>

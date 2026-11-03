@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import ReservarPublico from '@/components/reservar-publico'
 import { hoyEn } from '@/lib/fechas'
 import { resolverModulos } from '@/lib/modulos'
-import { origenCrm, urlAbsoluta, variablesMarca } from '@/lib/marca'
+import { iconosMarca, origenCrm, urlAbsoluta, variablesMarca } from '@/lib/marca'
 import { cargarMarcaSitio, resolverSitio } from '@/lib/sitio-reservas'
 import { labelTipo } from '@/lib/reservas'
 import { urlImagen } from '@/lib/carta'
@@ -21,13 +21,14 @@ export const revalidate = 60
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const s = await cargarMarcaSitio((await params).slug)
   const base = origenCrm() || undefined
-  const ico = urlAbsoluta(s?.marca.logo_url ?? null) ?? `${origenCrm()}/logo.jpeg`
+  const slug = (await params).slug
   if (!s) return { title: 'Reservá tu mesa', robots: { index: false, follow: false } }
+  const ico = iconosMarca(s.marca, slug) ?? { icon: `${origenCrm()}/logo.jpeg`, apple: `${origenCrm()}/logo.jpeg` }
   const desc = s.subtitulo || `Reservá tu mesa en ${s.nombre}`
   return {
     metadataBase: base ? new URL(base) : undefined,
     title: `Reservá tu mesa · ${s.nombre}`, description: desc, robots: { index: false, follow: false },
-    icons: { icon: ico, apple: ico },
+    icons: ico,
     openGraph: { title: `Reservá tu mesa · ${s.nombre}`, description: desc, siteName: 'Risto Suite', type: 'website', locale: 'es_AR' },
   }
 }

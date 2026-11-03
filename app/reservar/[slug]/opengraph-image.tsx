@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import { ImageResponse } from 'next/og'
-import { origenCrm, tieneMarca, urlAbsoluta, variablesMarca } from '@/lib/marca'
+import { fondoClaro, origenCrm, tieneMarca, urlAbsoluta, variablesMarca } from '@/lib/marca'
 import { cargarMarcaSitio } from '@/lib/sitio-reservas'
 
 // Miniatura que se ve al compartir el link del sitio de reservas (WhatsApp, redes): la marca del local y la de Risto Suite.
@@ -15,7 +15,7 @@ export default async function Miniatura({ params }: { params: Promise<{ slug: st
   const s = await cargarMarcaSitio((await params).slug)
   const marca = s?.marca
   const vars = (marca && variablesMarca(marca)) ?? {}
-  const fondo = rgb(vars['--rs-header'], '#0a1100'), acento = rgb(vars['--rs-lime'], '#c8e62b'), texto = rgb(vars['--rs-text'], '#f0f4e8'), suave = rgb(vars['--rs-muted'], '#7a9050')
+  const fondo = (marca && fondoClaro(marca)) || rgb(vars['--rs-header'], '#0a1100'), acento = rgb(vars['--rs-lime'], '#c8e62b'), texto = rgb(vars['--rs-text'], '#f0f4e8'), suave = rgb(vars['--rs-muted'], '#7a9050')
   // satori no resuelve rutas relativas: las imágenes propias del CRM van con dirección completa (en local, la del propio servidor)
   const h = await headers()
   const host = origenCrm() || `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`

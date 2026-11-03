@@ -2,7 +2,7 @@ import 'server-only'
 import type { Metadata } from 'next'
 import { CONFIG_POR_DEFECTO, leerVariantes, urlImagen, type CategoriaCarta, type ConfigCarta, type ProductoCarta } from '@/lib/carta'
 import type { CategoriaPublica, PedidosPublicos } from '@/components/carta-publica'
-import { normalizarMarca, urlAbsoluta, type Marca } from '@/lib/marca'
+import { iconosMarca, normalizarMarca, urlAbsoluta, type Marca } from '@/lib/marca'
 import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
 import { resolverModulos } from '@/lib/modulos'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -48,5 +48,5 @@ export async function cargarCartaPublica(slug: string, modo: ModoCarta) {
 export async function metadataCarta(slug: string, modo: ModoCarta): Promise<Metadata> {
   const d = await cargarCartaPublica(slug, modo)
   if (!d) return { title: 'Carta no disponible' }
-  return { title: `${d.config.titulo || d.nombre} · Carta`, description: `Carta digital de ${d.nombre}`, ...(d.marca.logo_url ? { icons: { icon: d.marca.logo_url } } : {}) }
+  return { title: `${d.config.titulo || d.nombre} · Carta`, description: `Carta digital de ${d.nombre}`, ...(iconosMarca(d.marca, slug) ? { icons: iconosMarca(d.marca, slug) } : {}) }
 }

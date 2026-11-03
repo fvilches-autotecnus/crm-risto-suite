@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { urlImagen } from '@/lib/carta'
 import { hoyEn } from '@/lib/fechas'
-import { normalizarMarca, origenCrm, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
+import { iconosMarca, normalizarMarca, origenCrm, urlAbsoluta, variablesMarca, type Marca } from '@/lib/marca'
 import { resolverModulos } from '@/lib/modulos'
 import { enlaceReservaShow, type Show } from '@/lib/shows'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -32,9 +32,10 @@ async function cargar(slug: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const d = await cargar((await params).slug)
+  const slug = (await params).slug
+  const d = await cargar(slug)
   if (!d) return { title: 'Cartelera no disponible' }
-  return { title: `${d.nombre} · Shows`, description: `Cartelera de shows y eventos de ${d.nombre}`, ...(d.marca.logo_url ? { icons: { icon: d.marca.logo_url } } : {}) }
+  return { title: `${d.nombre} · Shows`, description: `Cartelera de shows y eventos de ${d.nombre}`, ...(iconosMarca(d.marca, slug) ? { icons: iconosMarca(d.marca, slug) } : {}) }
 }
 
 export default async function ShowsPublicosPage({ params }: { params: Promise<{ slug: string }> }) {

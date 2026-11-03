@@ -33,6 +33,18 @@ const NEGRO: RGB = [0, 0, 0], BLANCO: RGB = [255, 255, 255]
 const canal = (c: RGB) => c.join(' ')
 const luz = (c: RGB) => { const f = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]) }
 
+/** Fondo liso para el ícono de la pestaña y la miniatura al compartir: el color del local cuando es claro (crema, papel…); null si es oscuro o no hay. */
+export const fondoClaro = (m: Marca) => (m.color_fondo && luz(aRgb(m.color_fondo)) > 0.4 ? m.color_fondo : null)
+
+/**
+ * Ícono de la pestaña. Un logo ancho con fondo transparente se ve mal achicado: si el local tiene fondo claro,
+ * el ícono es un cuadrado de ese color con el logo adentro (lo arma /reservar/<slug>/icono). Si no, se usa el logo tal cual.
+ */
+export function iconosMarca(m: Marca, slug: string) {
+  const ico = fondoClaro(m) && m.logo_url ? `${origenCrm()}/reservar/${slug}/icono` : urlAbsoluta(m.logo_url)
+  return ico ? { icon: ico, apple: ico } : undefined
+}
+
 /**
  * Paleta del sitio a partir de dos colores del local: el del fondo (oscuro) y el de acento (botones y resaltados).
  * Las demás tintas (tarjetas, bordes, texto) salen de mezclarlos, así siempre se leen bien y se mantiene el estilo oscuro de Risto Suite.
