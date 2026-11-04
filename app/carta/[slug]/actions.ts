@@ -80,3 +80,23 @@ export async function crearSolicitudPedidoPublico(slug: string, d: DatosPedidoPu
   if (!r.ok) return { ok: false, error: (r.error === 'pedidos_cerrados' || r.error === 'fuera_de_horario' || r.error === 'dia_cerrado') && r.mensaje ? `${mensajeError(r.error)} ${r.mensaje}` : mensajeError(r.error, r) }
   return { ok: true, codigo: r.codigo!, whatsapp: r.whatsapp!, validez_horas: r.validez_horas ?? 6, subtotal: Number(r.subtotal), descuento: Number(r.descuento ?? 0), descuento_nombre: r.descuento_nombre ?? null, envio: Number(r.envio ?? 0), total: Number(r.total), tipo: r.tipo!, entrega_nombre: r.entrega_nombre ?? null, medio_pago: r.medio_pago!, medio_pago_nombre: r.medio_pago_nombre ?? null, unidades: r.unidades ?? 0 }
 }
+
+export type SeguimientoPedido =
+  | { ok: true; numero: number; estado: string; tipo: string; entrega_nombre: string | null; creado_en: string; aceptado_en: string | null; listo_en: string | null; entregado_en: string | null; cancelado_en: string | null }
+  | { ok: false; error: string }
+
+/**
+ * Estado de un pedido por su número, para la página pública de seguimiento (sin sesión). A propósito solo devuelve el estado y las horas:
+ * ni nombre, ni teléfono, ni dirección, ni productos, ni montos (igual que el seguimiento de Toque).
+ */
+export async function estadoPedidoPublico(slug: string, numero: number): Promise<SeguimientoPedido> {
+  const n = Math.trunc(Number(numero))
+  if (!/^[a-z0-9-]{2,49}$/.test(slug) || !Number.isInteger(n) || n < 1 || n > 9_999_999) return { ok: false, error: 'Poné el número de tu pedido (por ejemplo 125).' }
+  const admin = createAdminClient()
+  const { data: negocio } = await admin.from('negocios').select('id').eq('slug', slug).eq('activo', true).maybeSingle()
+  if (!negocio) return { ok: false, error: 'No encontramos este negocio.' }
+  const { data: p } = await admin.from('pedidos').select('numero, estado, tipo, entrega_nombre, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en').eq('negocio_id', negocio.id).eq('numero', n).maybeSingle()
+  if (!p) return { ok: false, error: `No encontramos el pedido #${n}. Revisá el número que te llegó por WhatsApp.` }
+  return { ok: true, numero: p.numero as number, estado: p.estado as string, tipo: p.tipo as string, entrega_nombre: (p.entrega_nombre as string | null) ?? null, creado_en: p.creado_en as string,
+    aceptado_en: (p.aceptado_en as string | null) ?? null, listo_en: (p.listo_en as string | null) ?? null, entregado_en: (p.entregado_en as string | null) ?? null, cancelado_en: (p.cancelado_en as string | null) ?? null }
+}

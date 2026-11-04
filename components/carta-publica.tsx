@@ -297,6 +297,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
               {!pedidos.pedir_telefono && exito.whatsapp && <p className="rounded-md border border-rs-lime/40 bg-rs-lime/10 p-3 text-sm font-medium">Último paso: enviános el pedido por WhatsApp para que lo confirmemos.</p>}
               {exito.tiempo_estimado && <p className="text-sm">Demora estimada: <span className="font-semibold">{exito.tiempo_estimado}</span></p>}
               {exito.instrucciones && <p className="rounded-md bg-rs-raised/50 p-3 text-left text-sm text-rs-muted">{exito.instrucciones}</p>}
+              <a href={`${window.location.pathname.replace(/\/$/, '')}/pedido?numero=${exito.numero}`} className="btn w-full">Ver el estado de mi pedido</a>
               {exito.datos_pago && <div className="rounded-md border border-rs-lime/30 bg-rs-lime/5 p-3 text-left text-sm"><p className="font-semibold">Datos para pagar</p><p className="mt-1 whitespace-pre-line text-rs-muted">{exito.datos_pago}</p></div>}
               {exito.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{exito.mensaje}</p>}
               {exito.whatsapp && <a href={`https://wa.me/${exito.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(mensajeWA)}`} target="_blank" rel="noopener noreferrer" className="btn btn-primary h-12 w-full text-base">{pedidos.pedir_telefono ? 'Avisar por WhatsApp' : 'Confirmar por WhatsApp'}</a>}
