@@ -43,6 +43,10 @@ export default function ReservasWebSede({ sede, config, pisados, slug, tiposDisp
             <select id="ws_mesa" name="sede_mesa" defaultValue={sede.elegir_mesa === null ? '' : sede.elegir_mesa ? 'si' : 'no'} className="input w-full"><option value="">Como el sitio</option><option value="si">Sí</option><option value="no">No (decide un asesor)</option></select></div>
           <div><label className="label" htmlFor="ws_mensaje">Mensaje de esta sede</label><input id="ws_mensaje" name="sede_mensaje" defaultValue={sede.mensaje ?? ''} maxLength={400} placeholder="Hereda el del sitio" className="input w-full" /></div>
         </div>
+        <div className="rounded-md border border-rs-border/60 px-3 py-2">
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="sede_sin_whatsapp" defaultChecked={sede.sin_whatsapp === true} className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Tomar reservas sin WhatsApp (por ahora)</span>
+            <span className="mt-0.5 block text-xs text-rs-muted">Para cuando el número de {sede.nombre} no está disponible. El sitio pide el teléfono del cliente, no abre WhatsApp y la reserva queda registrada acá como <b className="text-rs-text">nueva (sujeta a confirmación)</b>, con una nota que lo aclara: tenés que confirmarla vos con el cliente. No llegan los avisos automáticos al equipo. Cuando vuelva el número, apagalo. Si el mensaje de la sede dice que se confirma por WhatsApp, cambialo en “Mensaje de esta sede”.</span></span></label>
+        </div>
         <details className="rounded-md border border-rs-border/60 px-3 py-2" open={Object.values(sede.horarios_dias ?? {}).some((h) => h.length > 0)}>
           <summary className="cursor-pointer text-sm font-medium">Horarios según el día de la semana (opcional)</summary>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">

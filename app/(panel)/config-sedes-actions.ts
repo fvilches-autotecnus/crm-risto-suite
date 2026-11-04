@@ -147,7 +147,7 @@ export async function guardarReservasWebSede(_prev: ActionResult | null, fd: For
   // turnos propios de la sede (vacío = hereda los del negocio, salvo que la sede tenga horarios propios)
   let turnosSede: TurnoWeb[] | undefined
   if (fd.has('sede_turnos')) { const tr = leerTurnos(String(fd.get('sede_turnos') ?? '')); if (!tr.ok) return fail(tr.error); turnosSede = tr.turnos }
-  const { error: e1 } = await ctx.supabase.from('reservas_web_sedes').upsert({ sucursal_id: sedeId, negocio_id: ctx.negocio.id, activo: fd.get('sede_activo') === 'on', horarios: hs.length ? hs.sort() : null, horarios_dias: hd, ...(turnosSede ? { turnos: turnosSede } : {}), elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null }, { onConflict: 'sucursal_id' })
+  const { error: e1 } = await ctx.supabase.from('reservas_web_sedes').upsert({ sucursal_id: sedeId, negocio_id: ctx.negocio.id, activo: fd.get('sede_activo') === 'on', horarios: hs.length ? hs.sort() : null, horarios_dias: hd, ...(turnosSede ? { turnos: turnosSede } : {}), elegir_mesa: mesa === 'si' ? true : mesa === 'no' ? false : null, mensaje: msg || null, sin_whatsapp: fd.get('sede_sin_whatsapp') === 'on' }, { onConflict: 'sucursal_id' })
   if (e1) return fail('No se pudo guardar el sitio de la sede')
 
   // 2) los grupos de ajustes: el que se personaliza se guarda; el que no, vuelve a heredar del negocio

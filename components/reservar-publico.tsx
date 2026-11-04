@@ -90,7 +90,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const [salonId, setSalonId] = useState('')
   const [sel, setSel] = useState<string[]>([])
   const [aviso, setAviso] = useState<string | null>(null)
-  const [form, setForm] = useState({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' })
+  const sinWA = !!sede?.sin_whatsapp   // la sede toma reservas sin WhatsApp: se pide el teléfono, la reserva queda registrada (sujeta a confirmación) y no se redirige a ningún lado
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<Extract<ResultadoReserva, { ok: true }> | null>(null)
   const [pend, start] = useTransition()
@@ -164,7 +165,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     if (!!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); return }
     start(async () => {
       const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, opcion: promoElegida?.id ?? '', campana, ...form, cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), mesas: modo === 'elegir' ? sel : [] })
-      if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+      if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); if (!r.directo) window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     })
   }
   const campo = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -178,6 +179,33 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
       ubicacion: r.ubicacion ?? (cualquiera ? etiquetaCualquiera : ''), tipo: tipoTxt, promo: promoElegida ? (resumenPromoElegida({ nombre: promoElegida.nombre, modo: promoElegida.modo, personas: r.personas, total: totalPromo({ precio: promoElegida.precio, modo_precio: promoElegida.modo }, r.personas) }) ?? '') : '', mesa: r.mesas ? r.mesas : puedeElegir ? 'que la elija el local' : '', comentarios: form.observaciones.trim(),
     })
     return `https://wa.me/${(r.whatsapp || sede?.whatsapp || whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
+  }
+
+  if (resultado?.directo) {
+    // Sede sin WhatsApp: la reserva ya quedó registrada en el CRM, sujeta a confirmación. No hay mensaje que mandar ni redirección.
+    return (
+      <div className="relative isolate min-h-screen pb-10">
+        <Adorno marca={marca} />
+        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+        <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-ok/15 text-rs-ok"><Check size={28} /></div>
+          <h1 className="text-xl font-bold">¡Recibimos tu reserva!</h1>
+          <p className="text-sm text-rs-muted">Quedó registrada y está <b className="text-rs-text">sujeta a confirmación</b>: el local la revisa y se comunica con vos al teléfono que dejaste para confirmarla.</p>
+          {resultado.numero != null && <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Número de reserva">#{resultado.numero}</p>}
+          <div className="card space-y-1 p-4 text-left text-sm">
+            {resultado.sede && <p><span className="text-rs-muted">Sede:</span> <b>{resultado.sede}</b></p>}
+            <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
+            <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{ubicTexto(resultado.ubicacion)}</b></> : null}</p>
+            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>}
+            {form.telefono.trim() && <p><span className="text-rs-muted">Teléfono:</span> <b>{form.telefono.trim()}</b></p>}
+          </div>
+          {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
+          <p className="text-xs text-rs-muted">Guardá este número de reserva por si necesitás comunicarte con el local.</p>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <PieRisto logo={logoRisto} />
+        </main>
+      </div>
+    )
   }
 
   if (resultado) {
@@ -199,7 +227,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
           <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
-          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
+          <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
           <PieRisto logo={logoRisto} />
         </main>
       </div>
@@ -334,6 +362,13 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                 <div><label className="label" htmlFor="rw_nombre">Nombre *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required /></div>
                 <div><label className="label" htmlFor="rw_apellido">Apellido *</label><input id="rw_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required /></div>
               </div>
+              {sinWA && (
+                <div>
+                  <label className="label" htmlFor="rw_telefono">Teléfono *</label>
+                  <input id="rw_telefono" type="tel" inputMode="tel" autoComplete="tel" value={form.telefono} onChange={campo('telefono')} maxLength={30} placeholder="341 5551234" className="input w-full" required />
+                  <p className="mt-1 text-xs text-rs-muted">Con el código de área, sin 0 ni 15. Te llamamos o escribimos a este número para confirmar la reserva.</p>
+                </div>
+              )}
               {cfg.pedir_cumple && (
                 <div>
                   <span className="label">Tu cumpleaños (opcional)</span>
@@ -348,8 +383,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
               <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{sede && sedes.length > 1 ? ` · ${sede.nombre}` : ''}{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{promoElegida ? ` · ${promoElegida.nombre}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
-              <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : 'Reservar y enviar por WhatsApp'}</button>
-              <p className="text-center text-xs text-rs-muted">No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.</p>
+              <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : sinWA ? 'Reservar' : 'Reservar y enviar por WhatsApp'}</button>
+              <p className="text-center text-xs text-rs-muted">{sinWA ? 'Tu reserva queda registrada y sujeta a confirmación del local.' : 'No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.'}</p>
             </form>
           </section>
         )}

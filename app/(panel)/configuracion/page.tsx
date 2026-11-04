@@ -150,7 +150,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
     const sedesActivas = sedesAmbito
     if (sedesActivas.length) {
       const [{ data: ajustes }, { data: salonesW }, { data: mesasW }] = await Promise.all([
-        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, turnos, elegir_mesa, mensaje').eq('negocio_id', negocio.id),
+        supabase.from('reservas_web_sedes').select('sucursal_id, activo, horarios, horarios_dias, turnos, elegir_mesa, mensaje, sin_whatsapp').eq('negocio_id', negocio.id),
         supabase.from('salones').select('id, sucursal_id').eq('negocio_id', negocio.id).eq('activo', true),
         supabase.from('mesas').select('salon_id').eq('negocio_id', negocio.id).eq('tipo', 'mesa').eq('activa', true),
       ])
@@ -164,7 +164,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         const propio = !!(x.whatsapp_nro ?? '').replace(/\D/g, '')
         return {
           id: x.id, nombre: x.nombre, whatsapp: ((x.whatsapp_nro ?? '') || (negocio.whatsapp_nro ?? '')).replace(/\D/g, ''), propio,
-          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null, horarios_dias: (a?.horarios_dias as Record<string, string[]> | null) ?? {}, turnos: turnosGuardados(a?.turnos), alias_web: x.alias_web ?? null,
+          activo: a?.activo ?? true, horarios: ((a?.horarios as string[] | null) ?? []).map((h) => String(h).slice(0, 5)), elegir_mesa: (a?.elegir_mesa as boolean | null) ?? null, mensaje: (a?.mensaje as string | null) ?? null, horarios_dias: (a?.horarios_dias as Record<string, string[]> | null) ?? {}, turnos: turnosGuardados(a?.turnos), alias_web: x.alias_web ?? null, sin_whatsapp: a?.sin_whatsapp === true,
           tiene_plano: (salonesW ?? []).some((sl) => (!sl.sucursal_id || sl.sucursal_id === x.id) && conMesas.has(sl.id as string)),
         }
       })

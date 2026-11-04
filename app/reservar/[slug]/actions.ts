@@ -6,12 +6,12 @@ import { limpiarCampana } from '@/lib/promos'
 
 export interface SlotWeb { hora: string; disponible: boolean; motivo?: 'fuera_de_rango' | 'pasado' | 'bloqueado' | 'completo' | 'corte'; aviso?: string; /** Nombre del turno al que pertenece (si el local armó turnos). */ turno?: string }
 export interface MesaWeb { id: string; salon_id: string; tipo: 'mesa' | 'deco'; numero: string; x: number; y: number; w: number; h: number; forma: 'cuadrada' | 'redonda'; movil: boolean; capacidad_min: number; capacidad: number; rotacion?: number; sillas?: boolean; sillas_lados?: string[] | null; estado: 'disponible' | 'ocupada' | 'no_apta' | 'deco' }
-export interface SedeWeb { id: string; nombre: string; direccion: string | null; maps_url: string | null; whatsapp: string; elegir_mesa: boolean; mensaje: string | null; tiene_plano: boolean }
+export interface SedeWeb { id: string; nombre: string; direccion: string | null; maps_url: string | null; whatsapp: string; elegir_mesa: boolean; mensaje: string | null; tiene_plano: boolean; /** La sede toma reservas sin pasar por WhatsApp: se pide el teléfono y la reserva queda registrada, sujeta a confirmación. */ sin_whatsapp?: boolean }
 export interface PromoWeb { id: string; nombre: string; descripcion: string | null; precio: number | null; modo: 'persona' | 'reserva' }
 export interface TipoWeb { value: string; label: string; modo: 'siempre' | 'semana' | 'fechas'; dias_semana: number[]; fechas: string[]; /** Qué incluye el tipo (módulo de promos). */ descripcion?: string | null; /** Promos del tipo: si hay, el cliente tiene que elegir una. */ opciones?: PromoWeb[] }
 export interface SalonWeb { id: string; nombre: string; ancho: number; alto: number; ubicacion: string | null; tema_sillas?: string; color_sillas?: string | null }
 export type ResultadoReserva =
-  | { ok: true; codigo: string; whatsapp: string; sede: string | null; mesas: string | null; fecha: string; hora: string; personas: number; ubicacion: string | null; mensaje: string | null }
+  | { ok: true; codigo: string; whatsapp: string; sede: string | null; mesas: string | null; fecha: string; hora: string; personas: number; ubicacion: string | null; mensaje: string | null; /** Reserva ya registrada (sede sin WhatsApp): `numero` es el de la reserva y no hay mensaje que mandar. */ directo?: boolean; numero?: number | null }
   | { ok: false; error: string }
 
 const SLUG = /^[a-z0-9-]{2,49}$/
@@ -36,7 +36,7 @@ export async function consultarPlano(slug: string, fecha: string, hora: string, 
   return { ok: true, salones: r.salones as SalonWeb[], mesas: r.mesas as MesaWeb[] }
 }
 
-export interface DatosReservaWeb { cumple_dia?: string; cumple_mes?: string; cumple_anio?: string; sede?: string; fecha: string; hora: string; personas: number; ubicacion: string; tipo: string; nombre: string; observaciones: string; mesas: string[]; web?: string; /** Promo elegida (id), si el tipo tiene promos. */ opcion?: string; /** Código de campaña del enlace (?c=…). */ campana?: string }
+export interface DatosReservaWeb { cumple_dia?: string; cumple_mes?: string; cumple_anio?: string; sede?: string; fecha: string; hora: string; personas: number; ubicacion: string; tipo: string; nombre: string; telefono?: string; observaciones: string; mesas: string[]; web?: string; /** Promo elegida (id), si el tipo tiene promos. */ opcion?: string; /** Código de campaña del enlace (?c=…). */ campana?: string }
 
 const MENSAJES: Record<string, string> = {
   sitio_apagado: 'Este sitio de reservas no está disponible.', personas_invalidas: 'La cantidad de personas no está permitida.', falta_nombre: 'Escribí tu nombre.',
@@ -44,6 +44,7 @@ const MENSAJES: Record<string, string> = {
   horario_no_disponible: 'Ese horario ya no está disponible. Elegí otro.', mesa_invalida: 'Alguna mesa ya no está disponible. Volvé a elegir.', mesas_fijas_no_se_juntan: 'Las mesas fijas no se pueden juntar.',
   mesa_no_apta: 'Las mesas elegidas no son para esa cantidad de personas.', mesa_ocupada: 'Alguna de las mesas ya fue reservada. Elegí otra.', eleccion_no_permitida: 'Por ahora no se puede elegir mesa: un asesor la va a elegir por vos.',
   demasiadas_solicitudes: 'Hay muchas solicitudes en este momento. Esperá unos minutos o escribinos por WhatsApp.', datos_invalidos: 'Revisá los datos de la reserva.',
+  telefono_invalido: 'Revisá tu teléfono: escribilo con el código de área, sin 0 ni 15 (por ejemplo 341 5551234).', demasiadas_reservas: 'Hiciste varias reservas seguidas con ese teléfono. Esperá un rato o comunicate con el local.',
 }
 
 /** Guarda la solicitud EN ESPERA y devuelve su código. La reserva real se crea cuando el cliente manda el mensaje por WhatsApp (el bot la registra con el teléfono de quien escribe). */
@@ -52,7 +53,7 @@ export async function crearReservaPublica(slug: string, d: DatosReservaWeb): Pro
   if (d?.web) return { ok: false, error: 'No pudimos registrar tu reserva. Probá de nuevo.' }   // campo trampa: robots
   const r = await rpc('crear_solicitud_web', {
     negocio: slug, sede: String(d.sede ?? '').slice(0, 40), fecha: d.fecha, hora: d.hora, personas: Math.trunc(Number(d.personas)), ubicacion: String(d.ubicacion ?? '').slice(0, 60), tipo: String(d.tipo ?? '').slice(0, 40),
-    nombre: String(d.nombre ?? '').slice(0, 80), cumple_dia: String(d.cumple_dia ?? '').slice(0, 2), cumple_mes: String(d.cumple_mes ?? '').slice(0, 2), cumple_anio: String(d.cumple_anio ?? '').slice(0, 4), observaciones: String(d.observaciones ?? '').slice(0, 400), mesas: Array.isArray(d.mesas) ? d.mesas.slice(0, 6) : [],
+    nombre: String(d.nombre ?? '').slice(0, 80), telefono: String(d.telefono ?? '').slice(0, 30), cumple_dia: String(d.cumple_dia ?? '').slice(0, 2), cumple_mes: String(d.cumple_mes ?? '').slice(0, 2), cumple_anio: String(d.cumple_anio ?? '').slice(0, 4), observaciones: String(d.observaciones ?? '').slice(0, 400), mesas: Array.isArray(d.mesas) ? d.mesas.slice(0, 6) : [],
     opcion: String(d.opcion ?? '').slice(0, 40), campana: limpiarCampana(d.campana),
   })
   if (!r) return { ok: false, error: 'No pudimos guardar tu solicitud. Probá de nuevo.' }
@@ -61,7 +62,7 @@ export async function crearReservaPublica(slug: string, d: DatosReservaWeb): Pro
     if (r.error === 'mesa_no_apta') return { ok: false, error: `Las mesas elegidas son para ${r.minimo}–${r.maximo} personas.` }
     return { ok: false, error: MENSAJES[String(r.error)] ?? 'No pudimos registrar tu reserva. Probá de nuevo.' }
   }
-  return { ok: true, codigo: String(r.codigo), whatsapp: String(r.whatsapp ?? ''), sede: (r.sede as string | null) ?? null, mesas: (r.mesas as string | null) ?? null, fecha: String(r.fecha), hora: String(r.hora), personas: Number(r.personas), ubicacion: (r.ubicacion as string | null) ?? null, mensaje: (r.mensaje as string | null) ?? null }
+  return { ok: true, directo: r.directo === true, numero: r.numero == null ? null : Number(r.numero), codigo: String(r.codigo ?? ''), whatsapp: String(r.whatsapp ?? ''), sede: (r.sede as string | null) ?? null, mesas: (r.mesas as string | null) ?? null, fecha: String(r.fecha), hora: String(r.hora), personas: Number(r.personas), ubicacion: (r.ubicacion as string | null) ?? null, mensaje: (r.mensaje as string | null) ?? null }
 }
 
 // ───────── cancelar o modificar una reserva desde su link (se confirma por WhatsApp; el teléfono de quien escribe tiene que coincidir con el de la reserva)
