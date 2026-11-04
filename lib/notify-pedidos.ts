@@ -85,7 +85,7 @@ export const linkPedidoDe = (d: Pick<DatosAvisoPedido, 'slug' | 'numero' | 'prue
 
 /**
  * Mensaje al CLIENTE por estado, con el detalle del pedido. No saluda ni lo nombra: la persona ya venía hablando con el local para hacer el pedido, es la misma conversación.
- * Las variables que entran: número, productos, total, forma de entrega y dirección, medio de pago, demora, motivo de cancelación y el link para seguir el pedido.
+ * Las variables que entran: número, productos, total, forma de entrega y dirección, medio de pago, demora, motivo de cancelación y, solo al aceptar el pedido, el link para seguirlo.
  */
 export function mensajeClientePedido(d: DatosAvisoPedido): string {
   const entrega = labelEntrega(d), donde = direccionPedido(d), pago = d.medio_pago_nombre || d.medio_pago
@@ -94,21 +94,21 @@ export function mensajeClientePedido(d: DatosAvisoPedido): string {
   const entregaLinea = d.tipo === 'delivery' ? `Entrega a domicilio: ${donde}` : d.tipo === 'mesa' ? `Entrega: ${donde}` : `Entrega: ${entrega}`
   const demora = d.tiempo_estimado ? `Demora estimada: ${d.tiempo_estimado}` : ''
   const link = linkPedidoDe(d)
-  const seguir = link ? `Seguí tu pedido acá: ${link}` : ''
+  const seguir = link ? `Seguí tu pedido acá: ${link}` : ''   // solo se manda al aceptar el pedido (en los demás estados ya no aporta)
   const unir = (...partes: string[]) => partes.filter(Boolean).join('\n\n')
   switch (d.estado) {
     case 'nuevo':
-      return unir(`🛍️ Recibimos tu pedido #${d.numero}. Lo estamos revisando.`, resumen, `${entregaLinea}\nMedio de pago: ${pago}`, seguir)
+      return unir(`🛍️ Recibimos tu pedido #${d.numero}. Lo estamos revisando.`, resumen, `${entregaLinea}\nMedio de pago: ${pago}`)
     case 'aceptado':
       return unir(`✅ Confirmamos tu pedido #${d.numero}.`, resumen, [entregaLinea, `Medio de pago: ${pago}`, demora].filter(Boolean).join('\n'), seguir)
     case 'preparando':
-      return unir(`👨‍🍳 Tu pedido #${d.numero} ya está en preparación.`, productos, demora, seguir)
+      return unir(`👨‍🍳 Tu pedido #${d.numero} ya está en preparación.`, productos, demora)
     case 'listo':
       return unir(
         d.tipo === 'delivery' ? `📦 Tu pedido #${d.numero} está listo y sale en breve hacia ${donde}.` : d.tipo === 'mesa' ? `📦 Tu pedido #${d.numero} está listo, te lo llevamos a ${donde}.` : `📦 Tu pedido #${d.numero} está listo para retirar.`,
-        `Total: ${dinero(d.total)} · Pago: ${pago}`, seguir)
+        `Total: ${dinero(d.total)} · Pago: ${pago}`)
     case 'en_camino':
-      return unir(`🛵 Tu pedido #${d.numero} va en camino a ${donde}.`, `Total: ${dinero(d.total)} · Pago: ${pago}`, seguir)
+      return unir(`🛵 Tu pedido #${d.numero} va en camino a ${donde}.`, `Total: ${dinero(d.total)} · Pago: ${pago}`)
     case 'entregado':
       return unir(`🏁 Entregamos tu pedido #${d.numero}. ¡Gracias por elegirnos, esperamos que lo disfrutes!`, `${d.items.reduce((s, i) => s + i.cantidad, 0)} producto(s) · Total ${dinero(d.total)}`)
     case 'cancelado':
