@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
+import { usePathname } from 'next/navigation'
 import { AlertTriangle, Printer, Power, RotateCcw } from 'lucide-react'
 import { activarComandera, confirmarImpresion, liberarImpresion, pendientesComandera, reclamarImpresion } from '@/app/(panel)/pedidos-actions'
 import TicketPedido from '@/components/ticket-pedido'
@@ -10,8 +11,10 @@ import { Spinner } from '@/components/ui'
 import type { DatosTicket } from '@/lib/comandera'
 import { fechaHoraCorta } from '@/lib/fechas'
 
-// Impresión automática de la comandera DENTRO de la pantalla de Pedidos: mientras esa pantalla está abierta en la PC del local, cada pedido nuevo imprime su ticket solo
+// Impresión automática de la comandera en CUALQUIER pantalla del panel (el proveedor vive en el layout): mientras el CRM está abierto en la PC del local, cada pedido nuevo imprime su ticket solo
 // (sin cuadro de impresión si Chrome corre con --kiosk-printing y la térmica es la impresora predeterminada).
+// Solo imprime el equipo que lo pidió ("Este equipo imprime", guardado en ese navegador): así un celular o una laptop con el CRM abierto no se queda con los tickets de la cocina.
+const claveEquipo = (negocioId: string) => `rs_comandera_equipo_${negocioId}`
 
 // Cuánto esperar a que el navegador avise que terminó de imprimir ('afterprint'). Con impresión silenciosa puede no llegar nunca (sin papel, impresora apagada…):
 // sin este límite UN ticket trabado frenaría todos los que vengan después.
@@ -22,6 +25,8 @@ const RECLAMO_VENCE_MS = 90_000
 type EnCola = { p: DatosTicket; manual: boolean }
 interface Impresora {
   desde: string | null; sinConexion: boolean; fallidos: DatosTicket[]; cambiando: boolean; error: string
+  /** ¿Este navegador es el que imprime solo? (lo decide cada equipo) */
+  esteEquipo: boolean; usarEsteEquipo: (si: boolean) => void
   imprimir: (p: DatosTicket) => void; probar: () => void; reintentar: (p: DatosTicket) => void; cambiar: (activa: boolean) => void
 }
 const Contexto = createContext<Impresora | null>(null)
@@ -51,6 +56,13 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
   const [montado, setMontado] = useState(false)
   const [cambiando, setCambiando] = useState(false)
   const [error, setError] = useState('')
+  const [esteEquipo, setEsteEquipo] = useState(false)
+  const equipoRef = useRef(false)   // lo lee refrescar sin depender del render
+  useEffect(() => { try { const si = localStorage.getItem(claveEquipo(negocioId)) === '1'; equipoRef.current = si; setEsteEquipo(si) } catch { /* sin almacenamiento: no imprime solo */ } }, [negocioId])
+  const usarEsteEquipo = useCallback((si: boolean) => {
+    try { if (si) localStorage.setItem(claveEquipo(negocioId), '1'); else localStorage.removeItem(claveEquipo(negocioId)) } catch { /* nada */ }
+    equipoRef.current = si; setEsteEquipo(si)
+  }, [negocioId])
 
   const cola = useRef<EnCola[]>([])
   const ocupado = useRef(false)
@@ -80,6 +92,7 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
       const r = await pendientesComandera()
       if (!r.ok) { setSinConexion(true); return }
       setSinConexion(false); setDesde(r.estado.desde)
+      if (!equipoRef.current) return   // este equipo no imprime solo: solo se actualiza el estado del interruptor
       for (const p of r.estado.pendientes) {
         const reclamoVigente = p.reclamado_en && Date.now() - new Date(p.reclamado_en).getTime() < RECLAMO_VENCE_MS
         if (manejados.current.has(p.id) || reclamoVigente) continue
@@ -105,7 +118,7 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
   // pedidos nuevos al instante (tiempo real) y, por las dudas, cada pocos segundos; la pantalla de la PC del local queda abierta todo el día
   useEffect(() => {
     setMontado(true)
-    if (!puedeEscribir) return
+    if (!puedeEscribir || !esteEquipo) return
     const sb = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
     let activo = true, canal: ReturnType<typeof sb.channel> | null = null, lock: { release: () => Promise<void> } | null = null
     const escuchar = (intento = 1) => {
@@ -122,10 +135,10 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
     void refrescar()
     const t = setInterval(() => { void refrescar() }, SONDEO_MS)
     return () => { activo = false; clearInterval(t); document.removeEventListener('visibilitychange', alVolver); if (canal) void sb.removeChannel(canal); void lock?.release() }
-  }, [negocioId, puedeEscribir, refrescar])
+  }, [negocioId, puedeEscribir, esteEquipo, refrescar])
 
   const valor = useMemo<Impresora>(() => ({
-    desde, sinConexion, fallidos, cambiando, error,
+    desde, sinConexion, fallidos, cambiando, error, esteEquipo, usarEsteEquipo,
     imprimir: (p) => { cola.current.push({ p, manual: true }); void procesar() },
     probar: () => { cola.current.push({ p: prueba(), manual: true }); void procesar() },
     reintentar: (p) => { setFallidos((l) => l.filter((x) => x.id !== p.id)); manejados.current.delete(p.id); void refrescar() },
@@ -137,14 +150,33 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
         await refrescar(); setCambiando(false)
       })()
     },
-  }), [desde, sinConexion, fallidos, cambiando, error, procesar, refrescar])
+  }), [desde, sinConexion, fallidos, cambiando, error, esteEquipo, usarEsteEquipo, procesar, refrescar])
 
   return (
     <Contexto.Provider value={puedeEscribir ? valor : null}>
-      <style>{`@media print { body > *:not(#comandera-print-area) { display: none !important; } #comandera-print-area { display: block !important; } @page { margin: 4mm; } } @media screen { #comandera-print-area { display: none; } }`}</style>
+      {/* el estilo de impresión solo existe mientras se imprime un ticket: así no pisa otras impresiones del panel (manual, listados) */}
+      {imprimiendo && <style>{`@media print { body > *:not(#comandera-print-area) { display: none !important; } #comandera-print-area { display: block !important; } @page { margin: 4mm; } } @media screen { #comandera-print-area { display: none; } }`}</style>}
       {children}
       {montado && imprimiendo && createPortal(<div id="comandera-print-area" className="bg-white p-0 text-black"><TicketPedido negocio={negocio} p={imprimiendo} /></div>, document.body)}
     </Contexto.Provider>
+  )
+}
+
+/** Aviso flotante en cualquier pantalla del panel (menos Pedidos, que ya tiene su franja): solo en el equipo que imprime. Muestra si un ticket no se confirmó o si se perdió la conexión. */
+export function AvisoComandera() {
+  const c = useImpresora()
+  const ruta = usePathname()
+  if (!c || !c.esteEquipo || !c.desde || ruta.startsWith('/pedidos') || (c.fallidos.length === 0 && !c.sinConexion)) return null
+  return (
+    <div className="no-print fixed inset-x-0 bottom-0 z-50 space-y-2 p-3 sm:left-auto sm:max-w-md">
+      {c.sinConexion && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-raised px-3 py-2 text-sm text-rs-danger shadow-lg">Impresión automática sin conexión, reintentando…</p>}
+      {c.fallidos.map((p) => (
+        <div key={p.id} role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rs-danger/40 bg-rs-raised px-3 py-2 text-sm text-rs-danger shadow-lg">
+          <span className="flex items-center gap-2"><AlertTriangle size={16} />No se confirmó la impresión del pedido #{p.numero}. Revisá papel y conexión.</span>
+          <button type="button" onClick={() => c.reintentar(p)} className="btn btn-sm"><RotateCcw size={13} />Reintentar</button>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -162,7 +194,8 @@ export function BarraComandera({ puedeAjustes }: { puedeAjustes: boolean }) {
             {desde ? 'Impresión automática activada' : 'Impresión automática apagada'}
             {c.sinConexion && <span className="text-xs font-normal text-rs-danger">· sin conexión, reintentando…</span>}
           </p>
-          <p className="text-xs text-rs-muted">{desde ? `Imprime cada pedido que entra, desde el ${fechaHoraCorta(desde)}. Dejá esta pantalla abierta.` : 'Al activarla, imprime solo los pedidos que entren desde ese momento.'}</p>
+          <p className="text-xs text-rs-muted">{desde ? `Imprime cada pedido que entra, desde el ${fechaHoraCorta(desde)}, en el equipo que tenga marcado “Este equipo imprime”, desde cualquier pantalla del CRM (con el CRM abierto).` : 'Al activarla, imprime solo los pedidos que entren desde ese momento.'}</p>
+          <label className="mt-1 flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={c.esteEquipo} onChange={(e) => c.usarEsteEquipo(e.target.checked)} className="h-3.5 w-3.5 accent-[#c8e62b]" />Este equipo imprime solo (marcalo únicamente en la PC con la impresora)</label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={c.probar} className="btn btn-sm" title="Imprime un ticket de ejemplo. Si sale un cuadro de impresión, abrí Chrome con --kiosk-printing y dejá la térmica como impresora predeterminada."><Printer size={13} />Imprimir prueba</button>

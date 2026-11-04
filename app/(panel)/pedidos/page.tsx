@@ -8,7 +8,7 @@ import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
 import { estadoPedidos } from '@/lib/pedidos-horarios'
-import { BarraComandera, ComanderaProvider } from '@/components/comandera-auto'
+import { BarraComandera } from '@/components/comandera-auto'
 import { ESTADOS_ACTIVOS, categoriaDeItem, dinero, type ConfigPedidos, type Pedido } from '@/lib/pedidos'
 import { cargarConfigPedidos } from '@/lib/pedidos-servidor'
 
@@ -60,12 +60,10 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
   const pg = paginar(pedidos, numPagina(sp.pagina), 20)
   const link = (cambios: Record<string, string>) => { const p = new URLSearchParams({ tab, periodo, ...(q ? { q } : {}), ...cambios }); return `/pedidos?${p.toString()}` }
 
-  // interruptor de la impresión automática (si la columna todavía no existe, queda apagada)
-  const { data: cfgImpresion } = await supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', negocio.id).maybeSingle()
+  // la impresión automática vive en el layout del panel (imprime desde cualquier pantalla); acá solo está su franja de control
   const puedeAjustes = ctx.puedeEscribir && (ctx.puedeAdministrar || ctx.rol === 'encargado') && ctx.sinRestriccionSede
 
   return (
-    <ComanderaProvider negocio={negocio.nombre} negocioId={negocio.id} desdeInicial={(cfgImpresion?.comandera_desde as string | null | undefined) ?? null} puedeEscribir={ctx.puedeEscribir}>
     <div className="space-y-5">
       <PedidosEnVivo negocioId={negocio.id} />
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -112,6 +110,5 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
       <ListaPedidos pedidos={pg.items} negocio={negocio.nombre} tiempo={config.tiempo_estimado} puedeEscribir={ctx.puedeEscribir} />
       <Paginacion ruta="/pedidos" params={sp} {...pg} />
     </div>
-    </ComanderaProvider>
   )
 }

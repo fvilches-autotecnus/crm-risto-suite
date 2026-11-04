@@ -12,18 +12,28 @@ import { getContexto } from '@/lib/context'
 import CampanaNotificaciones from '@/components/campana-notificaciones'
 import { cargarNotificaciones } from '@/lib/notificaciones'
 import { contarPausados } from '@/lib/pausados'
+import { AvisoComandera, ComanderaProvider } from '@/components/comandera-auto'
+
+/** La impresión automática de pedidos vive acá, en el layout, para que imprima desde cualquier pantalla del panel y no solo desde Pedidos. */
+function ConImpresion({ activa, desde, negocio, negocioId, puedeEscribir, children }: { activa: boolean; desde: string | null; negocio: string; negocioId: string; puedeEscribir: boolean; children: React.ReactNode }) {
+  if (!activa) return <>{children}</>
+  return <ComanderaProvider key={negocioId} negocio={negocio} negocioId={negocioId} desdeInicial={desde} puedeEscribir={puedeEscribir}>{children}<AvisoComandera /></ComanderaProvider>
+}
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContexto()
-  const [pausados, notificaciones] = await Promise.all([
+  const [pausados, notificaciones, cfgImpresion] = await Promise.all([
     ctx.puedeApagarBot ? contarPausados(ctx) : 0,   // chats que el bot dejó esperando a una persona
     cargarNotificaciones(ctx),
+    ctx.modulosActivos.pedidos ? ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle() : Promise.resolve(null),   // interruptor de la impresión automática
   ])
+  const desdeImpresion = (cfgImpresion?.data?.comandera_desde as string | null | undefined) ?? null
 
   return (
     <FeedbackProvider>
       <Suspense fallback={null}><BarraProgreso /></Suspense>
       <AvisosEnVivo negocioId={ctx.negocio.id} pedidos={ctx.modulosActivos.pedidos} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
+      <ConImpresion activa={!!ctx.modulosActivos.pedidos} desde={desdeImpresion} negocio={ctx.negocio.nombre} negocioId={ctx.negocio.id} puedeEscribir={ctx.puedeEscribir}>
       <div className="min-h-screen">
         <header className="no-print sticky top-0 z-40 border-b border-rs-raised bg-rs-header/90 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
@@ -57,6 +67,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         )}
         <main className="mx-auto max-w-[1280px] px-4 py-6">{children}</main>
       </div>
+      </ConImpresion>
     </FeedbackProvider>
   )
 }
