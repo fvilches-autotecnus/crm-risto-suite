@@ -2,7 +2,7 @@
 
 import { unirNombre } from '@/lib/nombres'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { ArrowUp, Check, MessageCircle, Minus, Plus, Search, ShoppingBag, X } from 'lucide-react'
+import { ArrowUp, Check, MessageCircle, Minus, PackageCheck, Plus, Search, ShoppingBag, X } from 'lucide-react'
 import type { Marca } from '@/lib/marca'
 import { crearPedidoPublico, crearSolicitudPedidoPublico, simularPedidoPublico, type ResultadoPedidoPublico, type ResultadoSolicitudPedido, type VistaPreviaPedido } from '@/app/carta/[slug]/actions'
 import { limpiarCampana } from '@/lib/promos'
@@ -37,6 +37,8 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   const [abierto, setAbierto] = useState(false)
   const [listo, setListo] = useState(false)
   const [exito, setExito] = useState<Extract<ResultadoPedidoPublico, { ok: true }> | null>(null)
+  const [seguirHref, setSeguirHref] = useState('')   // página de seguimiento del pedido: <esta carta>/pedido (la carta vive en distintos dominios, por eso se arma en el navegador)
+  useEffect(() => { setSeguirHref(`${window.location.pathname.replace(/\/$/, '')}/pedido`) }, [])
 
   // el carrito se recuerda en este navegador (por si se recarga o se vuelve más tarde)
   useEffect(() => { try { const g = localStorage.getItem('carrito:' + slug); if (g) setCarrito(JSON.parse(g)) } catch { /* sin almacenamiento */ } setListo(true) }, [slug])
@@ -99,6 +101,7 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         <h1 className={marca?.logo_url && marca.logo_forma === 'libre' ? 'sr-only' : marca?.logo_url ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>{config.titulo || nombre}</h1>
         {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
         <p className="mt-1 text-sm text-rs-muted">{pedidos ? 'Carta y pedidos' : 'Carta digital'}</p>
+        {pedidos && seguirHref && <a href={seguirHref} className="mt-2 inline-flex min-h-10 items-center gap-1.5 text-sm text-rs-lime underline underline-offset-2"><PackageCheck size={15} />¿Ya pediste? Seguí tu pedido</a>}
         {config.mensaje && <p className="mx-auto mt-3 max-w-xl whitespace-pre-line text-sm">{config.mensaje}</p>}
         {pedidos && !pedidos.recibe && <p role="status" className="mx-auto mt-3 max-w-xl rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Por el momento no estamos tomando pedidos online.{pedidos.mensaje ? ` ${pedidos.mensaje}` : ''}</p>}
         {pedidos?.recibe && !puedePedir && fuera.length > 0 && (
@@ -255,13 +258,21 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
     if (confirmaWA) {
       start(async () => {
         const r = await crearSolicitudPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
-        if (r.ok) { setTextoWA(armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), solicitud: r, form, lineas })); setPendiente(r); arriba.current?.scrollTo({ top: 0 }) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+        if (r.ok) {
+          const texto = armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), solicitud: r, form, lineas })
+          setTextoWA(texto); setPendiente(r); arriba.current?.scrollTo({ top: 0 })
+          window.location.href = `https://wa.me/${r.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`   // como en reservas: abre WhatsApp solo; el modal queda por si vuelve o no se abre
+        } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
       })
       return
     }
     start(async () => {
       const r = await crearPedidoPublico(slug, { tipo, campana: limpiarCampana(new URLSearchParams(window.location.search).get('c')), codigo, ...form, telefono: pedidos.pedir_telefono ? form.telefono : '', cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), items: lineas.map((l) => ({ producto_id: l.producto_id, variante: l.variante, cantidad: l.cantidad })) })
-      if (r.ok) { setTextoWA(pedidos.pedir_telefono ? '' : armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), r, form, lineas })); onExito(r) } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+      if (r.ok) {
+        const texto = pedidos.pedir_telefono ? '' : armarTextoWA({ negocio: nombre, nombre: unirNombre(form.nombre, form.apellido), r, form, lineas })
+        setTextoWA(texto); onExito(r)
+        if (texto && r.whatsapp) window.location.href = `https://wa.me/${r.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`   // el "último paso" abre WhatsApp solo
+      } else { setError(r.error); arriba.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
     })
   }
 

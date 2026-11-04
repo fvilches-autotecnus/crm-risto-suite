@@ -63,19 +63,30 @@ export const montoConPuntos = (n: number) => {
 export const direccionPedido = (d: Pick<DatosAvisoPedido, 'tipo' | 'entrega_nombre' | 'direccion' | 'mesa'>) =>
   d.tipo === 'delivery' ? (d.direccion?.trim() || labelEntrega(d)) : d.tipo === 'mesa' ? (d.mesa ? `Mesa ${d.mesa}` : labelEntrega(d)) : labelEntrega(d)
 
-/** Mensaje para el EQUIPO del local ("qué pasó con este pedido"), listo para reenviar por WhatsApp (usa *negrita* de WhatsApp). */
+const ESTADOS_EQUIPO: Record<EstadoPedido, string> = {
+  nuevo: 'Nuevo · falta aceptar', aceptado: 'Aceptado', preparando: 'En preparación', listo: 'Listo', en_camino: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado',
+}
+
+/**
+ * Mensaje para el EQUIPO del local ("qué pasó con este pedido"), listo para reenviar por WhatsApp (usa *negrita* de WhatsApp).
+ * Mismo estilo que el de las reservas (lib/texto-equipo.ts): título · local, #número · *NOMBRE*, un dato por línea con su ícono y el estado al final.
+ * El flujo de n8n "Confirmar pedido web" (pasos/pedido_web_armar.js) arma el mismo texto: si se cambia acá, cambiarlo allá.
+ */
 export function textoEquipoPedido(d: DatosAvisoPedido): string {
   const [icono, titulo] = TITULOS[d.estado]
   const tel = soloDigitos(d.telefono)
   return [
-    `${d.prueba ? '🧪 *AVISO DE PRUEBA*\n' : ''}${icono} *${titulo} #${d.numero}* · ${d.negocio}`,
-    `👤 *${d.nombre}*${tel ? ` · 📞 +${tel}` : ''}`,
+    `${d.prueba ? '🧪 *AVISO DE PRUEBA*\n' : ''}${icono} *${titulo}* · ${d.negocio}`,
+    `#${d.numero} · *${(d.nombre ?? '').trim() || 'Sin nombre'}*`,
+    '🛒 *Pedido*',
     ...d.items.map((i) => `• ${lineaItem(i)}`),
     ...((d.descuento ?? 0) > 0 ? [`🏷️ Descuento${d.descuento_nombre ? ` “${d.descuento_nombre}”` : ''}: -${dinero(d.descuento!)}`] : []),
-    `💵 Total ${dinero(d.total)}${d.envio > 0 ? ` (envío ${dinero(d.envio)})` : ''} · ${d.medio_pago_nombre || d.medio_pago}`,
     `🚚 ${labelEntrega(d)}${d.tipo === 'delivery' && d.direccion ? ` · 📍 ${d.direccion}` : ''}${d.tipo === 'mesa' && d.mesa ? ` · Mesa ${d.mesa}` : ''}`,
+    `💲 Total: ${dinero(d.total)}${d.envio > 0 ? ` (envío ${dinero(d.envio)})` : ''} · ${d.medio_pago_nombre || d.medio_pago}`,
+    ...(tel ? [`📞 +${tel}`] : []),
     ...(d.observaciones ? [`📝 ${d.observaciones}`] : []),
-    ...(d.estado === 'cancelado' && d.motivo_cancelacion ? [`Motivo: ${d.motivo_cancelacion}`] : []),
+    ...(d.estado === 'cancelado' && d.motivo_cancelacion ? [`⚠️ Motivo: ${d.motivo_cancelacion}`] : []),
+    `Estado: *${ESTADOS_EQUIPO[d.estado]}*`,
     `Origen: ${ORIGENES[d.origen]}`,
   ].join('\n')
 }
