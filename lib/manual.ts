@@ -194,6 +194,7 @@ export const MANUAL: SeccionManual[] = [
         'Cada pedido nuevo suena, avisa y aparece como tarjeta con sus ítems. Con el botón de **siguiente paso** lo avanzás: Aceptado → Preparando → Listo → (En camino) → Entregado.',
         'Podés **cancelar** un pedido con motivo, **reabrirlo**, **imprimir el ticket** (formato 80 mm) o **avisar al cliente por WhatsApp** con un clic (abre WhatsApp con un mensaje según el estado).',
         'También podés cargar un **pedido manual** (por ejemplo, uno que llegó por teléfono).',
+        '**Comandera automática** (impresión sola en la cocina o el mostrador): en la PC del local, con la impresora térmica como predeterminada y Chrome abierto con `--kiosk-printing`, entrá a **Pedidos → Comandera** y tocá **Activar**. Esa pantalla queda abierta y imprime sola el ticket de cada pedido que entre desde ese momento (con la categoría de cada producto); si la impresión no se confirma, avisa en rojo y permite **Reintentar**. También tiene **Imprimir prueba** y **Reimprimir** por pedido.',
       ] },
       { t: 'p', x: '**Ajustes de pedidos** (botón **Ajustes**, que lleva a **Configuración → Pedidos**; los cambios se aplican solos). Hay cinco secciones:' },
       { t: 'lista', x: [

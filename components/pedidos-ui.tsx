@@ -216,6 +216,7 @@ export function BotonesPedidos({ config, catalogo, slug, puedeEscribir, puedeAju
           </button>
         )}
         <a href={`/carta/${slug}`} target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={14} />Ver carta</a>
+        {puedeEscribir && <a href="/comandera" target="_blank" rel="noopener noreferrer" className="btn" title="Pantalla de la impresora del local: imprime sola los pedidos nuevos"><Printer size={14} />Comandera</a>}
         {puedeAjustes && <Link href="/configuracion#pedidos-general" className="btn"><Settings size={14} />Ajustes</Link>}
         {puedeEscribir && <button type="button" onClick={() => setModal('manual')} disabled={catalogo.length === 0} title={catalogo.length === 0 ? 'Cargá productos con precio en la Carta primero' : undefined} className="btn btn-primary"><Plus size={14} />Nuevo pedido</button>}
       </div>

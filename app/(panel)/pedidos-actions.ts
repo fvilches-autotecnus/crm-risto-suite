@@ -1,5 +1,6 @@
 'use server'
 
+import { COLS_TICKET, aDatosTicket, type DatosTicket } from '@/lib/comandera'
 import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
@@ -292,4 +293,57 @@ export async function borrarDescuento(id: string): Promise<ActionResult> {
   if (e) return fail('No se pudo borrar el descuento')
   refrescar(ctx.negocio.slug); revalidatePath('/configuracion')
   return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Comandera automática (pantalla /comandera): imprime sola el ticket de cada pedido nuevo
+// ---------------------------------------------------------------------------
+const RECLAMO_VENCE_SEG = 90   // si la pantalla que reclamó un pedido se cayó antes de imprimirlo, otra puede tomarlo pasado este tiempo
+
+export interface EstadoComandera { desde: string | null; pedidos: (DatosTicket & { estado: string; impreso_en: string | null; reclamado_en: string | null })[] }
+
+/** Interruptor de la comandera: encendida imprime solo los pedidos creados desde este momento (no los viejos); apagada no imprime nada. */
+export async function activarComandera(activa: boolean): Promise<ActionResult> {
+  const { ctx, error } = await permisoAjustes(); if (error) return fail(error)
+  const { data: cfg } = await ctx.supabase.from('pedidos_config').select('negocio_id').eq('negocio_id', ctx.negocio.id).maybeSingle()
+  if (!cfg) return fail('Primero configurá los ajustes de pedidos')
+  const { error: e } = await ctx.supabase.from('pedidos_config').update({ comandera_desde: activa ? new Date().toISOString() : null }).eq('negocio_id', ctx.negocio.id)
+  if (e) return fail('No se pudo cambiar la comandera')
+  revalidatePath('/comandera')
+  return { ok: true }
+}
+
+/** Lo que necesita la pantalla: el interruptor y los últimos pedidos (con su ticket y si ya se imprimieron). */
+export async function estadoComandera(): Promise<{ ok: true; estado: EstadoComandera } | { ok: false; error: string }> {
+  const { ctx, error } = await permiso(); if (error) return fail(error) as { ok: false; error: string }
+  const [{ data: cfg }, { data: filas, error: e }] = await Promise.all([
+    ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle(),
+    ctx.supabase.from('pedidos').select(`${COLS_TICKET}, impreso_en, impresion_reclamada_en`).eq('negocio_id', ctx.negocio.id).neq('estado', 'cancelado').order('creado_en', { ascending: false }).limit(25),
+  ])
+  if (e) return { ok: false, error: 'No se pudieron leer los pedidos' }
+  const pedidos = (filas ?? []).map((f) => { const r = f as unknown as Record<string, unknown>; return { ...aDatosTicket(r), estado: String(r.estado), impreso_en: (r.impreso_en as string | null) ?? null, reclamado_en: (r.impresion_reclamada_en as string | null) ?? null } })
+  return { ok: true, estado: { desde: (cfg?.comandera_desde as string | null) ?? null, pedidos } }
+}
+
+/** Reclama un pedido para imprimirlo: solo una pantalla lo consigue (update condicional). Devuelve true si le toca imprimirlo. */
+export async function reclamarImpresion(id: string): Promise<boolean> {
+  const { ctx, error } = await permiso(); if (error || !UUID.test(id)) return false
+  const vencido = new Date(Date.now() - RECLAMO_VENCE_SEG * 1000).toISOString()
+  const { data } = await ctx.supabase.from('pedidos').update({ impresion_reclamada_en: new Date().toISOString() })
+    .eq('id', id).eq('negocio_id', ctx.negocio.id).is('impreso_en', null).or(`impresion_reclamada_en.is.null,impresion_reclamada_en.lt.${vencido}`).select('id')
+  return (data ?? []).length === 1
+}
+
+/** El navegador confirmó que mandó el ticket a la impresora. */
+export async function confirmarImpresion(id: string): Promise<boolean> {
+  const { ctx, error } = await permiso(); if (error || !UUID.test(id)) return false
+  const { data } = await ctx.supabase.from('pedidos').update({ impreso_en: new Date().toISOString() }).eq('id', id).eq('negocio_id', ctx.negocio.id).select('id')
+  return (data ?? []).length === 1
+}
+
+/** La impresión no se confirmó: se suelta el reclamo para poder reintentar. */
+export async function liberarImpresion(id: string): Promise<boolean> {
+  const { ctx, error } = await permiso(); if (error || !UUID.test(id)) return false
+  const { data } = await ctx.supabase.from('pedidos').update({ impresion_reclamada_en: null }).eq('id', id).eq('negocio_id', ctx.negocio.id).is('impreso_en', null).select('id')
+  return (data ?? []).length === 1
 }
