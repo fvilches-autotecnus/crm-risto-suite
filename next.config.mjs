@@ -8,6 +8,6 @@ const prefijo = process.env.ASSET_PREFIX || (process.env.VERCEL_ENV === 'product
 const nextConfig = {
   assetPrefix: prefijo,
   // las fotos de la carta se achican en el navegador antes de subir; el tope deja margen para el formulario
-  experimental: { serverActions: { bodySizeLimit: '4mb', allowedOrigins: ['reservas.ristosuite.app'] } },
+  experimental: { serverActions: { bodySizeLimit: '4mb', allowedOrigins: ['reservas.ristosuite.app', 'pedidos.ristosuite.app'] } },
 }
 export default nextConfig
