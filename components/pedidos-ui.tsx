@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { Check, ExternalLink, MessageCircle, Phone, Plus, Power, Printer, Settings, ShoppingBag, Trash2, X } from 'lucide-react'
 import { alternarRecibePedidos, cambiarEstadoPedido, crearPedidoManual } from '@/app/(panel)/pedidos-actions'
+import { useImpresora } from '@/components/comandera-auto'
+import { pedidoADatosTicket } from '@/lib/comandera'
 import { useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
 import { EstadoVacio, Spinner } from '@/components/ui'
@@ -86,6 +88,7 @@ function DialogoCancelar({ pedido, onClose, onConfirmar }: { pedido: Pedido; onC
 
 export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedidos: Pedido[]; negocio: string; tiempo: string | null; puedeEscribir: boolean }) {
   const toast = useToast()
+  const impresora = useImpresora()
   const [pend, start] = useTransition()
   const [cancelando, setCancelando] = useState<Pedido | null>(null)
   const mover = (p: Pedido, estado: string, motivo?: string) => start(async () => {
@@ -139,7 +142,9 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
                 {puedeEscribir && !abierto && <button disabled={pend} onClick={() => mover(p, 'nuevo')} className="btn btn-sm">Reabrir</button>}
                 <span className="ml-auto flex items-center gap-1.5">
                   {p.telefono && <a href={linkWhatsApp(p.telefono, mensajeWhatsApp(p, negocio, tiempo))} target="_blank" rel="noopener noreferrer" className="btn btn-sm" title="Avisar al cliente por WhatsApp (el mensaje cambia según el estado)"><MessageCircle size={13} />WhatsApp</a>}
-                  <a href={`/ticket/${p.id}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm" title="Imprimir ticket"><Printer size={13} /></a>
+                  {impresora
+                    ? <button type="button" onClick={() => { impresora.imprimir(pedidoADatosTicket(p)); toast({ texto: `Imprimiendo el pedido #${p.numero}…` }) }} className="btn btn-sm" title="Imprimir ticket"><Printer size={13} /></button>
+                    : <a href={`/ticket/${p.id}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm" title="Imprimir ticket"><Printer size={13} /></a>}
                 </span>
               </div>
             </li>
@@ -216,7 +221,6 @@ export function BotonesPedidos({ config, catalogo, slug, puedeEscribir, puedeAju
           </button>
         )}
         <a href={`/carta/${slug}`} target="_blank" rel="noopener noreferrer" className="btn"><ExternalLink size={14} />Ver carta</a>
-        {puedeEscribir && <a href="/comandera" target="_blank" rel="noopener noreferrer" className="btn" title="Pantalla de la impresora del local: imprime sola los pedidos nuevos"><Printer size={14} />Comandera</a>}
         {puedeAjustes && <Link href="/configuracion#pedidos-general" className="btn"><Settings size={14} />Ajustes</Link>}
         {puedeEscribir && <button type="button" onClick={() => setModal('manual')} disabled={catalogo.length === 0} title={catalogo.length === 0 ? 'Cargá productos con precio en la Carta primero' : undefined} className="btn btn-primary"><Plus size={14} />Nuevo pedido</button>}
       </div>

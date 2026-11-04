@@ -1,4 +1,4 @@
-import { categoriaDeItem } from '@/lib/pedidos'
+import { categoriaDeItem, type Pedido } from '@/lib/pedidos'
 
 /** Columnas de un pedido para armar su ticket (80 mm). Las usan la página del ticket y la comandera. */
 export const COLS_TICKET = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, creado_en, items:pedido_items(id, nombre, variante, cantidad, observaciones, subtotal, producto:carta_productos(categoria:carta_categorias(nombre)))'
@@ -27,3 +27,11 @@ export function aDatosTicket(p: Fila): DatosTicket {
     })),
   }
 }
+
+/** Pedido de la pantalla de Pedidos → datos del ticket (para reimprimirlo desde ahí). */
+export const pedidoADatosTicket = (p: Pedido): DatosTicket => ({
+  id: p.id, numero: p.numero, creado_en: p.creado_en, nombre: p.nombre, telefono: p.telefono, tipo: p.tipo, entrega_nombre: p.entrega_nombre ?? null, mesa: p.mesa, direccion: p.direccion,
+  medio_pago: p.medio_pago, medio_pago_nombre: p.medio_pago_nombre ?? null, observaciones: p.observaciones, subtotal: p.subtotal, envio: p.envio, descuento: p.descuento ?? 0,
+  descuento_nombre: p.descuento_nombre ?? null, total: p.total,
+  items: p.items.map((i) => ({ id: i.id, nombre: i.nombre, variante: i.variante, cantidad: i.cantidad, observaciones: i.observaciones, subtotal: i.subtotal, categoria: i.categoria ?? null })),
+})

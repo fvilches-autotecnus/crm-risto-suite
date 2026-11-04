@@ -300,7 +300,7 @@ export async function borrarDescuento(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 const RECLAMO_VENCE_SEG = 90   // si la pantalla que reclamó un pedido se cayó antes de imprimirlo, otra puede tomarlo pasado este tiempo
 
-export interface EstadoComandera { desde: string | null; pedidos: (DatosTicket & { estado: string; impreso_en: string | null; reclamado_en: string | null })[] }
+export interface PendientesComandera { desde: string | null; pendientes: (DatosTicket & { reclamado_en: string | null })[] }
 
 /** Interruptor de la comandera: encendida imprime solo los pedidos creados desde este momento (no los viejos); apagada no imprime nada. */
 export async function activarComandera(activa: boolean): Promise<ActionResult> {
@@ -308,21 +308,21 @@ export async function activarComandera(activa: boolean): Promise<ActionResult> {
   const { data: cfg } = await ctx.supabase.from('pedidos_config').select('negocio_id').eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!cfg) return fail('Primero configurá los ajustes de pedidos')
   const { error: e } = await ctx.supabase.from('pedidos_config').update({ comandera_desde: activa ? new Date().toISOString() : null }).eq('negocio_id', ctx.negocio.id)
-  if (e) return fail('No se pudo cambiar la comandera')
-  revalidatePath('/comandera')
+  if (e) return fail('No se pudo cambiar la impresión automática')
+  revalidatePath('/pedidos')
   return { ok: true }
 }
 
-/** Lo que necesita la pantalla: el interruptor y los últimos pedidos (con su ticket y si ya se imprimieron). */
-export async function estadoComandera(): Promise<{ ok: true; estado: EstadoComandera } | { ok: false; error: string }> {
-  const { ctx, error } = await permiso(); if (error) return fail(error) as { ok: false; error: string }
-  const [{ data: cfg }, { data: filas, error: e }] = await Promise.all([
-    ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle(),
-    ctx.supabase.from('pedidos').select(`${COLS_TICKET}, impreso_en, impresion_reclamada_en`).eq('negocio_id', ctx.negocio.id).neq('estado', 'cancelado').order('creado_en', { ascending: false }).limit(25),
-  ])
+/** Lo que la pantalla de Pedidos necesita para imprimir solo: el interruptor y los pedidos de ese momento en adelante que todavía no se imprimieron. */
+export async function pendientesComandera(): Promise<{ ok: true; estado: PendientesComandera } | { ok: false; error: string }> {
+  const { ctx, error } = await permiso(); if (error) return { ok: false, error }
+  const { data: cfg } = await ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle()
+  const desde = (cfg?.comandera_desde as string | null) ?? null
+  if (!desde) return { ok: true, estado: { desde: null, pendientes: [] } }
+  const { data: filas, error: e } = await ctx.supabase.from('pedidos').select(`${COLS_TICKET}, impresion_reclamada_en`).eq('negocio_id', ctx.negocio.id)
+    .neq('estado', 'cancelado').is('impreso_en', null).gte('creado_en', desde).order('creado_en', { ascending: true }).limit(20)
   if (e) return { ok: false, error: 'No se pudieron leer los pedidos' }
-  const pedidos = (filas ?? []).map((f) => { const r = f as unknown as Record<string, unknown>; return { ...aDatosTicket(r), estado: String(r.estado), impreso_en: (r.impreso_en as string | null) ?? null, reclamado_en: (r.impresion_reclamada_en as string | null) ?? null } })
-  return { ok: true, estado: { desde: (cfg?.comandera_desde as string | null) ?? null, pedidos } }
+  return { ok: true, estado: { desde, pendientes: (filas ?? []).map((f) => { const r = f as unknown as Record<string, unknown>; return { ...aDatosTicket(r), reclamado_en: (r.impresion_reclamada_en as string | null) ?? null } }) } }
 }
 
 /** Reclama un pedido para imprimirlo: solo una pantalla lo consigue (update condicional). Devuelve true si le toca imprimirlo. */
