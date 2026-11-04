@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { AlertTriangle, Printer, Power, RotateCcw } from 'lucide-react'
 import { activarComandera, confirmarImpresion, liberarImpresion, pendientesComandera, reclamarImpresion } from '@/app/(panel)/pedidos-actions'
@@ -64,8 +64,8 @@ export function ComanderaProvider({ negocio, negocioId, desdeInicial, puedeEscri
     ocupado.current = true
     if (!siguiente.manual && !(await reclamarImpresion(siguiente.p.id).catch(() => false))) { ocupado.current = false; void procesar(); return }   // otra pantalla ya lo tomó
     actual.current = siguiente
-    setImprimiendo(siguiente.p)
-    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))   // que el ticket esté pintado antes de imprimir
+    flushSync(() => setImprimiendo(siguiente.p))   // el ticket tiene que estar en pantalla antes de imprimir (si no, sale una hoja en blanco)
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
     if (watchdog.current) clearTimeout(watchdog.current)
     watchdog.current = setTimeout(() => {
       const fallo = actual.current; actual.current = null; ocupado.current = false; setImprimiendo(null)
