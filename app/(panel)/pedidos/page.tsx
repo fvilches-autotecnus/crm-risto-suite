@@ -107,7 +107,7 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
 
       <BarraComandera puedeAjustes={puedeAjustes} />
 
-      <ListaPedidos pedidos={pg.items} negocio={negocio.nombre} tiempo={config.tiempo_estimado} puedeEscribir={ctx.puedeEscribir} />
+      <ListaPedidos pedidos={pg.items} negocio={negocio.nombre} tiempo={config.tiempo_estimado} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeEscribir && (ctx.puedeAdministrar || ctx.rol === 'encargado')} />
       <Paginacion ruta="/pedidos" params={sp} {...pg} />
     </div>
   )

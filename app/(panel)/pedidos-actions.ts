@@ -45,6 +45,18 @@ export async function cambiarEstadoPedido(id: string, estado: string, motivo?: s
   return { ok: true }
 }
 
+/** Elimina un pedido para siempre (con sus productos): no hay vuelta atrás, no avisa al cliente y deja de contar en las métricas. Solo dueños, administradores y encargados.
+ *  Usa el cliente de servicio porque la tabla no tiene política de borrado para los usuarios; el permiso y el negocio se comprueban acá. */
+export async function eliminarPedido(id: string): Promise<ActionResult> {
+  const { ctx, error } = await permiso(true); if (error) return fail(error === 'Solo dueños, administradores y encargados pueden cambiar los ajustes de pedidos' ? 'Solo dueños, administradores y encargados pueden eliminar pedidos' : error)
+  if (!UUID.test(id)) return fail('Pedido no válido')
+  const { data, error: e } = await createAdminClient().from('pedidos').delete().eq('id', id).eq('negocio_id', ctx.negocio.id).select('id').maybeSingle()
+  if (e) return fail('No se pudo eliminar el pedido')
+  if (!data) return fail('Ese pedido ya no existe')
+  refrescar(ctx.negocio.slug)
+  return { ok: true }
+}
+
 /** Los ajustes de pedidos son del negocio entero (no de una sede): solo los cambia quien tiene todas las sedes. */
 async function permisoAjustes() {
   const r = await permiso(true)

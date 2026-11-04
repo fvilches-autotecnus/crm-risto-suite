@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { Check, ExternalLink, MessageCircle, Phone, Plus, Power, Printer, Settings, ShoppingBag, Trash2, X } from 'lucide-react'
-import { alternarRecibePedidos, cambiarEstadoPedido, crearPedidoManual } from '@/app/(panel)/pedidos-actions'
+import { alternarRecibePedidos, cambiarEstadoPedido, crearPedidoManual, eliminarPedido } from '@/app/(panel)/pedidos-actions'
 import { useImpresora } from '@/components/comandera-auto'
 import { pedidoADatosTicket } from '@/lib/comandera'
 import { useToast } from '@/components/feedback'
@@ -86,11 +86,34 @@ function DialogoCancelar({ pedido, onClose, onConfirmar }: { pedido: Pedido; onC
   )
 }
 
-export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedidos: Pedido[]; negocio: string; tiempo: string | null; puedeEscribir: boolean }) {
+function DialogoEliminar({ pedido, ocupado, onClose, onConfirmar }: { pedido: Pedido; ocupado: boolean; onClose: () => void; onConfirmar: () => void }) {
+  return (
+    <Modal titulo={`Eliminar el pedido #${pedido.numero}`} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm">Pedido de <b>{pedido.nombre}</b> por <b>{dinero(pedido.total)}</b>.</p>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-rs-muted">
+          <li><b className="text-rs-text">No se puede deshacer</b>: el pedido y sus productos se borran del todo.</li>
+          <li>No se le avisa al cliente.</li>
+          <li>Deja de contar en las métricas y en las ventas.</li>
+          <li>Si es el último pedido, su número queda libre y lo toma el próximo.</li>
+        </ul>
+        <p className="text-xs text-rs-muted">Si solo querés anularlo, usá “Cancelar”: queda registrado y se puede reabrir.</p>
+        <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="btn">Volver</button><button type="button" disabled={ocupado} onClick={onConfirmar} className="btn btn-danger"><Trash2 size={14} />{ocupado ? 'Eliminando…' : 'Eliminar pedido'}</button></div>
+      </div>
+    </Modal>
+  )
+}
+
+export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir, puedeEliminar = false }: { pedidos: Pedido[]; negocio: string; tiempo: string | null; puedeEscribir: boolean; puedeEliminar?: boolean }) {
   const toast = useToast()
   const impresora = useImpresora()
   const [pend, start] = useTransition()
   const [cancelando, setCancelando] = useState<Pedido | null>(null)
+  const [eliminando, setEliminando] = useState<Pedido | null>(null)
+  const eliminar = (p: Pedido) => start(async () => {
+    const r = await eliminarPedido(p.id)
+    if (r.ok) { setEliminando(null); toast({ texto: `Pedido #${p.numero} eliminado` }) } else toast({ tipo: 'error', texto: r.error ?? 'No se pudo eliminar el pedido' })
+  })
   const mover = (p: Pedido, estado: string, motivo?: string) => start(async () => {
     const r = await cambiarEstadoPedido(p.id, estado, motivo)
     toast(r.ok ? { texto: `Pedido #${p.numero}: ${ESTADOS_PEDIDO.find((e) => e.value === estado)?.label.toLowerCase()}` } : { tipo: 'error', texto: r.error ?? 'Error' })
@@ -145,12 +168,14 @@ export function ListaPedidos({ pedidos, negocio, tiempo, puedeEscribir }: { pedi
                   {impresora
                     ? <button type="button" onClick={() => { impresora.imprimir(pedidoADatosTicket(p)); toast({ texto: `Imprimiendo el pedido #${p.numero}…` }) }} className="btn btn-sm" title="Imprimir ticket"><Printer size={13} /></button>
                     : <a href={`/ticket/${p.id}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm" title="Imprimir ticket"><Printer size={13} /></a>}
+                  {puedeEliminar && <button type="button" disabled={pend} onClick={() => setEliminando(p)} className="btn btn-sm btn-danger" title="Eliminar pedido" aria-label={`Eliminar el pedido #${p.numero}`}><Trash2 size={13} /></button>}
                 </span>
               </div>
             </li>
           )
         })}
       </ul>
+      {eliminando && <DialogoEliminar pedido={eliminando} ocupado={pend} onClose={() => setEliminando(null)} onConfirmar={() => eliminar(eliminando)} />}
       {cancelando && <DialogoCancelar pedido={cancelando} onClose={() => setCancelando(null)} onConfirmar={(m) => { const p = cancelando; setCancelando(null); mover(p, 'cancelado', m) }} />}
     </>
   )
