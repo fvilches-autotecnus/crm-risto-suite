@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // Refresca la sesión de Supabase en cada request y manda a /login si no hay usuario.
 export async function proxy(request: NextRequest) {
+  // carta.ristosuite.app/<negocio>: la carta de SOLO LECTURA (sin pedidos) en un dominio corto, sin pasar por el login.
+  // Se reescribe hacia /carta/<negocio>/ver; si la dirección no es un solo tramo (por ejemplo la raíz) muestra "carta no disponible".
+  if (request.headers.get('host')?.split(':')[0] === 'carta.ristosuite.app') {
+    const tramos = request.nextUrl.pathname.split('/').filter(Boolean)
+    const slug = tramos.length === 1 && /^[a-z0-9-]+$/i.test(tramos[0]) ? tramos[0].toLowerCase() : 'no-existe'
+    return NextResponse.rewrite(new URL(`/carta/${slug}/ver`, request.url))
+  }
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
