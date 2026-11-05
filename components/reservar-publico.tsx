@@ -2,6 +2,7 @@
 
 import type { CfgSitio } from '@/lib/cfg-sitio'
 import { sinTildes } from '@/lib/validar'
+import { fechaLarga } from '@/lib/fechas'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Check, Clock, MessageCircle, Minus, Plus, Users } from 'lucide-react'
 import { CajaMesa, Derecho } from '@/components/mesa-sillas'
@@ -21,8 +22,9 @@ import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type PromoWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 type Cfg = Props['cfg']
+interface AvisoCierre { fecha: string; desde?: string; hasta?: string; motivo: string }
 interface Props {
-  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
+  slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; /** Motivos de bloqueos que el local eligió mostrar, por sede ('*' si no hay sedes). */ avisos?: Record<string, AvisoCierre[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
   cfg: CfgSitio; hoy: string; whatsapp: string
 }
 
@@ -31,7 +33,7 @@ const rango = (m: Pick<MesaWeb, 'capacidad' | 'capacidad_min'>) => (m.capacidad_
 const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible', corte: 'Cerrado' }
 
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, shows = [], cerrados, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, shows = [], cerrados, avisos = {}, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio }: Props) {
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfgBase.personas_min), cfgBase.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
@@ -44,6 +46,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const tiposTodos = (conSedes ? porSede[sedeId]?.tipos : undefined) ?? tiposBase
   useEffect(() => { setPersonas((p) => Math.min(Math.max(p, cfg.personas_min), cfg.personas_max)) }, [cfg.personas_min, cfg.personas_max])
   const diasCerrados = useMemo(() => new Set(cerrados[conSedes ? sedeId : '*'] ?? []), [cerrados, conSedes, sedeId])
+  // motivos que el local decidió mostrar: siempre los del día elegido y, además, los próximos cierres (así se entiende por qué un día aparece deshabilitado)
+  const avisosCierre = useMemo(() => { let otros = 0; return (avisos[conSedes ? sedeId : '*'] ?? []).filter((a) => a.fecha === fecha || ++otros <= 5) }, [avisos, conSedes, sedeId, fecha])
   // tipos de reserva que se ofrecen ese día (algunos son solo de ciertos días de la semana o de fechas puntuales)
   const tipos = useMemo(() => {
     const dow = new Date(fecha + 'T12:00:00Z').getUTCDay()
@@ -276,6 +280,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               </div>
             </div>
           </div>
+          {avisosCierre.length > 0 && (
+            <div data-avisos-cierre role="note" className="rounded-md bg-rs-warn/10 px-3 py-2 text-xs text-rs-warn">
+              <p className="font-semibold">Avisos del local</p>
+              <ul className="mt-1 space-y-0.5">
+                {avisosCierre.map((a, i) => <li key={i} className={a.fecha === fecha ? 'font-semibold' : ''}>{fechaLarga(a.fecha)} · {a.desde ? `${a.desde}–${a.hasta} h` : 'cerrado todo el día'}: {a.motivo}</li>)}
+              </ul>
+            </div>
+          )}
           {showsDelDia.map((s) => <TarjetaShow key={s.id} show={s} aviso="Ese día hay show" />)}
           {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(puedeElegir ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
           {tipos.length === 0 && <p role="status" className="rounded-md bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Ese día no hay reservas disponibles por acá. Probá con otro día.</p>}

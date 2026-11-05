@@ -93,7 +93,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   return (
     <>
     {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
-    <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}}
+    <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}} avisos={((cal as { avisos?: Record<string, { fecha: string; desde?: string; hasta?: string; motivo: string }[]> } | null)?.avisos) ?? {}}
       cfg={cfgSitio(cfg)}
       hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} />
     </>

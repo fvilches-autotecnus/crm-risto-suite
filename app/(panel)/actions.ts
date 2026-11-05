@@ -439,7 +439,8 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
     fecha,
     hora_desde: desde || null,
     hora_hasta: hasta || null,
-    motivo: text(fd, 'motivo') || null,
+    motivo: text(fd, 'motivo').slice(0, 120) || null,
+    mostrar_motivo: !!text(fd, 'motivo') && fd.get('mostrar_motivo') === 'on',   // solo si hay motivo que mostrar
   })
   if (error) return fail('No se pudo bloquear la fecha')
   revalidatePath('/', 'layout')

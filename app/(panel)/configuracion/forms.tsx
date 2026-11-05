@@ -158,7 +158,8 @@ export function BloqueoForm({ sedes = [], puedeTodas = true }: { sedes?: { id: s
       <div><label className="label" htmlFor="b_fecha">Fecha</label><FechaInput id="b_fecha" name="fecha" required className="w-40" /></div>
       <div><label className="label" htmlFor="b_desde">Desde</label><HoraInput id="b_desde" name="hora_desde" className="w-28" /></div>
       <div><label className="label" htmlFor="b_hasta">Hasta</label><HoraInput id="b_hasta" name="hora_hasta" className="w-28" /></div>
-      <div className="min-w-[160px] flex-1"><label className="label" htmlFor="b_motivo">Motivo</label><input id="b_motivo" name="motivo" placeholder="Opcional" className="input w-full" /></div>
+      <div className="min-w-[160px] flex-1"><label className="label" htmlFor="b_motivo">Motivo</label><input id="b_motivo" name="motivo" maxLength={120} placeholder="Opcional" className="input w-full" /></div>
+      <label className="flex basis-full items-start gap-2 text-sm"><input type="checkbox" name="mostrar_motivo" className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Mostrar este motivo en el sitio de reservas</span><span className="block text-xs text-rs-muted">Lo van a ver tus clientes. Si no lo marcás, el motivo queda solo para el equipo.</span></span></label>
       <Guardar pending={pending}>Bloquear</Guardar>
     </form>
   )
