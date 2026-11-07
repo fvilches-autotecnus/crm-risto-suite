@@ -22,7 +22,7 @@ import type { Marca } from '@/lib/marca'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type PromoWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 type Cfg = Props['cfg']
-interface AvisoCierre { fecha: string; desde?: string; hasta?: string; motivo: string }
+interface AvisoCierre { fecha: string; desde?: string; hasta?: string; motivo: string; ubicaciones?: string[] }
 interface Props {
   slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; /** Motivos de bloqueos que el local eligió mostrar, por sede ('*' si no hay sedes). */ avisos?: Record<string, AvisoCierre[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
   cfg: CfgSitio; hoy: string; whatsapp: string
@@ -284,7 +284,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
             <div data-avisos-cierre role="note" className="rounded-md bg-rs-warn/10 px-3 py-2 text-xs text-rs-warn">
               <p className="font-semibold">Avisos del local</p>
               <ul className="mt-1 space-y-0.5">
-                {avisosCierre.map((a, i) => <li key={i} className={a.fecha === fecha ? 'font-semibold' : ''}>{fechaLarga(a.fecha)} · {a.desde ? `${a.desde}–${a.hasta} h` : 'cerrado todo el día'}: {a.motivo}</li>)}
+                {avisosCierre.map((a, i) => <li key={i} className={a.fecha === fecha ? 'font-semibold' : ''}>{fechaLarga(a.fecha)} · {a.ubicaciones?.length ? `${a.ubicaciones.join(', ')} · ` : ''}{a.desde ? `${a.desde}–${a.hasta} h` : 'cerrado todo el día'}: {a.motivo}</li>)}
               </ul>
             </div>
           )}

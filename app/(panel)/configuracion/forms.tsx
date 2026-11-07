@@ -143,14 +143,17 @@ export function ReglasPanel({ reglas, sedes, nombresSede, ubicaciones, puedeToda
 // ---------------------------------------------------------------------------
 // Fechas bloqueadas
 // ---------------------------------------------------------------------------
-export function BloqueoForm({ sedes = [], puedeTodas = true }: { sedes?: { id: string; nombre: string }[]; puedeTodas?: boolean }) {
+export function BloqueoForm({ sedes = [], puedeTodas = true, ubicaciones = [] }: { sedes?: { id: string; nombre: string }[]; puedeTodas?: boolean; ubicaciones?: { nombre: string; sucursal_id: string | null }[] }) {
   const { state, pending, formProps } = useAccionFormulario(agregarFechaBloqueada, { reiniciar: true })
   useResultado(state, 'Fecha bloqueada')
+  const [sedeId, setSedeId] = useState(puedeTodas ? '' : sedes[0]?.id ?? '')
+  // las ubicaciones que se pueden cerrar: las de la sede elegida (o todas, si el bloqueo es de todas las sedes); "cualquier ubicación" no es una zona real
+  const zonas = [...new Set(ubicaciones.filter((u) => !sedeId || !u.sucursal_id || u.sucursal_id === sedeId).map((u) => u.nombre).filter((n) => !n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().startsWith('cualquier')))]
   return (
-    <form {...formProps} className="mt-3 flex flex-wrap items-end gap-3">
+    <form {...formProps} onReset={() => setSedeId(puedeTodas ? '' : sedes[0]?.id ?? '')} className="mt-3 flex flex-wrap items-end gap-3">
       {sedes.length > 0 && (
         <div><label className="label" htmlFor="b_sede">Sede</label>
-          <select id="b_sede" name="sucursal_id" className="input" defaultValue={puedeTodas ? '' : sedes[0].id}>
+          <select id="b_sede" name="sucursal_id" className="input" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
             {puedeTodas && <option value="">Todas las sedes</option>}
             {sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
           </select></div>
@@ -159,6 +162,15 @@ export function BloqueoForm({ sedes = [], puedeTodas = true }: { sedes?: { id: s
       <div><label className="label" htmlFor="b_desde">Desde</label><HoraInput id="b_desde" name="hora_desde" className="w-28" /></div>
       <div><label className="label" htmlFor="b_hasta">Hasta</label><HoraInput id="b_hasta" name="hora_hasta" className="w-28" /></div>
       <div className="min-w-[160px] flex-1"><label className="label" htmlFor="b_motivo">Motivo</label><input id="b_motivo" name="motivo" maxLength={120} placeholder="Opcional" className="input w-full" /></div>
+      {zonas.length > 0 && (
+        <fieldset className="basis-full">
+          <legend className="label">Ubicaciones a cerrar</legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {zonas.map((z) => <label key={z} className="flex items-center gap-2 text-sm"><input type="checkbox" name="ubicaciones" value={z} className="h-4 w-4 accent-[#c8e62b]" />{z}</label>)}
+          </div>
+          <span className="mt-1 block text-xs text-rs-muted">Si no tildás ninguna, se bloquea todo el local. Si tildás algunas, las demás ubicaciones siguen tomando reservas.</span>
+        </fieldset>
+      )}
       <label className="flex basis-full items-start gap-2 text-sm"><input type="checkbox" name="mostrar_motivo" className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Mostrar este motivo en el sitio de reservas</span><span className="block text-xs text-rs-muted">Lo van a ver tus clientes. Si no lo marcás, el motivo queda solo para el equipo.</span></span></label>
       <Guardar pending={pending}>Bloquear</Guardar>
     </form>

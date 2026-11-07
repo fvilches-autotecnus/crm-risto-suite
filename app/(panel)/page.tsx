@@ -41,7 +41,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     porSede(supabase.from('reservas').select('fecha, estado, cantidad_personas').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', semanaAnt).lte('fecha', finSemana)),
     porSede(supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', dia).order('hora')),
     porSede(supabase.from('reservas').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('estado', 'nueva').or(`fecha.gte.${hoy},fecha.is.null`)),
-    (sede ? supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia).or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo').eq('negocio_id', negocio.id).eq('fecha', dia)),
+    (sede ? supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo, ubicaciones').eq('negocio_id', negocio.id).eq('fecha', dia).or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo, ubicaciones').eq('negocio_id', negocio.id).eq('fecha', dia)),
     porSede(supabase.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('estado', 'pendiente')),
     cargarReglas(ctx),
     ctx.modulosActivos.cumpleanos
@@ -68,7 +68,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const alertaAforo = (await cargarConfigReservas(ctx)).alerta_aforo_pct
   const alertas: { texto: string; tono: 'warn' | 'danger' }[] = []
   for (const b of bloqueos ?? []) {
-    alertas.push({ tono: 'warn', texto: `Fecha bloqueada${b.hora_desde ? ` (${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)})` : ''}${b.motivo ? `: ${b.motivo}` : ''}` })
+    alertas.push({ tono: 'warn', texto: `Fecha bloqueada${b.ubicaciones?.length ? ` en ${b.ubicaciones.join(', ')}` : ''}${b.hora_desde ? ` (${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)})` : ''}${b.motivo ? `: ${b.motivo}` : ''}` })
   }
   for (const f of filasAforo) {
     const pct = Math.round((f.usado / f.maximo) * 100)

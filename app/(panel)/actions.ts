@@ -433,9 +433,19 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
   if (!FECHA_RE.test(fecha)) return fail('Elegí una fecha')
   if ((desde && !HORA_RE.test(desde)) || (hasta && !HORA_RE.test(hasta))) return fail('El horario no es válido')
   if (!!desde !== !!hasta) return fail('Completá el horario desde y hasta, o dejá ambos vacíos para bloquear todo el día')
+  // ubicaciones a cerrar (opcional): solo las que existen en esa sede; sin ninguna tildada se bloquea todo
+  const ubicElegidas = [...new Set(fd.getAll('ubicaciones').map((v) => String(v)).filter(Boolean))]
+  let ubicaciones: string[] | null = null
+  if (ubicElegidas.length > 0) {
+    const { data: ubs } = await ctx.supabase.from('ubicaciones').select('nombre, sucursal_id').eq('negocio_id', ctx.negocio.id).eq('activo', true)
+    const validas = new Set((ubs ?? []).filter((u) => !sedeBloq || !u.sucursal_id || u.sucursal_id === sedeBloq).map((u) => u.nombre as string))
+    if (ubicElegidas.some((u) => !validas.has(u))) return fail('Alguna ubicación no es válida para esa sede')
+    ubicaciones = ubicElegidas
+  }
   const { error } = await ctx.supabase.from('fechas_bloqueadas_reservas').insert({
     negocio_id: ctx.negocio.id,
     sucursal_id: sedeBloq,
+    ubicaciones,
     fecha,
     hora_desde: desde || null,
     hora_hasta: hasta || null,
