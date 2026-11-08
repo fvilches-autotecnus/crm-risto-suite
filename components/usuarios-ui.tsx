@@ -52,8 +52,8 @@ function NuevoUsuario({ p, onDone }: { p: Props; onDone: () => void }) {
         <input id="u_nombre" name="nombre" autoComplete="off" className="input w-full" required />
       </div>
       <div className="col-span-2">
-        <label className="label" htmlFor="u_password">Contraseña inicial * (mínimo 8)</label>
-        <input id="u_password" name="password" type="text" autoComplete="off" minLength={8} className="input w-full font-mono" required />
+        <label className="label" htmlFor="u_password">Contraseña inicial * (mínimo 12)</label>
+        <input id="u_password" name="password" type="text" autoComplete="off" minLength={12} className="input w-full font-mono" required />
         <p className="mt-1 text-xs text-rs-muted">Pasásela a la persona; puede pedir que se la cambien cuando quiera.</p>
       </div>
       {p.esSuperadmin && (
@@ -190,14 +190,14 @@ function Password({ u, onClose }: { u: UsuarioUI; onClose: () => void }) {
   const [ok, setOk] = useState(false)
   return (
     <Modal titulo={`Nueva contraseña para ${u.nombre}`} onClose={onClose}>
-      <label className="label" htmlFor="np">Contraseña nueva (mínimo 8)</label>
+      <label className="label" htmlFor="np">Contraseña nueva (mínimo 12)</label>
       <input id="np" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" className="input w-full font-mono" />
       <p className="mt-1 text-xs text-rs-muted">Se aplica ya: la persona entra con esta clave la próxima vez.</p>
       <Error msg={error} />
       {ok && <p className="mt-2 text-sm text-rs-ok">Contraseña cambiada.</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button onClick={onClose} className="btn">Cerrar</button>
-        <button disabled={pending || pass.length < 8} onClick={() => start(async () => { setError(null); setOk(false); const r = await resetearPassword(u.id, pass); r.ok ? (setOk(true), setPass(''), toast({ texto: `Contraseña de ${u.nombre} cambiada` })) : setError(r.error ?? 'Error') })} className="btn btn-primary">{pending && <Spinner />}Cambiar contraseña</button>
+        <button disabled={pending || pass.length < 12} onClick={() => start(async () => { setError(null); setOk(false); const r = await resetearPassword(u.id, pass); r.ok ? (setOk(true), setPass(''), toast({ texto: `Contraseña de ${u.nombre} cambiada` })) : setError(r.error ?? 'Error') })} className="btn btn-primary">{pending && <Spinner />}Cambiar contraseña</button>
       </div>
     </Modal>
   )

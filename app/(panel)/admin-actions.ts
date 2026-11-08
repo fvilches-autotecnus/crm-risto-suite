@@ -118,7 +118,7 @@ export async function crearUsuario(_prev: ActionResult | null, fd: FormData): Pr
 
   if (!USUARIO_RE.test(usuario)) return fail('El usuario debe tener 3 a 40 caracteres: minúsculas, números, punto, guion o guion bajo')
   if (!nombre) return fail('Falta el nombre')
-  if (password.length < 8) return fail('La contraseña debe tener al menos 8 caracteres')
+  if (password.length < 12) return fail('La contraseña debe tener al menos 12 caracteres')
   if (!esSuper) {
     if (!ROL_VALUES.includes(rol)) return fail('Elegí un rol')
     if (!negocioId) return fail('Elegí un negocio')
@@ -219,7 +219,7 @@ export async function activarUsuario(userId: string, activo: boolean): Promise<A
 
 export async function resetearPassword(userId: string, password: string): Promise<ActionResult> {
   const ctx = await getContexto()
-  if (password.length < 8) return fail('La contraseña debe tener al menos 8 caracteres')
+  if (password.length < 12) return fail('La contraseña debe tener al menos 12 caracteres')
   const admin = createAdminClient()
   if (!ctx.esSuperadmin) {
     // Solo si el usuario pertenece ÚNICAMENTE a este negocio (si no, un dueño podría tomar su acceso a otros negocios).
