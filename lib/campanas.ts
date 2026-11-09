@@ -1,6 +1,8 @@
 /**
  * Campañas: seguimiento de mensajes de marketing (solo lectura a futuro).
- * Se registra qué se envió y a quién. No se mide cuántos entregaron, leyeron, respondieron o fallaron: no hay de dónde sacarlo.
+ * Se registra qué se envió y a quién. Cuántos se entregaron, leyeron, respondieron o fallaron sale de los avisos de WhatsApp (Meta)
+ * que guardan los receptores de n8n (migración 0098, funciones interacciones_envios / resumen_interacciones); solo los envíos con
+ * wamid tienen seguimiento (los anteriores no se pueden reconstruir).
  * Hoy se pueden crear, editar y borrar a mano; cuando los envíos los cargue solo la automatización
  * (función bot_registrar_envio_campana), pasar CAMPANAS_EDITABLES a false: las pantallas quedan solo de consulta.
  */
@@ -50,5 +52,13 @@ export interface ResumenCampana { campana_id: string; enviados: number; clientes
 
 export interface Envio { id: string; campana_id: string; cliente_id: string | null; nombre: string | null; telefono: string | null; enviado_en: string; detalle: string | null }
 export const ENVIO_COLS = 'id, campana_id, cliente_id, nombre, telefono, enviado_en, detalle'
+
+/** Totales de interacciones por campaña (public.resumen_interacciones). Los porcentajes van sobre con_seguimiento, no sobre enviados. */
+export interface ResumenInteracciones { campana_id: string; enviados: number; con_seguimiento: number; entregados: number; leidos: number; respondieron: number; fallaron: number }
+
+/** Interacciones de un envío (public.interacciones_envios). */
+export interface Interaccion { envio_id: string; seguimiento: boolean; entregado_en: string | null; leido_en: string | null; fallo: string | null; respondio_en: string | null; respuesta: string | null; reaccion: string | null }
+
+export const pct = (n: number, de: number) => (de > 0 ? Math.round((n * 100) / de) : 0)
 
 export const DIAS_PERIODO = [7, 14, 30, 90, 180]

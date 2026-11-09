@@ -9,7 +9,7 @@ import { FechaInput, HoraInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
-import { ESTADOS_CAMPANA, MODOS_CAMPANA, TIPOS_CAMPANA, labelEstadoCampana, labelModoCampana, labelTipoCampana, type Campana, type Envio, type ResumenCampana } from '@/lib/campanas'
+import { ESTADOS_CAMPANA, MODOS_CAMPANA, TIPOS_CAMPANA, labelEstadoCampana, labelModoCampana, labelTipoCampana, pct, type Campana, type Envio, type Interaccion, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { fechaHoraLarga } from '@/lib/fechas'
 
 // ---------------------------------------------------------------------------
@@ -152,11 +152,13 @@ export function RegistrarEnviosBtn({ campanaId, chico = false }: { campanaId: st
 // ---------------------------------------------------------------------------
 // Lista de campañas (con sus totales del período)
 // ---------------------------------------------------------------------------
-export function ListaCampanas({ campanas, resumen, editable, puedeEliminar, dias }: { campanas: Campana[]; resumen: Record<string, ResumenCampana>; editable: boolean; puedeEliminar: boolean; dias: number }) {
+export function ListaCampanas({ campanas, resumen, interacciones, editable, puedeEliminar, dias }: { campanas: Campana[]; resumen: Record<string, ResumenCampana>; interacciones: Record<string, ResumenInteracciones>; editable: boolean; puedeEliminar: boolean; dias: number }) {
   if (campanas.length === 0) {
     return <div className="card"><EstadoVacio icono={<Megaphone size={26} />} titulo="No hay campañas para mostrar" texto={editable ? 'Creá una con “Nueva campaña”. Después vas a poder ver cuántos mensajes se enviaron y a qué clientes.' : 'Cuando la automatización empiece a enviar mensajes, las campañas van a aparecer acá.'} /></div>
   }
   const r = (c: Campana): ResumenCampana => resumen[c.id] ?? { campana_id: c.id, enviados: 0, clientes: 0, ultimo_envio: null }
+  // «123 · 45%» sobre los envíos con seguimiento; sin seguimiento no hay dato
+  const medida = (c: Campana, n: (i: ResumenInteracciones) => number) => { const i = interacciones[c.id]; return i && i.con_seguimiento > 0 ? <>{n(i)} <span className="text-xs text-rs-muted">· {pct(n(i), i.con_seguimiento)}%</span></> : <span className="text-rs-muted">—</span> }
   const acciones = (c: Campana) => editable && (
     <div className="flex justify-end gap-1.5">
       <EditarCampanaBtn campana={c} />
@@ -166,8 +168,8 @@ export function ListaCampanas({ campanas, resumen, editable, puedeEliminar, dias
   return (
     <>
       <div className="card hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[820px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Campaña</th><th className="th">Tipo</th><th className="th">Modo</th><th className="th">Estado</th><th className="th text-right">Enviados ({dias} d)</th><th className="th text-right">Clientes</th><th className="th">Último envío</th>{editable && <th className="th text-right">Acciones</th>}</tr></thead>
+        <table className="w-full min-w-[1020px]">
+          <thead className="border-b border-rs-border"><tr><th className="th">Campaña</th><th className="th">Tipo</th><th className="th">Modo</th><th className="th">Estado</th><th className="th text-right">Enviados ({dias} d)</th><th className="th text-right">Clientes</th><th className="th text-right">Entregados</th><th className="th text-right">Leídos</th><th className="th text-right">Respondieron</th><th className="th">Último envío</th>{editable && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {campanas.map((c, i) => {
               const x = r(c)
@@ -179,6 +181,9 @@ export function ListaCampanas({ campanas, resumen, editable, puedeEliminar, dias
                   <td className="td"><BadgeCampana estado={c.estado} /></td>
                   <td className="td text-right font-semibold tabular-nums">{x.enviados}</td>
                   <td className="td text-right tabular-nums">{x.clientes}</td>
+                  <td className="td text-right tabular-nums">{medida(c, (i) => i.entregados)}</td>
+                  <td className="td text-right tabular-nums">{medida(c, (i) => i.leidos)}</td>
+                  <td className="td text-right tabular-nums">{medida(c, (i) => i.respondieron)}</td>
                   <td className="td whitespace-nowrap text-xs text-rs-muted">{x.ultimo_envio ? fechaHoraLarga(x.ultimo_envio) : 'Sin envíos'}</td>
                   {editable && <td className="td">{acciones(c)}</td>}
                 </tr>
@@ -197,8 +202,8 @@ export function ListaCampanas({ campanas, resumen, editable, puedeEliminar, dias
                 <BadgeCampana estado={c.estado} />
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rs-muted"><BadgeModo modo={c.modo} />{labelTipoCampana(c.tipo)} · {x.ultimo_envio ? `último envío ${fechaHoraLarga(x.ultimo_envio)}` : 'sin envíos'}</p>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-center">
-                {[['Enviados', x.enviados], ['Clientes', x.clientes]].map(([l, n]) => <div key={l as string}><dd className="text-lg font-bold tabular-nums">{n}</dd><dt className="text-[10px] uppercase tracking-wide text-rs-muted">{l}</dt></div>)}
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                {[['Enviados', x.enviados], ['Clientes', x.clientes], ['Entregados', medida(c, (i) => i.entregados)], ['Leídos', medida(c, (i) => i.leidos)], ['Respondieron', medida(c, (i) => i.respondieron)]].map(([l, n]) => <div key={l as string}><dd className="text-lg font-bold tabular-nums">{n}</dd><dt className="text-[10px] uppercase tracking-wide text-rs-muted">{l}</dt></div>)}
               </dl>
               {editable && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(c)}</div>}
             </li>
@@ -212,7 +217,7 @@ export function ListaCampanas({ campanas, resumen, editable, puedeEliminar, dias
 // ---------------------------------------------------------------------------
 // Lista de envíos de una campaña: a qué clientes se les mandó y cuándo
 // ---------------------------------------------------------------------------
-export function ListaEnvios({ envios, editable, puedeEliminar }: { envios: Envio[]; editable: boolean; puedeEliminar: boolean }) {
+export function ListaEnvios({ envios, interacciones, editable, puedeEliminar }: { envios: Envio[]; interacciones: Record<string, Interaccion>; editable: boolean; puedeEliminar: boolean }) {
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
@@ -223,17 +228,30 @@ export function ListaEnvios({ envios, editable, puedeEliminar }: { envios: Envio
   if (envios.length === 0) return <div className="card"><EstadoVacio icono={<Send size={26} />} titulo="No hay envíos en este período" texto="Probá con un período más largo." /></div>
   const cliente = (e: Envio) => e.cliente_id ? <Link href={`/clientes/${e.cliente_id}`} className="font-medium transition-colors hover:text-rs-lime">{e.nombre ?? 'Cliente'}</Link> : <span className="font-medium">{e.nombre ?? '—'}</span>
   const mostrarAcciones = puedeEliminar && editable
+  // Estado de entrega + lo que contestó (la respuesta cuenta si llegó dentro de los 3 días del envío)
+  const entrega = (e: Envio) => {
+    const i = interacciones[e.id]
+    if (!i || !i.seguimiento) return <span className="text-xs text-rs-muted">Sin seguimiento</span>
+    const [txt, cls] = i.leido_en ? ['Leído', 'bg-rs-lime/15 text-rs-lime'] : i.entregado_en ? ['Entregado', 'bg-rs-ok/15 text-rs-ok'] : i.fallo ? ['No entregado', 'bg-rs-warn/15 text-rs-warn'] : ['Enviado', 'bg-rs-raised text-rs-muted']
+    return (
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5"><span className={'badge ' + cls} title={i.fallo ?? ''}>{txt}</span>{i.respondio_en && <span className="badge bg-rs-lav/15 text-rs-lav">Respondió</span>}{i.reaccion && !i.respondio_en && <span className="badge bg-rs-raised text-rs-muted" title="Reaccionó con un emoji">{i.reaccion}</span>}</div>
+        {i.respuesta && <p className="max-w-[260px] truncate text-xs text-rs-muted" title={i.respuesta}>“{i.respuesta}”</p>}
+      </div>
+    )
+  }
   return (
     <>
       <div className="card hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Enviado</th><th className="th">Cliente</th><th className="th">Teléfono</th><th className="th">Detalle</th>{mostrarAcciones && <th className="th text-right">Acciones</th>}</tr></thead>
+        <table className="w-full min-w-[820px]">
+          <thead className="border-b border-rs-border"><tr><th className="th">Enviado</th><th className="th">Cliente</th><th className="th">Teléfono</th><th className="th">Entrega</th><th className="th">Detalle</th>{mostrarAcciones && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {envios.map((e, i) => (
               <tr key={e.id} className="reveal border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en)}</td>
                 <td className="td">{cliente(e)}</td>
                 <td className="td text-rs-muted">{e.telefono ?? '—'}</td>
+                <td className="td">{entrega(e)}</td>
                 <td className="td max-w-[260px] truncate text-rs-muted" title={e.detalle ?? ''}>{e.detalle ?? '—'}</td>
                 {mostrarAcciones && <td className="td text-right"><button disabled={pending} onClick={() => borrar(e)} aria-label="Eliminar envío" className="btn btn-sm btn-danger"><Trash2 size={13} /></button></td>}
               </tr>
@@ -246,6 +264,7 @@ export function ListaEnvios({ envios, editable, puedeEliminar }: { envios: Envio
           <li key={e.id} className="reveal card p-4" style={{ ['--i' as string]: Math.min(i, 8) }}>
             <div className="flex items-start justify-between gap-3">{cliente(e)}<span className="text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en)}</span></div>
             <p className="mt-1 text-sm text-rs-muted">{e.telefono ?? 'Sin teléfono'}</p>
+            <div className="mt-2">{entrega(e)}</div>
             {e.detalle && <p className="mt-1 text-xs text-rs-muted">{e.detalle}</p>}
             {mostrarAcciones && <div className="mt-3 border-t border-rs-border/60 pt-3 text-right"><button disabled={pending} onClick={() => borrar(e)} className="btn btn-sm btn-danger"><Trash2 size={13} />Eliminar</button></div>}
           </li>

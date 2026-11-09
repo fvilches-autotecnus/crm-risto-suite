@@ -6,7 +6,7 @@ import { GraficoLinea, TarjetaGrafico } from '@/components/charts'
 import { Tile } from '@/components/dashboard-ui'
 import Paginacion from '@/components/paginacion'
 import SelectorDias from '@/components/selector-dias'
-import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, ENVIO_COLS, labelTipoCampana, type Campana, type Envio, type ResumenCampana } from '@/lib/campanas'
+import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, ENVIO_COLS, labelTipoCampana, pct, type Campana, type Envio, type Interaccion, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { getContexto } from '@/lib/context'
 import { TZ_AR, fechaCorta, fechaHoraLarga, hoyEn, sumarDias } from '@/lib/fechas'
 import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
@@ -33,13 +33,20 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
   const pagina = numPagina(sp.pagina)
   const desdeFila = (pagina - 1) * POR_PAGINA
 
-  const [{ data: res }, { data: envios, count }, { data: serieDatos }] = await Promise.all([
+  const [{ data: res }, { data: envios, count }, { data: serieDatos }, { data: resInter }, { data: inter }] = await Promise.all([
     supabase.rpc('resumen_campanas', { p_negocio: negocio.id, p_desde: pDesde, p_hasta: pHasta }),
     supabase.from('campanas_envios').select(ENVIO_COLS, { count: 'exact' }).eq('campana_id', id).neq('estado', 'fallido').gte('enviado_en', pDesde).lt('enviado_en', pHasta).order('enviado_en', { ascending: false }).range(desdeFila, desdeFila + POR_PAGINA - 1),
     supabase.from('campanas_envios').select('enviado_en').eq('campana_id', id).neq('estado', 'fallido').gte('enviado_en', pDesde).lt('enviado_en', pHasta).limit(50000),
+    supabase.rpc('resumen_interacciones', { p_negocio: negocio.id, p_desde: pDesde, p_hasta: pHasta }),
+    supabase.rpc('interacciones_envios', { p_negocio: negocio.id, p_campana: id, p_desde: pDesde, p_hasta: pHasta }).limit(20000),
   ])
   const r = ((res ?? []) as ResumenCampana[]).find((x) => x.campana_id === id)
   const enviados = Number(r?.enviados ?? 0), clientes = Number(r?.clientes ?? 0)
+  const ri = ((resInter ?? []) as ResumenInteracciones[]).find((x) => x.campana_id === id)
+  const seguidos = Number(ri?.con_seguimiento ?? 0), entregados = Number(ri?.entregados ?? 0), leidos = Number(ri?.leidos ?? 0), respondieron = Number(ri?.respondieron ?? 0), fallaron = Number(ri?.fallaron ?? 0)
+  const sinSeguimiento = Math.max(0, enviados - seguidos)
+  const interacciones: Record<string, Interaccion> = {}
+  for (const x of (inter ?? []) as Interaccion[]) interacciones[x.envio_id] = x
 
   const porDiaMapa = new Map<string, number>()
   for (const e of (serieDatos ?? []) as { enviado_en: string }[]) { const d = ymdAR(e.enviado_en); porDiaMapa.set(d, (porDiaMapa.get(d) ?? 0) + 1) }
@@ -69,18 +76,23 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
 
       <div className="flex justify-end"><SelectorDias ruta={`/campanas/${id}`} dias={dias} /></div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
         <Tile i={0} valor={enviados} etiqueta={`Enviados (${dias} días)`} color="text-rs-lav" sub="mensajes" />
         <Tile i={1} valor={clientes} etiqueta="Clientes alcanzados" color="text-rs-ok" sub="clientes distintos" />
+        <Tile i={2} valor={entregados} etiqueta="Entregados" color="text-rs-ok" sub={seguidos ? `${pct(entregados, seguidos)}% de ${seguidos}` : 'sin seguimiento'} />
+        <Tile i={3} valor={leidos} etiqueta="Leídos" color="text-rs-lime" sub={seguidos ? `${pct(leidos, seguidos)}% de ${seguidos}` : 'sin seguimiento'} />
+        <Tile i={4} valor={respondieron} etiqueta="Respondieron" color="text-rs-lav" sub={seguidos ? `${pct(respondieron, seguidos)}% de ${seguidos}` : 'sin seguimiento'} />
+        <Tile i={5} valor={fallaron} etiqueta="No entregados" color="text-rs-text" sub={fallaron ? 'WhatsApp no los entregó' : 'sin fallas'} />
       </div>
+      {sinSeguimiento > 0 && <p className="rounded-md bg-rs-raised/50 px-3 py-2 text-xs text-rs-muted">{sinSeguimiento} de los {enviados} envíos son anteriores al seguimiento de entrega (se empezó a guardar el 3/11): figuran como enviados, pero no se sabe si se entregaron o leyeron y no entran en los porcentajes.</p>}
 
-      <TarjetaGrafico i={2} titulo={`Envíos ${modo === 'dia' ? 'por día' : 'por semana'} — últimos ${dias} días`} vacio={enviados === 0} columnas={[modo === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])}>
+      <TarjetaGrafico i={6} titulo={`Envíos ${modo === 'dia' ? 'por día' : 'por semana'} — últimos ${dias} días`} vacio={enviados === 0} columnas={[modo === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])}>
         <GraficoLinea puntos={serie} unidad="envíos" />
       </TarjetaGrafico>
 
       <section className="space-y-3">
         <h2 className="card-title">Clientes a los que se les envió</h2>
-        <ListaEnvios envios={(envios ?? []) as Envio[]} editable={editable} puedeEliminar={editable && ctx.puedeAdministrar} />
+        <ListaEnvios envios={(envios ?? []) as Envio[]} interacciones={interacciones} editable={editable} puedeEliminar={editable && ctx.puedeAdministrar} />
         <Paginacion ruta={`/campanas/${id}`} params={sp} pagina={pagina} paginas={Math.max(1, Math.ceil(total / POR_PAGINA))} total={total} desde={total ? desdeFila + 1 : 0} hasta={desdeFila + (envios?.length ?? 0)} />
       </section>
     </div>

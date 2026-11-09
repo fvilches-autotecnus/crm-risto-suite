@@ -6,7 +6,7 @@ import { ListaCampanas, NuevaCampanaBtn } from '@/components/campanas-ui'
 import EnlacesCampana, { type ResultadoEnlace } from '@/components/enlaces-campana'
 import { Tile } from '@/components/dashboard-ui'
 import SelectorDias from '@/components/selector-dias'
-import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, labelTipoCampana, type Campana, type ResumenCampana } from '@/lib/campanas'
+import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, labelTipoCampana, type Campana, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { getContexto } from '@/lib/context'
 import { TZ_AR, fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
 import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
@@ -37,16 +37,19 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
   for (const p of (pCamp ?? []) as { campana: string; total: number; estado: string }[]) if (p.estado !== 'cancelado') { const f = fila(p.campana); f.pedidos++; f.ventas += Number(p.total) }
   const resultadosEnlaces = [...porCodigo.values()].sort((a, b) => b.reservas + b.pedidos - (a.reservas + a.pedidos))
 
-  const [{ data: cs }, { data: res }, { data: env }] = await Promise.all([
+  const [{ data: cs }, { data: res }, { data: env }, { data: resInter }] = await Promise.all([
     supabase.from('campanas').select(CAMPANA_COLS).eq('negocio_id', negocio.id).order('creado_en', { ascending: false }),
     supabase.rpc('resumen_campanas', { p_negocio: negocio.id, p_desde: pDesde, p_hasta: pHasta }),
     supabase.from('campanas_envios').select('campana_id, enviado_en, cliente_id, telefono').eq('negocio_id', negocio.id).neq('estado', 'fallido').gte('enviado_en', pDesde).lt('enviado_en', pHasta).limit(50000),
+    supabase.rpc('resumen_interacciones', { p_negocio: negocio.id, p_desde: pDesde, p_hasta: pHasta }),
   ])
   const todas = (cs ?? []) as Campana[]
   const campanas = todas.filter((c) => modo === 'todas' || c.modo === modo)
   const ids = new Set(campanas.map((c) => c.id))
   const resumen: Record<string, ResumenCampana> = {}
   for (const r of (res ?? []) as ResumenCampana[]) resumen[r.campana_id] = { ...r, enviados: Number(r.enviados), clientes: Number(r.clientes) }
+  const interacciones: Record<string, ResumenInteracciones> = {}
+  for (const x of (resInter ?? []) as ResumenInteracciones[]) interacciones[x.campana_id] = { ...x, enviados: Number(x.enviados), con_seguimiento: Number(x.con_seguimiento), entregados: Number(x.entregados), leidos: Number(x.leidos), respondieron: Number(x.respondieron), fallaron: Number(x.fallaron) }
   const enviados = campanas.reduce((a, c) => a + (resumen[c.id]?.enviados ?? 0), 0)
   const activas = campanas.filter((c) => c.estado === 'activa').length
   const automaticas = todas.filter((c) => c.modo === 'automatica').length
@@ -105,7 +108,7 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-center gap-2">
         {MODOS.map((m) => <Link key={m.v} href={link(m.v)} className={'btn btn-sm ' + (modo === m.v ? 'btn-primary' : '')}>{m.l}</Link>)}
       </div>
-      <ListaCampanas campanas={campanas} resumen={resumen} editable={CAMPANAS_EDITABLES && ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} dias={dias} />
+      <ListaCampanas campanas={campanas} resumen={resumen} interacciones={interacciones} editable={CAMPANAS_EDITABLES && ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} dias={dias} />
     </div>
   )
 }
