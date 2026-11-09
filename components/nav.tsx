@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Armchair, BarChart3, BookOpen, BookOpenText, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
+import { Armchair, BarChart3, Inbox, BookOpen, BookOpenText, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
@@ -30,7 +30,7 @@ const TABS = [
 export default function Nav({ esSuperadmin = false, pausados = 0, modulos = {} }: { esSuperadmin?: boolean; pausados?: number; modulos?: Record<string, boolean> }) {
   const pathname = usePathname()
   const visibles = TABS.filter((t) => { const m = (t as { modulo?: string }).modulo; return !m || modulos[m] === true })
-  const tabs = esSuperadmin ? [...visibles, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
+  const tabs = esSuperadmin ? [...visibles, { href: '/interacciones', label: 'Interacciones', icon: Inbox }, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
   const activo = tabs.find((t) => (t.href === '/' ? pathname === '/' : pathname.startsWith(t.href)))?.href ?? null
   const refs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null)
