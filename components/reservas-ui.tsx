@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { CalendarPlus, Check, Columns3, MapPin, MessageSquareText, Pencil, Phone, Plus, Trash2, Users, UserX, X, UserCheck } from 'lucide-react'
 import { marcarLlego } from '@/app/(panel)/fidelidad-actions'
-import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, mesasDeReserva, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
+import { cambiarEstadoReserva, consultarAforo, eliminarReserva, guardarReserva, mesasDeReserva, resolverAvisoSena, restaurarEstadoReserva, restaurarReserva, type ActionResult } from '@/app/(panel)/actions'
 import { useToast } from '@/components/feedback'
 import { FechaInput, HoraInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import { AvisoSenaPagada, MarcaSenaPagada } from '@/components/aviso-sena'
@@ -308,6 +308,8 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
 
   const llego = (r: Reserva) => correr(r.id, () => marcarLlego(r.id, !r.asistio_en), () => toast({ texto: r.asistio_en ? `Reserva #${numeroVisible(r)}: se quitó “Llegó”` : `Reserva #${numeroVisible(r)}: llegó` }))
 
+  const resolverSena = (r: Reserva) => correr(r.id, () => resolverAvisoSena(r.id), () => toast({ texto: `Reserva #${numeroVisible(r)}: aviso de seña marcado como resuelto` }))
+
   const acciones = (r: Reserva) => (
     <div className="flex justify-end gap-1.5">
       {asistencia && r.estado === 'confirmada' && <button disabled={pending} onClick={() => llego(r)} title={r.asistio_en ? 'Llegó (tocá para quitarlo)' : 'Marcar que llegó'} aria-pressed={!!r.asistio_en} className={'btn btn-sm ' + (r.asistio_en ? 'border-rs-ok/50 bg-rs-ok/10 text-rs-ok' : '')}><UserCheck size={14} />{r.asistio_en ? 'Llegó' : 'Llegó'}</button>}
@@ -357,7 +359,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 {ver('tipo') && <td className="td text-rs-muted">{labelTipo(r.tipo_reserva, op.tiposEtiquetas)}</td>}
                 {mostrarUbicacion && ver('ubicacion') && <td className="td text-rs-muted">{r.ubicacion ?? '—'}</td>}
                 {ver('observaciones') && <td className="td max-w-[200px] truncate text-rs-muted" title={nota(r) ?? ''}>{nota(r) ?? '—'}</td>}
-                <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}<MarcaSenaPagada r={r} /></td>
+                <td className="td"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}<MarcaSenaPagada r={r} onResolver={puedeEscribir ? () => resolverSena(r) : undefined} ocupado={pending} /></td>
                 {ver('alta') && <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>}
                 {puedeEscribir && <td className="td">{acciones(r)}</td>}
               </tr>
@@ -376,7 +378,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
                 <p className="mt-0.5 text-sm text-rs-muted">{fechaCorta(r.fecha)} · {horaCorta(r.hora)}</p>
                 <p className="text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
               </div>
-              <div className="text-right"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}<MarcaSenaPagada r={r} /></div>
+              <div className="text-right"><EstadoBadge estado={r.estado} />{r.monto_sena ? <div className="mt-1 text-xs tabular-nums text-rs-muted">{r.estado === 'pendiente_pago' ? 'A pagar' : 'Seña'} {formatoMonto(r.monto_sena)}</div> : null}<MarcaSenaPagada r={r} onResolver={puedeEscribir ? () => resolverSena(r) : undefined} ocupado={pending} /></div>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-rs-muted">
               <span className="inline-flex items-center gap-1.5"><Users size={13} />{r.cantidad_personas ?? '—'} personas</span>
@@ -395,7 +397,7 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
 
       {editando && (
         <Modal titulo={`Editar reserva #${numeroVisible(editando)}`} onClose={() => setEditando(null)}>
-          <AvisoSenaPagada r={editando} />
+          <AvisoSenaPagada r={editando} ocupado={pending} onResolver={puedeEscribir ? () => { const x = editando; setEditando(null); resolverSena(x) } : undefined} />
           <ReservaForm reserva={editando} onDone={() => setEditando(null)} op={op} />
         </Modal>
       )}

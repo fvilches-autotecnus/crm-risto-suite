@@ -35,6 +35,8 @@ export interface PagoSena {
   total_pagado?: number
   pagado_en?: string
   al_pagar?: { fecha?: string | null; hora?: string | null; personas?: number | null }
+  /** El equipo marcó el aviso como resuelto. `firma` es el estado de la reserva en ese momento: si después cambia otra vez, el aviso vuelve a aparecer. */
+  resuelta?: { firma?: string; en?: string }
 }
 
 export interface Reserva {
@@ -73,6 +75,9 @@ export const numeroVisible = (r: { numero: number; numero_sede?: number | null }
 export const RESERVA_COLS =
   'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, opcion, campana, creado_en, pago:datos_origen->mp'
 
+/** Huella de la situación de la reserva para el aviso de seña: cancelada, o día + hora + personas (el estado no cuenta: confirmarla de nuevo no reabre el aviso). */
+export const firmaSena = (r: Pick<Reserva, 'estado' | 'fecha' | 'hora' | 'cantidad_personas'>) => (r.estado === 'cancelada' ? 'cancelada' : `${r.fecha ?? ''}|${r.hora ? r.hora.slice(0, 5) : ''}|${r.cantidad_personas ?? ''}`)
+
 export interface AvisoSena { tipo: 'cancelada' | 'modificada'; corto: string; detalle: string }
 
 /**
@@ -83,6 +88,7 @@ export interface AvisoSena { tipo: 'cancelada' | 'modificada'; corto: string; de
 export function avisoSenaPagada(r: Pick<Reserva, 'estado' | 'fecha' | 'hora' | 'cantidad_personas' | 'monto_sena' | 'pago'>): AvisoSena | null {
   const p = r.pago
   if (!p?.payment_id) return null
+  if (p.resuelta?.firma && p.resuelta.firma === firmaSena(r)) return null   // ya lo revisó una persona y la reserva no cambió desde entonces
   const pagado = Number(p.total_pagado ?? p.monto_pagado ?? 0)
   const monto = formatoMonto(pagado)
   if (r.estado === 'cancelada') {

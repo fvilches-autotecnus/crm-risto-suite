@@ -10,7 +10,7 @@ import { avisarCambioDeEstado, enviarPrueba } from '@/lib/notify'
 import { enviarPruebaPedido } from '@/lib/notify-pedidos'
 import { ESTADOS_AVISO_PEDIDO } from '@/lib/pedidos'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
-import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, avisaReservaManual, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
+import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, avisaReservaManual, esEstadoAviso, firmaSena, type EstadoReserva } from '@/lib/reservas'
 
 export interface ActionResult {
   ok: boolean
@@ -380,6 +380,22 @@ export async function restaurarEstadoReserva(id: string, estado: EstadoReserva, 
   if (!ESTADOS.some((e) => e.value === estado)) return fail('Estado no válido')
   const { error } = await ctx.supabase.from('reservas').update({ estado, monto_sena: monto, motivo_cancelacion: null }).eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo restaurar el estado')
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
+/** Marca como resuelto el aviso de "seña pagada" de una reserva. No hace nada con la seña: queda atado a la situación actual de la reserva, y si vuelve a cambiar el aviso reaparece. */
+export async function resolverAvisoSena(id: string): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return fail('Reserva no válida')
+  const { data: r } = await ctx.supabase.from('reservas').select('estado, fecha, hora, cantidad_personas, datos_origen').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
+  const d = ((r?.datos_origen as Record<string, unknown> | null) ?? {})
+  const mp = (d.mp as Record<string, unknown> | undefined) ?? null
+  if (!r || !mp?.payment_id) return fail('Esta reserva no tiene una seña pagada')
+  const resuelta = { firma: firmaSena({ estado: r.estado as EstadoReserva, fecha: r.fecha as string | null, hora: r.hora as string | null, cantidad_personas: r.cantidad_personas as number | null }), en: new Date().toISOString() }
+  const { error } = await ctx.supabase.from('reservas').update({ datos_origen: { ...d, mp: { ...mp, resuelta } } }).eq('id', id).eq('negocio_id', ctx.negocio.id)
+  if (error) return fail('No se pudo marcar como resuelto')
   revalidatePath('/', 'layout')
   return { ok: true }
 }
