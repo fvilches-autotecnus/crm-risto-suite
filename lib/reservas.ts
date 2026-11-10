@@ -71,4 +71,6 @@ export const ESTADOS_AVISO = ['confirmada', 'pendiente_pago', 'no_show', 'cancel
 export type EstadoAviso = (typeof ESTADOS_AVISO)[number]
 /** Lo que entienden hoy los workflows de aviso de los negocios. */
 export const ESTADOS_AVISO_POR_DEFECTO: EstadoAviso[] = ['confirmada', 'cancelada']
+/** Una reserva cargada a mano nunca se avisa por WhatsApp (el cliente ya habló con una persona), salvo el link de pago de la seña en los locales que la cobran con Mercado Pago. */
+export const avisaReservaManual = (estado: string, cobroSena: boolean | undefined) => cobroSena === true && estado === 'pendiente_pago'
 export const esEstadoAviso = (e: string): e is EstadoAviso => (ESTADOS_AVISO as readonly string[]).includes(e)

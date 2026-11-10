@@ -63,7 +63,7 @@ export interface OpcionesSede {
   alertaAforo: number                               // % del aforo a partir del cual se avisa
   conPlano: boolean                                 // el negocio tiene Salón y mesas con al menos un plano: se puede elegir mesa al cargar una reserva
   ubicaciones: { nombre: string; sucursal_id: string | null }[]   // sucursal_id null = vale para todas las sedes; lista vacía = el negocio no usa ubicaciones
-  aviso: { disponible: boolean; estados: string[]; porSede: Record<string, { disponible: boolean; estados: string[] }> }   // aviso al cliente por WhatsApp: del negocio y, si la sede tiene los suyos, por sede
+  aviso: { disponible: boolean; estados: string[]; cobroSena?: boolean; porSede: Record<string, { disponible: boolean; estados: string[]; cobroSena?: boolean }> }   // aviso al cliente por WhatsApp: del negocio y, si la sede tiene los suyos, por sede
 }
 
 // ---------------------------------------------------------------------------

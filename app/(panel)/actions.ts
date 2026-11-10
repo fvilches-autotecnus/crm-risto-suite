@@ -10,7 +10,7 @@ import { avisarCambioDeEstado, enviarPrueba } from '@/lib/notify'
 import { enviarPruebaPedido } from '@/lib/notify-pedidos'
 import { ESTADOS_AVISO_PEDIDO } from '@/lib/pedidos'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
-import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
+import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, avisaReservaManual, esEstadoAviso, type EstadoReserva } from '@/lib/reservas'
 
 export interface ActionResult {
   ok: boolean
@@ -345,8 +345,10 @@ export async function cambiarEstadoReserva(id: string, estado: EstadoReserva, mo
   if (error || !r) return fail('No se pudo actualizar la reserva')
 
   // El aviso al cliente solo sale si la persona del equipo lo eligió en el diálogo, y nunca para las reservas cargadas a mano
+  // (salvo el link de pago de la seña en los locales que la cobran con Mercado Pago)
   let aviso: ActionResult['aviso']
-  if (notificar === true && !r.es_manual && esEstadoAviso(estado)) {
+  const cobroSena = (negocio.modulos as Record<string, unknown> | null)?.cobro_sena === true
+  if (notificar === true && (!r.es_manual || avisaReservaManual(estado, cobroSena)) && esEstadoAviso(estado)) {
     aviso = await avisarCambioDeEstado({
       negocioId: negocio.id,
       sedeId: r.sucursal_id,

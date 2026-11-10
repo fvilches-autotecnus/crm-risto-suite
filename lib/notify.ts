@@ -16,6 +16,8 @@ export interface ResumenAviso {
   disponible: boolean
   /** Estados para los que se ofrece avisar (se eligen en Configuración). */
   estados: EstadoAviso[]
+  /** El local cobra la seña con link de pago: «Pendiente de pago» también se avisa en las reservas cargadas a mano (el link tiene que llegar). */
+  cobroSena: boolean
 }
 
 export interface ConfigAviso extends ResumenAviso {
@@ -33,7 +35,7 @@ export interface WebhookCliente extends ResumenAviso {
   sedes: Record<string, WebhookSede>
 }
 
-interface Crudo { url: string | null; secreto: string | undefined; destino: DestinoWebhook; estados: EstadoAviso[] }
+interface Crudo { url: string | null; secreto: string | undefined; destino: DestinoWebhook; estados: EstadoAviso[]; cobroSena: boolean }
 interface FilaSede { sucursal_id: string; destino: string | null; url: string | null; secreto: string | null; estados: string[] }
 
 const filtrarEstados = (v: unknown) => ESTADOS_AVISO.filter((e) => Array.isArray(v) && v.includes(e))
@@ -41,11 +43,11 @@ const secretoPara = (destino: DestinoWebhook, propio: string | null | undefined)
 
 async function leerNegocio(negocioId: string): Promise<Crudo> {
   const { data } = await createAdminClient().from('negocios').select('webhook_aviso_reserva_url, webhook_secret, modulos').eq('id', negocioId).maybeSingle()
-  const modulos = (data?.modulos ?? {}) as { avisos_estados?: unknown; webhook_destino?: unknown }
+  const modulos = (data?.modulos ?? {}) as { avisos_estados?: unknown; webhook_destino?: unknown; cobro_sena?: unknown }
   const destino = esDestino(modulos.webhook_destino) ? modulos.webhook_destino : 'n8n'
   // El secreto general del servidor solo vale para n8n (BotConversa no valida headers: su URL ya lleva el token)
   const estados = Array.isArray(modulos.avisos_estados) ? filtrarEstados(modulos.avisos_estados) : ESTADOS_AVISO_POR_DEFECTO
-  return { url: data?.webhook_aviso_reserva_url || null, secreto: secretoPara(destino, data?.webhook_secret), destino, estados }
+  return { url: data?.webhook_aviso_reserva_url || null, secreto: secretoPara(destino, data?.webhook_secret), destino, estados, cobroSena: modulos.cobro_sena === true }
 }
 
 async function leerSedes(negocioId: string): Promise<FilaSede[]> {
@@ -59,7 +61,7 @@ function resolver(base: Crudo, fila: FilaSede | undefined): Crudo {
   const estados = filtrarEstados(fila.estados)
   if (!fila.url) return { ...base, estados }
   const destino = esDestino(fila.destino) ? fila.destino : 'n8n'
-  return { url: fila.url, destino, secreto: secretoPara(destino, fila.secreto), estados }
+  return { url: fila.url, destino, secreto: secretoPara(destino, fila.secreto), estados, cobroSena: base.cobroSena }
 }
 
 async function leer(negocioId: string, sedeId?: string | null): Promise<Crudo> {
@@ -76,8 +78,8 @@ const listo = (c: Crudo) => !!c.url && (c.destino !== 'n8n' || !!c.secreto)
 export async function configuracionAviso(negocioId: string): Promise<ConfigAviso> {
   const [base, filas] = await Promise.all([leerNegocio(negocioId), leerSedes(negocioId)])
   const porSede: Record<string, ResumenAviso> = {}
-  for (const f of filas) { const c = resolver(base, f); porSede[f.sucursal_id] = { disponible: listo(c), estados: c.estados } }
-  return { disponible: listo(base), estados: base.estados, porSede }
+  for (const f of filas) { const c = resolver(base, f); porSede[f.sucursal_id] = { disponible: listo(c), estados: c.estados, cobroSena: c.cobroSena } }
+  return { disponible: listo(base), estados: base.estados, cobroSena: base.cobroSena, porSede }
 }
 
 /** Configuración completa para el formulario de Configuración (solo superadmin). */
@@ -85,7 +87,7 @@ export async function webhookCliente(negocioId: string): Promise<WebhookCliente>
   const [base, filas] = await Promise.all([leerNegocio(negocioId), leerSedes(negocioId)])
   const sedes: Record<string, WebhookSede> = {}
   for (const f of filas) sedes[f.sucursal_id] = { destino: esDestino(f.destino) ? f.destino : 'n8n', url: f.url ?? '', tieneSecreto: !!f.secreto, estados: filtrarEstados(f.estados) }
-  return { disponible: listo(base), estados: base.estados, destino: base.destino, url: base.url ?? '', tieneSecreto: !!base.secreto, sedes }
+  return { disponible: listo(base), estados: base.estados, cobroSena: base.cobroSena, destino: base.destino, url: base.url ?? '', tieneSecreto: !!base.secreto, sedes }
 }
 
 /** El webhook recibe solo dígitos: sin "+", espacios ni guiones. */

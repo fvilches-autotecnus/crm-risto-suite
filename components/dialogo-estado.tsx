@@ -6,7 +6,7 @@ import { MessageCircle } from 'lucide-react'
 import Modal from '@/components/modal'
 import { Spinner } from '@/components/ui'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
-import { formatoMonto, labelEstado, type EstadoReserva, type Reserva } from '@/lib/reservas'
+import { avisaReservaManual, formatoMonto, labelEstado, type EstadoReserva, type Reserva } from '@/lib/reservas'
 
 export interface DatosCambio { notificar: boolean; monto?: number; motivo?: string }
 
@@ -24,7 +24,7 @@ const TEXTOS: Partial<Record<EstadoReserva, { titulo: (n: number) => string; avi
 export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose, onConfirmar }: {
   r: Reserva
   estado: EstadoReserva
-  aviso: { disponible: boolean; estados: string[] }
+  aviso: { disponible: boolean; estados: string[]; cobroSena?: boolean }
   ocupado: boolean
   onClose: () => void
   onConfirmar: (d: DatosCambio) => void
@@ -33,7 +33,8 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState('')
   const t = TEXTOS[estado]!
-  const manual = r.es_manual === true   // las que se cargan a mano desde el CRM no se avisan: el cliente ya habló con una persona
+  // las que se cargan a mano desde el CRM no se avisan (el cliente ya habló con una persona), salvo el link de pago de la seña
+  const manual = r.es_manual === true && !avisaReservaManual(estado, aviso.cobroSena)
   const avisable = !manual && aviso.disponible && !!r.cliente_telefono && aviso.estados.includes(estado)
   const nota = !aviso.disponible ? null : manual ? 'Es una reserva cargada a mano: no se le avisa al cliente por WhatsApp.' : !r.cliente_telefono ? 'No hay teléfono del cliente: no se le puede avisar por WhatsApp.' : !aviso.estados.includes(estado) ? `El aviso por WhatsApp de “${labelEstado(estado)}” no está habilitado para este local.` : null
   const montoNum = Number(monto.replace(',', '.'))
@@ -73,7 +74,7 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
             <MessageCircle size={18} className="mt-0.5 shrink-0 text-rs-lime" />
             <div className="text-sm">
               <p className="font-semibold">¿Avisamos al cliente por WhatsApp?</p>
-              <p className="mt-0.5 text-rs-muted">{t.aviso(r, estado === 'pendiente_pago' && montoNum > 0 ? montoNum : r.monto_sena)}</p>
+              <p className="mt-0.5 text-rs-muted">{estado === 'pendiente_pago' && aviso.cobroSena ? `Se le manda por WhatsApp el link de Mercado Pago para pagar${montoNum > 0 ? ' ' + formatoMonto(montoNum) : ''}.` : t.aviso(r, estado === 'pendiente_pago' && montoNum > 0 ? montoNum : r.monto_sena)}</p>
             </div>
           </div>
         )}
