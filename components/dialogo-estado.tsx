@@ -4,6 +4,7 @@ import { numeroVisible } from '@/lib/reservas'
 import { useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import Modal from '@/components/modal'
+import { AvisoSenaPagada } from '@/components/aviso-sena'
 import { Spinner } from '@/components/ui'
 import { fechaCorta, horaCorta } from '@/lib/fechas'
 import { avisaReservaManual, formatoMonto, labelEstado, type EstadoReserva, type Reserva } from '@/lib/reservas'
@@ -51,6 +52,8 @@ export default function DialogoCambioEstado({ r, estado, aviso, ocupado, onClose
           <p className="font-semibold">{r.cliente_nombre ?? 'Sin nombre'}</p>
           <p className="text-xs text-rs-muted">{r.cantidad_personas ? `${r.cantidad_personas} personas · ` : ''}{fechaCorta(r.fecha)}{r.hora ? ` · ${horaCorta(r.hora)}` : ''}{r.cliente_telefono ? ` · ${r.cliente_telefono}` : ''}</p>
         </div>
+
+        {estado === 'cancelada' && <div className="mt-4"><AvisoSenaPagada r={{ ...r, estado }} /></div>}
 
         {estado === 'pendiente_pago' && (
           <div className="mt-4">

@@ -1,3 +1,5 @@
+import { fechaCorta, horaCorta } from '@/lib/fechas'
+
 export const TIPOS_RESERVA = [
   { value: 'comun', label: 'Común' },
   { value: 'cumpleanos', label: 'Cumpleaños' },
@@ -26,6 +28,15 @@ export const ESTADOS_OCUPAN: EstadoReserva[] = ['nueva', 'confirmada', 'pendient
 
 export const labelEstado = (v: string) => ESTADOS.find((e) => e.value === v)?.label ?? v
 
+/** Lo guardado del pago de la seña con Mercado Pago (datos_origen.mp). `al_pagar` = con qué datos de reserva se pagó; `total_pagado` suma todos los pagos. */
+export interface PagoSena {
+  payment_id?: string
+  monto_pagado?: number
+  total_pagado?: number
+  pagado_en?: string
+  al_pagar?: { fecha?: string | null; hora?: string | null; personas?: number | null }
+}
+
 export interface Reserva {
   id: string
   numero: number
@@ -48,6 +59,8 @@ export interface Reserva {
   motivo_cancelacion: string | null
   asistio_en: string | null   // cuándo se marcó que el cliente llegó (Fidelización)
   monto_sena: number | null
+  /** Pago de la seña ya acreditado (si lo hubo). Solo sirve para avisar en pantalla cuando la reserva se modifica o cancela con seña pagada. */
+  pago?: PagoSena | null
   /** Promo elegida del tipo de reserva (con su precio de ese momento) y código del enlace de campaña con el que entró. */
   opcion?: { nombre?: string; total?: number | null; modo?: 'persona' | 'reserva'; personas?: number } | null
   campana?: string | null
@@ -58,7 +71,36 @@ export interface Reserva {
 export const numeroVisible = (r: { numero: number; numero_sede?: number | null }) => r.numero_sede ?? r.numero
 
 export const RESERVA_COLS =
-  'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, opcion, campana, creado_en'
+  'id, numero, numero_sede, cliente_id, sucursal_id, ubicacion, cliente_nombre, cliente_telefono, fecha, hora, cantidad_personas, tipo_reserva, observaciones, estado, es_manual, cumpleanos_dia, cumpleanos_mes, texto_original, motivo_cancelacion, monto_sena, asistio_en, opcion, campana, creado_en, pago:datos_origen->mp'
+
+export interface AvisoSena { tipo: 'cancelada' | 'modificada'; corto: string; detalle: string }
+
+/**
+ * Marca para el equipo: la reserva tiene una seña YA pagada y después se canceló o se cambió (personas, día u hora).
+ * Es solo un aviso en pantalla: no devuelve ni pide nada, la decisión (pedir más seña, mantenerla, devolverla) es de una persona.
+ * El cambio se detecta contra los datos con los que se pagó (`pago.al_pagar`); los pagos anteriores a ese registro solo avisan al cancelar.
+ */
+export function avisoSenaPagada(r: Pick<Reserva, 'estado' | 'fecha' | 'hora' | 'cantidad_personas' | 'monto_sena' | 'pago'>): AvisoSena | null {
+  const p = r.pago
+  if (!p?.payment_id) return null
+  const pagado = Number(p.total_pagado ?? p.monto_pagado ?? 0)
+  const monto = formatoMonto(pagado)
+  if (r.estado === 'cancelada') {
+    return { tipo: 'cancelada', corto: `Seña pagada ${monto} · cancelada`, detalle: `Esta reserva tiene una seña pagada de ${monto}. No se hace nada automático con ese dinero: definí con el cliente si se devuelve o se conserva.` }
+  }
+  const a = p.al_pagar
+  if (!a) return null
+  const hora = (h: string | null | undefined) => (h ? h.slice(0, 5) : null)
+  const cambio = (a.fecha ?? null) !== (r.fecha ?? null) || hora(a.hora) !== hora(r.hora) || (a.personas ?? null) !== (r.cantidad_personas ?? null)
+  if (!cambio) return null
+  const descr = (personas: number | null | undefined, fecha: string | null | undefined, h: string | null | undefined) =>
+    [personas ? `${personas} ${personas === 1 ? 'persona' : 'personas'}` : null, fecha ? fechaCorta(fecha) : null, h ? horaCorta(h) : null].filter(Boolean).join(' · ') || 'sin datos'
+  const mas = r.monto_sena != null && Number(r.monto_sena) > pagado ? ` La seña cargada hoy es de ${formatoMonto(Number(r.monto_sena))}.` : ''
+  return {
+    tipo: 'modificada', corto: `Seña pagada ${monto} · modificada`,
+    detalle: `Pagó ${monto} cuando la reserva era de ${descr(a.personas, a.fecha, a.hora)}. Ahora figura ${descr(r.cantidad_personas, r.fecha, r.hora)}.${mas} Revisá si hay que pedir más seña, mantenerla o decidir otra cosa: es solo un aviso, no se hizo nada automático.`,
+  }
+}
 
 /** Reservas que ocupan lugar (cuentan para aforo y para "hoy"). */
 export const ocupaLugar = (r: Pick<Reserva, 'estado'>) => ESTADOS_OCUPAN.includes(r.estado)
