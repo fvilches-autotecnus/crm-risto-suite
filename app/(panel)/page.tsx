@@ -5,7 +5,7 @@ import InicioModulos from '@/components/inicio-modulos'
 import { CalendarCheck2, ChevronLeft, ChevronRight, Printer } from 'lucide-react'
 import { AforoLista, Tile } from '@/components/dashboard-ui'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
-import { cargarReglas, usoPorRegla } from '@/lib/aforo'
+import { cargarReglas, etiquetaRegla, turnoRegla, usoPorRegla } from '@/lib/aforo'
 import { getContexto } from '@/lib/context'
 import { fechaLarga, hoyEn, inicioSemana, sumarDias } from '@/lib/fechas'
 import { ESTADOS_OCUPAN, RESERVA_COLS, ocupaLugar, type EstadoReserva, type Reserva } from '@/lib/reservas'
@@ -63,7 +63,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   // Aforo: reglas que corresponden a lo que el usuario está viendo (sede elegida + las generales)
   const reglas = reglasTodas.filter((g) => !sede || !g.sucursal_id || g.sucursal_id === sede.id)
   const uso = reglas.length ? await usoPorRegla(ctx, dia, reglas) : []
-  const filasAforo = uso.map((u) => ({ etiqueta: u.etiqueta, usado: u.usado, maximo: u.maximo })).sort((a, b) => b.usado / b.maximo - a.usado / a.maximo)
+  // Se agrupa por turno (franja horaria, en orden del día; "Todo el día" primero) y dentro de cada turno se separa por ubicación
+  const nombreSede = (id: string) => ctx.sedesTodas.find((x) => x.id === id)?.nombre ?? '—'
+  const filasAforo = uso
+    .map((u) => ({ etiqueta: u.etiqueta, detalle: etiquetaRegla(u, nombreSede, false), turno: turnoRegla(u), ordenTurno: u.hora_desde ?? '', usado: u.usado, maximo: u.maximo }))
+    .sort((a, b) => a.ordenTurno.localeCompare(b.ordenTurno) || a.turno.localeCompare(b.turno) || a.detalle.localeCompare(b.detalle, 'es'))
 
   const alertaAforo = (await cargarConfigReservas(ctx)).alerta_aforo_pct
   const alertas: { texto: string; tono: 'warn' | 'danger' }[] = []

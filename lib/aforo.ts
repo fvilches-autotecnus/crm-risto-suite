@@ -24,12 +24,17 @@ export interface UsoAforo extends ReglaAforo { usado: number }
 const hhmm = (h: string | null) => (h ? h.slice(0, 5) : '')
 const hms = (h: string) => (h.length === 5 ? h + ':00' : h)
 
-export function etiquetaRegla(r: Pick<ReglaAforo, 'sucursal_id' | 'ubicacion' | 'hora_desde' | 'hora_hasta' | 'dias_semana' | 'fecha_desde' | 'fecha_hasta'>, nombreSede: (id: string) => string): string {
+/** Turno de una regla: su franja horaria ("20:30–21:00") o "Todo el día". Sirve para agrupar el aforo del dashboard. */
+export const turnoRegla = (r: Pick<ReglaAforo, 'hora_desde' | 'hora_hasta'>): string => (r.hora_desde && r.hora_hasta ? `${hhmm(r.hora_desde)}–${hhmm(r.hora_hasta)}` : 'Todo el día')
+
+/** Con `conHora = false` devuelve solo el "dónde" (sede, ubicación, días, fechas), sin la franja: para mostrarla aparte, como título del turno. */
+export function etiquetaRegla(r: Pick<ReglaAforo, 'sucursal_id' | 'ubicacion' | 'hora_desde' | 'hora_hasta' | 'dias_semana' | 'fecha_desde' | 'fecha_hasta'>, nombreSede: (id: string) => string, conHora = true): string {
   const partes: string[] = []
   if (r.sucursal_id) partes.push(nombreSede(r.sucursal_id))
   if (r.ubicacion) partes.push(r.ubicacion)
   const dias = textoDias(r.dias_semana); if (dias) partes.push(dias)
   if (r.fecha_desde && r.fecha_hasta) partes.push(r.fecha_desde === r.fecha_hasta ? fechaCorta(r.fecha_desde) : `${fechaCorta(r.fecha_desde)} al ${fechaCorta(r.fecha_hasta)}`)
+  if (!conHora) return partes.length ? partes.join(' · ') : 'Total'
   partes.push(r.hora_desde && r.hora_hasta ? `${hhmm(r.hora_desde)}–${hhmm(r.hora_hasta)}` : 'todo el día')
   return partes.length === 1 && !r.sucursal_id && !r.ubicacion && !r.hora_desde ? 'Total del día' : partes.join(' · ')
 }
