@@ -4,7 +4,7 @@ import { UUID } from '@/lib/validar'
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
-import { enAlcance, reactivar } from '@/lib/pausados'
+import { enAlcance, pausarPorTelefono, reactivar } from '@/lib/pausados'
 import { MAX_PAUSA_MIN, UNIDADES_PAUSA } from '@/lib/pausas'
 import type { ActionResult } from './actions'
 
@@ -37,6 +37,28 @@ export async function reactivarTodos(motivo?: string): Promise<ActionResult> {
     revalidatePath('/', 'layout')
     return { ok: true, cantidad }
   } catch { return fail('No se pudieron reactivar los chats') }
+}
+
+/**
+ * Pausa un chat a mano escribiendo solo el número. Con sedes, el chat queda en la sede elegida (o la que el usuario está viendo);
+ * quien está limitado a ciertas sedes tiene que poder elegir una. El tiempo lo define la pausa automática de "otro motivo".
+ */
+export async function pausarChatManual(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const { ctx, error } = await permiso()
+  if (error) return fail(error)
+  const telefono = String(fd.get('telefono') ?? '').replace(/\D/g, '')
+  if (telefono.length < 10 || telefono.length > 15) return fail('Completá el teléfono con código de país, área y número')
+  const pedida = String(fd.get('sede') ?? '')
+  let sede: string | null = ctx.sede?.id ?? null
+  if (pedida) {
+    if (!UUID.test(pedida) || !ctx.sedesTodas.some((x) => x.id === pedida) || !enAlcance(ctx, pedida)) return fail('Sede no válida')
+    sede = pedida
+  }
+  if (!sede && !enAlcance(ctx, null)) return fail('Elegí la sede de ese chat')
+  const e = await pausarPorTelefono(ctx, telefono, sede)
+  if (e) return fail(e)
+  revalidatePath('/', 'layout')
+  return { ok: true }
 }
 
 /** Deshacer de "Reactivar": vuelve a dejar el chat pausado con su motivo y su fecha originales. */

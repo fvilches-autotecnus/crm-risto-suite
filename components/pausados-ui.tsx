@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { PauseCircle, Play } from 'lucide-react'
-import { reactivarChat, reactivarTodos, volverAPausar } from '@/app/(panel)/pausados-actions'
+import { pausarChatManual, reactivarChat, reactivarTodos, volverAPausar } from '@/app/(panel)/pausados-actions'
+import { TelefonoInput } from '@/components/inputs'
+import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { useConfirm, useToast } from '@/components/feedback'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaHoraLarga } from '@/lib/fechas'
@@ -99,3 +101,43 @@ export function ReactivarTodosBtn({ total, motivo, etiquetaMotivo }: { total: nu
   return <button disabled={pending} onClick={ir} className="btn">{pending ? <Spinner size={13} /> : <Play size={14} />}Reactivar {etiquetaMotivo ? `“${etiquetaMotivo}”` : 'todos'} ({total})</button>
 }
 
+
+/**
+ * "Pausar un chat": se escribe solo el número y el bot deja de responderle (aunque todavía no le haya escrito nunca).
+ * Dura lo que dura la pausa automática de "otro motivo" (o hasta reactivarlo a mano si está en "indefinida").
+ */
+export function PausarChatForm({ duracion, sedes }: { duracion: string; sedes: { id: string; nombre: string }[] }) {
+  const [abierto, setAbierto] = useState(false)
+  const [version, setVersion] = useState(0)   // cambiarla vacía el teléfono (es un campo con estado propio)
+  const toast = useToast()
+  const { state, pending, formProps } = useAccionFormulario(pausarChatManual)
+  useEffect(() => {
+    if (state?.ok) { setVersion((v) => v + 1); setAbierto(false); toast({ texto: 'Listo: el bot ya no le responde a ese número' }) }
+  }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!abierto) return <button type="button" onClick={() => setAbierto(true)} className="btn"><PauseCircle size={14} />Pausar un chat</button>
+  return (
+    <form {...formProps} className="card w-full space-y-3 p-4 sm:max-w-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Pausar un chat</h2>
+          <p className="text-xs text-rs-muted">Escribí el número y el bot deja de responderle. Pausa: <span className="text-rs-text">{duracion}</span> (se cambia en «Otro motivo»).</p>
+        </div>
+        <button type="button" onClick={() => setAbierto(false)} className="btn btn-sm">Cancelar</button>
+      </div>
+      <TelefonoInput key={version} name="telefono" label="Teléfono" required />
+      {sedes.length === 1 && <input type="hidden" name="sede" value={sedes[0].id} />}
+      {sedes.length > 1 && (
+        <div>
+          <label className="label" htmlFor="pausar_sede">Sede</label>
+          <select id="pausar_sede" name="sede" className="input w-full" defaultValue="">
+            <option value="">Sin sede</option>
+            {sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+          </select>
+        </div>
+      )}
+      {state && !state.ok && <p className="text-sm text-rs-danger" role="alert">{state.error}</p>}
+      <div className="text-right"><button type="submit" disabled={pending} className="btn btn-primary">{pending ? <Spinner size={13} /> : <PauseCircle size={14} />}Pausar chat</button></div>
+    </form>
+  )
+}

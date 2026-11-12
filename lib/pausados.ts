@@ -68,3 +68,31 @@ export async function reactivar(ctx: Contexto, opciones: { id?: string; motivo?:
   if (error) throw new Error(error.message)
   return data?.length ?? 0
 }
+
+/** Variantes del número tal como puede estar guardado por el bot (Argentina: con o sin el 9 después del 54). */
+function variantesTel(d: string): string[] {
+  if (d.startsWith('549')) return [d, '54' + d.slice(3)]
+  if (d.startsWith('54')) return [d, '549' + d.slice(2)]
+  return [d]
+}
+
+/**
+ * Pausa a mano el chat de un número: el bot deja de responderle hasta que se reactive (o venza la pausa automática de "otro motivo").
+ * Sirve aunque ese número todavía no le haya escrito nunca al bot: se crea su sesión ya pausada.
+ * Devuelve un texto de error o null si quedó pausado.
+ */
+export async function pausarPorTelefono(ctx: Contexto, telefono: string, sucursalId: string | null): Promise<string | null> {
+  const admin = createAdminClient()
+  const ahora = new Date().toISOString()
+  const { data: filas } = await admin.from('sesiones_bot').select('id, estado_bot, reactivar_en, sucursal_id, telefono').eq('negocio_id', ctx.negocio.id).in('telefono', variantesTel(telefono))
+  // si el bot lo tiene guardado con la otra variante del número, se usa esa fila (una sola sesión por persona)
+  const fila = filas?.find((f) => f.telefono === telefono) ?? filas?.[0]
+  if (fila) {
+    if (!enAlcance(ctx, fila.sucursal_id)) return 'Ese chat es de una sede a la que no tenés acceso'
+    if (fila.estado_bot === 'pausado' && (!fila.reactivar_en || fila.reactivar_en > ahora)) return 'Ese chat ya está pausado'
+    const { error } = await admin.from('sesiones_bot').update({ estado_bot: 'pausado', motivo_pausa: 'otro', pausado_en: ahora }).eq('id', fila.id).eq('negocio_id', ctx.negocio.id)
+    return error ? 'No se pudo pausar el chat' : null
+  }
+  const { error } = await admin.from('sesiones_bot').insert({ negocio_id: ctx.negocio.id, telefono, estado_bot: 'pausado', motivo_pausa: 'otro', pausado_en: ahora, sucursal_id: sucursalId })
+  return error ? 'No se pudo pausar el chat' : null
+}

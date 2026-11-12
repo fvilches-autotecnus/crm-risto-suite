@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { PauseCircle, Search } from 'lucide-react'
 import Paginacion from '@/components/paginacion'
-import { ListaPausados, ReactivarTodosBtn, type PausadoUI } from '@/components/pausados-ui'
+import { ListaPausados, PausarChatForm, ReactivarTodosBtn, type PausadoUI } from '@/components/pausados-ui'
 import { getContexto } from '@/lib/context'
 import { listarPausados } from '@/lib/pausados'
 import { MOTIVOS_PAUSA, labelMotivoPausa, leerPausaAuto, motivoValido, textoPausa } from '@/lib/pausas'
@@ -47,12 +47,15 @@ export default async function PausadosPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="animate-fade-up">
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><PauseCircle className="text-rs-lime" size={22} />Chats pausados</h1>
           <p className="text-sm text-rs-muted">{ctx.negocio.nombre}{ctx.sede ? ` · ${ctx.sede.nombre}` : ''} · chats que el bot dejó esperando a una persona; mientras estén pausados no responde</p>
         </div>
-        <ReactivarTodosBtn total={motivo === 'todos' ? todos.length : base.length} motivo={motivo === 'todos' ? undefined : motivo} etiquetaMotivo={motivo === 'todos' ? undefined : labelMotivoPausa(motivo)} />
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <PausarChatForm duracion={textoPausa(auto.otro).toLowerCase()} sedes={ctx.sede ? [] : ctx.sedesGestion.map((x) => ({ id: x.id, nombre: x.nombre }))} />
+          <ReactivarTodosBtn total={motivo === 'todos' ? todos.length : base.length} motivo={motivo === 'todos' ? undefined : motivo} etiquetaMotivo={motivo === 'todos' ? undefined : labelMotivoPausa(motivo)} />
+        </div>
       </div>
 
       <p className="-mt-2 text-sm text-rs-muted">
