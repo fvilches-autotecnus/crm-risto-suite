@@ -65,6 +65,22 @@ export async function buscarSuscriptor(clave: string, telefono: string): Promise
   return ultimo
 }
 
+/** Nombre del contacto en BotConversa (el del perfil de WhatsApp), buscándolo por teléfono. Sin nombre devuelve ok pero sin datos. */
+export async function nombreSuscriptor(clave: string, telefono: string): Promise<ResultadoBC<string>> {
+  let ultimo: ResultadoBC<never> = { ok: false, error: 'no_encontrado' }
+  for (const tel of variantes(telefono)) {
+    const r = await llamar(clave, 'GET', `/subscriber/get_by_phone/${encodeURIComponent(tel)}/`)
+    if (r && r.status === 200 && r.json && typeof r.json === 'object') {
+      const s = r.json as { full_name?: unknown; first_name?: unknown; last_name?: unknown }
+      const nombre = String(s.full_name || [s.first_name, s.last_name].filter(Boolean).join(' ') || '').trim()
+      return { ok: true, datos: nombre || undefined }
+    }
+    ultimo = fallo(r)
+    if (ultimo.error !== 'no_encontrado') return ultimo
+  }
+  return ultimo
+}
+
 export async function agregarEtiquetaBC(clave: string, suscriptorId: number, etiquetaId: number): Promise<ResultadoBC> {
   const r = await llamar(clave, 'POST', `/subscriber/${suscriptorId}/tags/${etiquetaId}/`, {})
   return r && (r.status === 200 || r.status === 201 || r.status === 204) ? { ok: true } : fallo(r)

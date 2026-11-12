@@ -5,6 +5,7 @@ import OrdenSelect from '@/components/orden-select'
 import Paginacion from '@/components/paginacion'
 import { EstadoVacio } from '@/components/ui'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
+import CompletarNombresBC from '@/components/completar-nombres-bc'
 import { Chip, EtiquetarNumeroBtn } from '@/components/etiquetas-ui'
 import { integracionBC } from '@/lib/etiquetas'
 import { ORIGENES, labelOrigen } from '@/lib/origen'
@@ -38,6 +39,8 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const digitos = texto.replace(/\D/g, '')
   const [{ data: catalogoDb }, bc] = await Promise.all([supabase.from('etiquetas').select('id, nombre').eq('negocio_id', negocio.id).order('nombre'), integracionBC(negocio.id)])
   const catalogo = (catalogoDb ?? []) as { id: string; nombre: string }[]
+  // fichas que dicen "Sin nombre" y tienen teléfono: se pueden completar desde BotConversa
+  const sinNombreBC = ctx.puedeEscribir && bc.activo ? ((await supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).not('telefono', 'is', null).or('nombre.ilike."sin nombre",nombre.eq.""')).count ?? 0) : 0
   const etiquetaSel = catalogo.some((e) => e.id === sp.etiqueta) ? sp.etiqueta! : ''
   const origenSel = ORIGENES.some((o) => o.value === sp.origen) ? sp.origen! : ''
   // sede: la elegida acá, o la del selector de arriba; "todas" ignora el selector. Un cliente es de una sede si tiene reservas (no canceladas) en ella.
@@ -85,7 +88,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
         )}
         <button className="btn">Buscar</button>
         {(q || etiquetaSel || origenSel || sp.sede) && <Link href="/clientes" className="btn">Limpiar</Link>}
-        <div className="ml-auto flex items-center gap-2">{ctx.puedeEscribir && <EtiquetarNumeroBtn catalogo={catalogo} esBotconversa={bc.activo} />}<OrdenSelect opciones={ORDENES} /></div>
+        <div className="ml-auto flex items-center gap-2">{sinNombreBC > 0 && <CompletarNombresBC pendientes={sinNombreBC} />}{ctx.puedeEscribir && <EtiquetarNumeroBtn catalogo={catalogo} esBotconversa={bc.activo} />}<OrdenSelect opciones={ORDENES} /></div>
       </form>
 
       <div className="card overflow-x-auto">

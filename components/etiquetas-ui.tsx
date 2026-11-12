@@ -122,7 +122,7 @@ export function EtiquetarNumeroBtn({ catalogo, esBotconversa }: { catalogo: Etiq
   const [abierto, setAbierto] = useState(false)
   return (
     <>
-      <button type="button" onClick={() => setAbierto(true)} className="btn"><Tag size={14} />Etiquetar un número</button>
+      <button type="button" onClick={() => setAbierto(true)} className="btn whitespace-nowrap"><Tag size={14} />Etiquetar un número</button>
       {abierto && <Modal titulo="Etiquetar un número" onClose={() => setAbierto(false)}><NumeroForm catalogo={catalogo} esBotconversa={esBotconversa} onDone={() => setAbierto(false)} /></Modal>}
     </>
   )
