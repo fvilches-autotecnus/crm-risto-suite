@@ -40,7 +40,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const [{ data: catalogoDb }, bc] = await Promise.all([supabase.from('etiquetas').select('id, nombre').eq('negocio_id', negocio.id).order('nombre'), integracionBC(negocio.id)])
   const catalogo = (catalogoDb ?? []) as { id: string; nombre: string }[]
   // fichas que dicen "Sin nombre" y tienen teléfono: se pueden completar desde BotConversa
-  const sinNombreBC = ctx.puedeEscribir && bc.activo ? ((await supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).not('telefono', 'is', null).or('nombre.ilike."sin nombre",nombre.eq.""')).count ?? 0) : 0
+  const sinNombreBC = ctx.esSuperadmin && bc.activo ? ((await supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).not('telefono', 'is', null).or('nombre.ilike."sin nombre",nombre.eq.""')).count ?? 0) : 0
   const etiquetaSel = catalogo.some((e) => e.id === sp.etiqueta) ? sp.etiqueta! : ''
   const origenSel = ORIGENES.some((o) => o.value === sp.origen) ? sp.origen! : ''
   // sede: la elegida acá, o la del selector de arriba; "todas" ignora el selector. Un cliente es de una sede si tiene reservas (no canceladas) en ella.

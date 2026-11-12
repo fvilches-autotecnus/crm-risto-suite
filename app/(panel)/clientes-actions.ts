@@ -55,7 +55,7 @@ const vacio = (error: string): AvanceNombres => ({ ok: false, error, revisados: 
  */
 export async function completarNombresDesdeBotConversa(desde: string | null): Promise<AvanceNombres> {
   const ctx = await getContexto()
-  if (!ctx.puedeEscribir) return vacio('Tu usuario es de solo lectura')
+  if (!ctx.esSuperadmin) return vacio('Solo un superadmin puede completar los nombres')
   if (desde !== null && !UUID.test(desde)) return vacio('Dato no válido')
   const cuenta = await cuentaBCUsable(ctx.negocio.id, null)
   if (!cuenta) return vacio('La integración con BotConversa no está activa')
