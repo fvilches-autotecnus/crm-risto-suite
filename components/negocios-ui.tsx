@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import {useEffect, useState} from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Plus } from 'lucide-react'
@@ -89,7 +90,10 @@ function IrASedes({ id }: { id: string }) {
   )
 }
 
-export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[] }) {
+export default function GestionNegocios({ negocios, orden }: { negocios: NegocioAdmin[]; orden?: OrdenTabla }) {
+  const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
+    : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
   const [nuevo, setNuevo] = useState(false)
   const [editando, setEditando] = useState<NegocioAdmin | null>(null)
   return (
@@ -100,7 +104,7 @@ export default function GestionNegocios({ negocios }: { negocios: NegocioAdmin[]
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Negocio</th><th className="th">Módulos</th><th className="th">WhatsApp</th><th className="th">Aforo</th><th className="th">Usuarios</th><th className="th">Sedes</th><th className="th">Botón bot</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="nombre">Negocio</Th><th className="th">Módulos</th><th className="th">WhatsApp</th><th className="th">Aforo</th><Th campo="usuarios" primero="desc">Usuarios</Th><Th campo="sedes" primero="desc">Sedes</Th><th className="th">Botón bot</th><Th campo="estado">Estado</Th><Th campo="alta" primero="desc">Alta</Th><th className="th text-right">Acciones</th></tr></thead>
           <tbody>
             {negocios.map((n) => (
               <tr key={n.id} className="border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/40">

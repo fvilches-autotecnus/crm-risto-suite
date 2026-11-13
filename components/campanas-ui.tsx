@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import Link from 'next/link'
 import { useEffect, useState, useTransition } from 'react'
 import { Megaphone, Pencil, Plus, Send, Trash2 } from 'lucide-react'
@@ -152,7 +153,10 @@ export function RegistrarEnviosBtn({ campanaId, chico = false }: { campanaId: st
 // ---------------------------------------------------------------------------
 // Lista de campañas (con sus totales del período)
 // ---------------------------------------------------------------------------
-export function ListaCampanas({ campanas, resumen, interacciones, editable, puedeEliminar, dias }: { campanas: Campana[]; resumen: Record<string, ResumenCampana>; interacciones: Record<string, ResumenInteracciones>; editable: boolean; puedeEliminar: boolean; dias: number }) {
+export function ListaCampanas({ campanas, resumen, interacciones, editable, puedeEliminar, dias, orden }: { orden?: OrdenTabla; campanas: Campana[]; resumen: Record<string, ResumenCampana>; interacciones: Record<string, ResumenInteracciones>; editable: boolean; puedeEliminar: boolean; dias: number }) {
+  const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
+    : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
   if (campanas.length === 0) {
     return <div className="card"><EstadoVacio icono={<Megaphone size={26} />} titulo="No hay campañas para mostrar" texto={editable ? 'Creá una con “Nueva campaña”. Después vas a poder ver cuántos mensajes se enviaron y a qué clientes.' : 'Cuando la automatización empiece a enviar mensajes, las campañas van a aparecer acá.'} /></div>
   }
@@ -169,7 +173,7 @@ export function ListaCampanas({ campanas, resumen, interacciones, editable, pued
     <>
       <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1020px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Campaña</th><th className="th">Tipo</th><th className="th">Modo</th><th className="th">Estado</th><th className="th text-right">Enviados ({dias} d)</th><th className="th text-right">Clientes</th><th className="th text-right">Entregados</th><th className="th text-right">Leídos</th><th className="th text-right">Respondieron</th><th className="th">Último envío</th>{editable && <th className="th text-right">Acciones</th>}</tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="nombre">Campaña</Th><Th campo="tipo">Tipo</Th><Th campo="modo">Modo</Th><Th campo="estado">Estado</Th><Th campo="enviados" primero="desc" className="text-right">Enviados ({dias} d)</Th><Th campo="clientes" primero="desc" className="text-right">Clientes</Th><Th campo="entregados" primero="desc" className="text-right">Entregados</Th><Th campo="leidos" primero="desc" className="text-right">Leídos</Th><Th campo="respondieron" primero="desc" className="text-right">Respondieron</Th><Th campo="ultimo" primero="desc">Último envío</Th>{editable && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {campanas.map((c, i) => {
               const x = r(c)

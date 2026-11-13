@@ -1,3 +1,4 @@
+import { ambos, leerOrden, ordenarPor } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Search, Star } from 'lucide-react'
@@ -16,9 +17,15 @@ import { ORIGENES_LISTA } from '@/lib/resenas'
 const ORDENES = [
   { value: 'alta_desc', label: 'Alta: más recientes primero' },
   { value: 'alta_asc', label: 'Alta: más antiguas primero' },
+  { value: 'fecha_desc', label: 'Fecha de la reseña: más recientes primero' },
+  { value: 'fecha_asc', label: 'Fecha de la reseña: más antiguas primero' },
   { value: 'puntaje_desc', label: 'Puntaje: mayor a menor' },
   { value: 'puntaje_asc', label: 'Puntaje: menor a mayor' },
+  { value: 'cliente_asc', label: 'Cliente (A–Z)' },
+  { value: 'cliente_desc', label: 'Cliente (Z–A)' },
 ]
+const COLUMNAS_ORDEN: Record<string, string[]> = { alta: ['creado_en'], fecha: ['fecha', 'creado_en'], cliente: ['nombre', 'creado_en'], puntaje: ['puntaje', 'creado_en'], origen: ['origen', 'creado_en'] }
+const ORDENES_VALIDOS = ambos('alta', 'fecha', 'cliente', 'puntaje', 'origen')
 const PERIODOS = [{ v: 'todas', l: 'Todas' }, { v: '30', l: 'Últimos 30 días' }, { v: '90', l: 'Últimos 90 días' }, { v: '365', l: 'Último año' }]
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -31,7 +38,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const puntaje = ['1', '2', '3', '4', '5'].includes(sp.puntaje ?? '') ? Number(sp.puntaje) : 0
   const origen = ORIGENES_LISTA.some((o) => o.value === sp.origen) ? sp.origen! : ''
   const periodo = PERIODOS.some((p) => p.v === sp.periodo) ? sp.periodo! : 'todas'
-  const orden = ['alta_asc', 'puntaje_desc', 'puntaje_asc'].includes(sp.orden ?? '') ? sp.orden! : 'alta_desc'
+  const orden = leerOrden(sp.orden, ORDENES_VALIDOS, 'alta_desc')
   const voucherFiltro = ['pendiente', 'emitido'].includes(sp.voucher ?? '') ? sp.voucher! : ''
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
 
@@ -41,8 +48,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   if (periodo !== 'todas') base = base.gte('fecha', sumarDias(hoy, -Number(periodo)))
   if (origen) base = base.eq('origen', origen)
   if (q) base = base.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,comentario.ilike.%${q}%`)
-  const ordenada = orden === 'alta_desc' ? base.order('creado_en', { ascending: false }) : orden === 'alta_asc' ? base.order('creado_en', { ascending: true })
-    : orden === 'puntaje_desc' ? base.order('puntaje', { ascending: false }).order('creado_en', { ascending: false }) : base.order('puntaje', { ascending: true }).order('creado_en', { ascending: false })
+  const ordenada = ordenarPor(base, orden, COLUMNAS_ORDEN)
   const { data } = await ordenada.limit(5000)
   // Voucher: solo corresponde a quienes puntuaron 4–5 ★. "Emitido" si el teléfono ya tiene uno en Vouchers (o vino marcado como enviado al importar)
   const conVoucher = ctx.modulosActivos.vouchers
@@ -150,7 +156,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
 
-      <ListaResenas resenas={lista} sedes={sedesOpc} nombresSede={nombresSede} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} />
+      <ListaResenas resenas={lista} sedes={sedesOpc} nombresSede={nombresSede} hoy={hoy} puedeEscribir={ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} orden={{ ruta: '/resenas', params: sp, actual: orden }} />
       <Paginacion ruta="/resenas" params={sp} {...pg} />
     </div>
   )

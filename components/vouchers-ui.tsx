@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import { useState, useTransition } from 'react'
 import { Check, Copy, Gift, Plus, RotateCcw, Ticket, Trash2 } from 'lucide-react'
 import { cambiarEstadoVoucher, crearVoucher, eliminarVoucher } from '@/app/(panel)/modulos-actions'
@@ -68,10 +69,13 @@ export function BadgeVoucher({ estado, vencido }: { estado: string; vencido: boo
   return <span className={'badge ' + cls}><span className={'h-1.5 w-1.5 rounded-full ' + dot} />{txt}</span>
 }
 
-export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar }: { vouchers: VoucherUI[]; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean }) {
+export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar, orden }: { vouchers: VoucherUI[]; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; orden?: OrdenTabla }) {
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
+  const Th = ({ campo, primero, children }: { campo: string; primero?: 'asc' | 'desc'; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero}>{children}</ThOrden>
+    : <th className="th">{children}</th>
   const copiar = async (c: string) => { try { await navigator.clipboard.writeText(c); toast({ texto: `Código ${c} copiado` }) } catch { toast({ tipo: 'error', texto: 'No se pudo copiar' }) } }
   const cambiar = (v: VoucherUI, estado: VoucherUI['estado']) => start(async () => {
     const r = await cambiarEstadoVoucher(v.id, estado)
@@ -98,7 +102,7 @@ export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar }: {
     <>
       <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[940px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Código</th><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Beneficio</th><th className="th">Campaña</th><th className="th">Vence</th><th className="th">Estado</th><th className="th">Alta</th>{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="codigo">Código</Th><Th campo="nombre">Nombre</Th><Th campo="telefono">Teléfono</Th><Th campo="beneficio">Beneficio</Th><Th campo="campana">Campaña</Th><Th campo="vence">Vence</Th><th className="th">Estado</th><Th campo="alta" primero="desc">Alta</Th>{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {vouchers.map((v, i) => (
               <tr key={v.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

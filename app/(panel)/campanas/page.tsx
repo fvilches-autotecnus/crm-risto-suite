@@ -1,3 +1,4 @@
+import { ambos, leerOrden } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Megaphone } from 'lucide-react'
@@ -14,7 +15,7 @@ import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
 const ymdAR = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ_AR }).format(new Date(iso))
 const MODOS = [{ v: 'todas', l: 'Todas' }, { v: 'automatica', l: 'Automáticas' }, { v: 'manual', l: 'Manuales' }]
 
-export default async function CampanasPage({ searchParams }: { searchParams: Promise<{ dias?: string; modo?: string }> }) {
+export default async function CampanasPage({ searchParams }: { searchParams: Promise<{ dias?: string; modo?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.campanas) redirect('/')
   const { supabase, negocio } = ctx
@@ -53,6 +54,33 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
   const enviados = campanas.reduce((a, c) => a + (resumen[c.id]?.enviados ?? 0), 0)
   const activas = campanas.filter((c) => c.estado === 'activa').length
   const automaticas = todas.filter((c) => c.modo === 'automatica').length
+
+  // orden pedido en el encabezado (por defecto, las campañas más nuevas primero). Sin dato (nunca enviada) va al final.
+  const orden = leerOrden(sp.orden, ambos('nombre', 'tipo', 'modo', 'estado', 'enviados', 'clientes', 'entregados', 'leidos', 'respondieron', 'ultimo'), 'alta_desc')
+  const sentido = orden.endsWith('_desc') ? -1 : 1
+  const campoOrden = orden.slice(0, orden.lastIndexOf('_'))
+  const medidaDe = (c: Campana): number | string | null => {
+    const x = resumen[c.id]; const i = interacciones[c.id]
+    switch (campoOrden) {
+      case 'nombre': return c.nombre
+      case 'tipo': return labelTipoCampana(c.tipo)
+      case 'modo': return c.modo
+      case 'estado': return c.estado
+      case 'enviados': return x?.enviados ?? 0
+      case 'clientes': return x?.clientes ?? 0
+      case 'entregados': return i && i.con_seguimiento > 0 ? i.entregados : null
+      case 'leidos': return i && i.con_seguimiento > 0 ? i.leidos : null
+      case 'respondieron': return i && i.con_seguimiento > 0 ? i.respondieron : null
+      case 'ultimo': return x?.ultimo_envio ?? null
+      default: return null
+    }
+  }
+  const campanasOrdenadas = orden === 'alta_desc' ? campanas : [...campanas].sort((a, b) => {
+    const x = medidaDe(a); const y = medidaDe(b)
+    if ((x === null) !== (y === null)) return x === null ? 1 : -1
+    if (x === null || y === null) return 0
+    return sentido * (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es'))
+  })
 
   // Clientes distintos alcanzados entre todas las campañas mostradas (un cliente puede estar en varias, se cuenta una vez)
   const enviosDeLasMostradas = ((env ?? []) as { campana_id: string; enviado_en: string; cliente_id: string | null; telefono: string | null }[]).filter((e) => ids.has(e.campana_id))
@@ -108,7 +136,7 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-center gap-2">
         {MODOS.map((m) => <Link key={m.v} href={link(m.v)} className={'btn btn-sm ' + (modo === m.v ? 'btn-primary' : '')}>{m.l}</Link>)}
       </div>
-      <ListaCampanas campanas={campanas} resumen={resumen} interacciones={interacciones} editable={CAMPANAS_EDITABLES && ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} dias={dias} />
+      <ListaCampanas campanas={campanasOrdenadas} orden={{ ruta: '/campanas', params: sp, actual: orden }} resumen={resumen} interacciones={interacciones} editable={CAMPANAS_EDITABLES && ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} dias={dias} />
     </div>
   )
 }

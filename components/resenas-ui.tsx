@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
@@ -105,7 +106,10 @@ export function NuevaResenaBtn({ sedes, hoy, prefill, chico = false }: { sedes: 
   )
 }
 
-export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, puedeEliminar, mostrarCliente = true }: { resenas: ResenaUI[]; sedes: { id: string; nombre: string }[]; nombresSede: Record<string, string>; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; mostrarCliente?: boolean }) {
+export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, puedeEliminar, mostrarCliente = true, orden }: { resenas: ResenaUI[]; sedes: { id: string; nombre: string }[]; nombresSede: Record<string, string>; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; mostrarCliente?: boolean ; orden?: OrdenTabla }) {
+  const Th = ({ campo, primero, children }: { campo: string; primero?: 'asc' | 'desc'; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero}>{children}</ThOrden>
+    : <th className="th">{children}</th>
   const [edit, setEdit] = useState<ResenaUI | null>(null)
   const mostrarVoucher = resenas.some((r) => r.voucher)
   const [pending, start] = useTransition()
@@ -129,7 +133,7 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
     <>
       <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Alta</th><th className="th">Fecha</th><th className="th">Cliente</th>{mostrarSede && <th className="th">Sede</th>}<th className="th">Puntaje</th><th className="th">Comentario</th><th className="th">Origen</th>{mostrarVoucher && <th className="th">Voucher</th>}{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="alta" primero="desc">Alta</Th><Th campo="fecha" primero="desc">Fecha</Th><Th campo="cliente">Cliente</Th>{mostrarSede && <th className="th">Sede</th>}<Th campo="puntaje" primero="desc">Puntaje</Th><th className="th">Comentario</th><Th campo="origen">Origen</Th>{mostrarVoucher && <th className="th">Voucher</th>}{puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
           <tbody>
             {resenas.map((r, i) => (
               <tr key={r.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

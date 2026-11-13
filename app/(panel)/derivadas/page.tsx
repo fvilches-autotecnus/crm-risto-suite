@@ -1,3 +1,5 @@
+import { ThOrden } from '@/components/th-orden'
+import { ambos, leerOrden, ordenarPor } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CornerUpRight, Search } from 'lucide-react'
@@ -14,7 +16,12 @@ const ORDENES = [
   { value: 'alta_asc', label: 'Alta: más antiguas primero' },
   { value: 'fecha_asc', label: 'Fecha de la reserva: próximas primero' },
   { value: 'fecha_desc', label: 'Fecha de la reserva: lejanas primero' },
+  { value: 'cliente_asc', label: 'Cliente (A–Z)' },
+  { value: 'cliente_desc', label: 'Cliente (Z–A)' },
+  { value: 'personas_desc', label: 'Personas: de más a menos' },
+  { value: 'personas_asc', label: 'Personas: de menos a más' },
 ]
+const COLUMNAS_ORDEN: Record<string, string[]> = { alta: ['creado_en'], cliente: ['cliente_nombre', 'nombre_whatsapp', 'creado_en'], fecha: ['fecha', 'hora'], hora: ['hora', 'fecha'], personas: ['cantidad_personas', 'creado_en'], derivada: ['derivada_a', 'creado_en'] }
 const RANGOS = [{ v: 'todas', l: 'Todas' }, { v: 'proximas', l: 'Próximas' }, { v: 'pasadas', l: 'Pasadas' }]
 
 interface Derivada { id: string; cliente_id: string | null; cliente_nombre: string | null; nombre_whatsapp: string | null; telefono: string | null; cantidad_personas: number | null; fecha: string | null; hora: string | null; observaciones: string | null; derivada_a: string | null; creado_en: string }
@@ -26,14 +33,13 @@ export default async function DerivadasPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const rango = RANGOS.some((r) => r.v === sp.rango) ? sp.rango! : 'todas'
-  const orden = ORDENES.some((o) => o.value === sp.orden) ? sp.orden! : 'alta_desc'
+  const orden = leerOrden(sp.orden, ambos('alta', 'cliente', 'fecha', 'hora', 'personas', 'derivada'), 'alta_desc')
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
   const numeroSel = (sp.a ?? '').replace(/\D/g, '')
 
   let consulta = supabase.from('reservas_derivadas').select('id, cliente_id, cliente_nombre, nombre_whatsapp, telefono, cantidad_personas, fecha, hora, observaciones, derivada_a, creado_en').eq('negocio_id', negocio.id)
   if (q) consulta = consulta.or(`cliente_nombre.ilike.%${q}%,nombre_whatsapp.ilike.%${q}%,telefono.ilike.%${q}%,observaciones.ilike.%${q}%`)
-  const ordenada = orden === 'alta_desc' ? consulta.order('creado_en', { ascending: false }) : orden === 'alta_asc' ? consulta.order('creado_en', { ascending: true })
-    : orden === 'fecha_asc' ? consulta.order('fecha', { ascending: true, nullsFirst: false }).order('hora', { ascending: true }) : consulta.order('fecha', { ascending: false, nullsFirst: false }).order('hora', { ascending: false })
+  const ordenada = ordenarPor(consulta, orden, COLUMNAS_ORDEN)
   const { data } = await ordenada.limit(20000)
   const todas = (data ?? []) as Derivada[]
 
@@ -92,7 +98,7 @@ export default async function DerivadasPage({ searchParams }: { searchParams: Pr
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[860px]">
-            <thead className="border-b border-rs-border"><tr><th className="th">Alta</th><th className="th">Cliente</th><th className="th">Fecha</th><th className="th">Hora</th><th className="th">Personas</th><th className="th">Derivada a</th><th className="th">Observaciones</th></tr></thead>
+            <thead className="border-b border-rs-border"><tr><ThOrden ruta="/derivadas" params={sp} campo="alta" orden={orden} primero="desc">Alta</ThOrden><ThOrden ruta="/derivadas" params={sp} campo="cliente" orden={orden}>Cliente</ThOrden><ThOrden ruta="/derivadas" params={sp} campo="fecha" orden={orden}>Fecha</ThOrden><ThOrden ruta="/derivadas" params={sp} campo="hora" orden={orden}>Hora</ThOrden><ThOrden ruta="/derivadas" params={sp} campo="personas" orden={orden} primero="desc">Personas</ThOrden><ThOrden ruta="/derivadas" params={sp} campo="derivada" orden={orden}>Derivada a</ThOrden><th className="th">Observaciones</th></tr></thead>
             <tbody>
               {pg.items.map((d, i) => (
                 <tr key={d.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

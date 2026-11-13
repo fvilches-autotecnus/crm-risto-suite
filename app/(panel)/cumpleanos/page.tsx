@@ -1,3 +1,5 @@
+import { ThOrden } from '@/components/th-orden'
+import { ambos, leerOrden } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Cake } from 'lucide-react'
@@ -13,10 +15,14 @@ import { fechaHoraLarga, hoyEn } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
 
 const ORDENES = [
-  { value: 'proximo', label: 'Cumpleaños: próximos primero' },
+  { value: 'cumple_asc', label: 'Cumpleaños: próximos primero' },
+  { value: 'cumple_desc', label: 'Cumpleaños: más lejanos primero' },
   { value: 'alta_desc', label: 'Alta: más recientes primero' },
   { value: 'alta_asc', label: 'Alta: más antiguas primero' },
+  { value: 'nombre_asc', label: 'Nombre (A–Z)' },
+  { value: 'nombre_desc', label: 'Nombre (Z–A)' },
 ]
+const ORDENES_VALIDOS = ambos('cumple', 'alta', 'nombre', 'telefono', 'edad')
 
 export default async function CumpleanosPage({ searchParams }: { searchParams: Promise<{ periodo?: string; orden?: string; pagina?: string }> }) {
   const ctx = await getContexto()
@@ -24,7 +30,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
   const { supabase, negocio } = ctx
   const sp = await searchParams
   const periodo = (PERIODOS_CUMPLE.some((p) => p.value === sp.periodo) ? sp.periodo : 'semana') as PeriodoCumple
-  const orden = ['alta_desc', 'alta_asc'].includes(sp.orden ?? '') ? sp.orden! : 'proximo'
+  const orden = leerOrden(sp.orden === 'proximo' ? 'cumple_asc' : sp.orden, ORDENES_VALIDOS, 'cumple_asc')
   const hoy = hoyEn(negocio.zona_horaria)
 
   const { data: clientes } = await supabase.from('clientes').select('id, nombre, telefono, cumple_dia, cumple_mes, fecha_nacimiento, creado_en').eq('negocio_id', negocio.id).not('cumple_mes', 'is', null).limit(5000)
@@ -33,10 +39,20 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
   const filas = (clientes ?? [])
     .map((c) => ({ ...c, prox: proximoCumple(c.cumple_dia!, c.cumple_mes!, hoy) }))
     .filter((c) => !rango || (c.prox.fecha >= rango.desde && c.prox.fecha <= rango.hasta))
-    .sort((a, b) =>
-      orden === 'alta_desc' ? b.creado_en.localeCompare(a.creado_en)
-      : orden === 'alta_asc' ? a.creado_en.localeCompare(b.creado_en)
-      : a.prox.dias - b.prox.dias || a.nombre.localeCompare(b.nombre))
+    .sort((a, b) => {
+      // cada columna ordena por su dato; los empates se resuelven por cercanía del cumpleaños y nombre. Sin edad (no cargaron el año) va siempre al final.
+      const sentido = orden.endsWith('_desc') ? -1 : 1
+      const campo = orden.slice(0, orden.lastIndexOf('_'))
+      let r = 0
+      if (campo === 'alta') r = a.creado_en.localeCompare(b.creado_en)
+      else if (campo === 'nombre') r = a.nombre.localeCompare(b.nombre, 'es')
+      else if (campo === 'telefono') r = (a.telefono ?? '').localeCompare(b.telefono ?? '')
+      else if (campo === 'edad') {
+        if (!a.fecha_nacimiento !== !b.fecha_nacimiento) return a.fecha_nacimiento ? -1 : 1
+        if (a.fecha_nacimiento && b.fecha_nacimiento) r = edadQueCumple(a.fecha_nacimiento, a.prox.fecha) - edadQueCumple(b.fecha_nacimiento, b.prox.fecha)
+      } else r = a.prox.dias - b.prox.dias
+      return sentido * r || a.prox.dias - b.prox.dias || a.nombre.localeCompare(b.nombre, 'es')
+    })
 
   const pg = paginar(filas, numPagina(sp.pagina))
 
@@ -48,7 +64,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
   const mesActual = Number(hoy.slice(5, 7))
   const maxMes = Math.max(...porMes.map((m) => m.valor), 0)
   const mesTop = porMes.findIndex((m) => m.valor === maxMes)
-  const link = (p: string) => `/cumpleanos?periodo=${p}${orden !== 'proximo' ? `&orden=${orden}` : ''}`
+  const link = (p: string) => `/cumpleanos?periodo=${p}${orden !== 'cumple_asc' ? `&orden=${orden}` : ''}`
 
   return (
     <div className="space-y-5">
@@ -75,7 +91,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
 
       <div className="flex flex-wrap items-center gap-2">
         {PERIODOS_CUMPLE.map((p) => <Link key={p.value} href={link(p.value)} className={'btn btn-sm ' + (periodo === p.value ? 'btn-primary' : '')}>{p.label}</Link>)}
-        <div className="ml-auto"><OrdenSelect opciones={ORDENES} porDefecto="proximo" /></div>
+        <div className="ml-auto"><OrdenSelect opciones={ORDENES} porDefecto="cumple_asc" /></div>
       </div>
 
       <p className="text-sm text-rs-muted"><span className="font-semibold text-rs-text">{filas.length}</span> cumpleaños en este período</p>
@@ -85,7 +101,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[720px]">
-            <thead className="border-b border-rs-border"><tr><th className="th">Nombre</th><th className="th">Teléfono</th><th className="th">Cumpleaños</th><th className="th">Edad</th><th className="th">Alta</th>{ctx.puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+            <thead className="border-b border-rs-border"><tr><ThOrden ruta="/cumpleanos" params={sp} campo="nombre" orden={orden}>Nombre</ThOrden><ThOrden ruta="/cumpleanos" params={sp} campo="telefono" orden={orden}>Teléfono</ThOrden><ThOrden ruta="/cumpleanos" params={sp} campo="cumple" orden={orden}>Cumpleaños</ThOrden><ThOrden ruta="/cumpleanos" params={sp} campo="edad" orden={orden} primero="desc">Edad</ThOrden><ThOrden ruta="/cumpleanos" params={sp} campo="alta" orden={orden} primero="desc">Alta</ThOrden>{ctx.puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
             <tbody>
               {pg.items.map((c, i) => (
                 <tr key={c.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

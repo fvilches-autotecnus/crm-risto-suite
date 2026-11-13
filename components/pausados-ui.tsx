@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import { useEffect, useState, useTransition } from 'react'
 import { PauseCircle, Play } from 'lucide-react'
 import { pausarChatManual, reactivarChat, reactivarTodos, volverAPausar } from '@/app/(panel)/pausados-actions'
@@ -27,7 +28,10 @@ function BadgeMotivo({ motivo }: { motivo: string | null }) {
 }
 
 /** Lista de chats que el bot dejó pausados, con el botón para devolverle el chat al bot. */
-export function ListaPausados({ chats, ahora, hayVarias }: { chats: PausadoUI[]; ahora: number; hayVarias: boolean }) {
+export function ListaPausados({ chats, ahora, hayVarias, orden }: { chats: PausadoUI[]; ahora: number; hayVarias: boolean; orden?: OrdenTabla }) {
+  const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
+    : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
   const [pending, start] = useTransition()
   const [quien, setQuien] = useState<string | null>(null)
   const toast = useToast()
@@ -53,7 +57,7 @@ export function ListaPausados({ chats, ahora, hayVarias }: { chats: PausadoUI[];
     <>
       <div className="card hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Cliente</th><th className="th">Teléfono</th>{hayVarias && <th className="th">Sede</th>}<th className="th">Motivo</th><th className="th">Pausado</th><th className="th">Se reactiva</th><th className="th text-right">Acción</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="cliente">Cliente</Th><Th campo="telefono">Teléfono</Th>{hayVarias && <Th campo="sede">Sede</Th>}<Th campo="motivo">Motivo</Th><Th campo="pausado" primero="desc">Pausado</Th><Th campo="reactiva">Se reactiva</Th><th className="th text-right">Acción</th></tr></thead>
           <tbody>
             {chats.map((c, i) => (
               <tr key={c.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

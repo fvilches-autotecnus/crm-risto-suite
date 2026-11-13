@@ -1,5 +1,6 @@
 'use client'
 
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import {useEffect, useState, useTransition} from 'react'
 import { KeyRound, Plus, ShieldCheck, Trash2, UserCog } from 'lucide-react'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -22,6 +23,7 @@ interface Props {
   esSuperadmin: boolean
   miRol: Rol | 'superadmin'
   yoId: string
+  orden?: OrdenTabla                  // si viene, los encabezados ordenables son enlaces
 }
 
 function rolesAsignables(miRol: Props['miRol']): Rol[] {
@@ -204,6 +206,10 @@ function Password({ u, onClose }: { u: UsuarioUI; onClose: () => void }) {
 }
 
 export default function GestionUsuarios(p: Props) {
+  const orden = p.orden
+  const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
+    : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
   const [nuevo, setNuevo] = useState(false)
   const [accesos, setAccesos] = useState<string | null>(null)
   const [clave, setClave] = useState<string | null>(null)
@@ -222,7 +228,7 @@ export default function GestionUsuarios(p: Props) {
       {error && <p role="alert" className="mb-3 text-sm text-rs-danger">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px]">
-          <thead className="border-b border-rs-border"><tr><th className="th">Usuario</th><th className="th">Accesos</th><th className="th">Estado</th><th className="th">Alta</th><th className="th text-right">Acciones</th></tr></thead>
+          <thead className="border-b border-rs-border"><tr><Th campo="usuario">Usuario</Th><Th campo="accesos" primero="desc">Accesos</Th><Th campo="estado">Estado</Th><Th campo="alta" primero="desc">Alta</Th><th className="th text-right">Acciones</th></tr></thead>
           <tbody>
             {p.usuarios.length === 0 && <tr><td colSpan={5} className="td py-8 text-center text-rs-muted">Todavía no hay usuarios.</td></tr>}
             {p.usuarios.map((u) => (

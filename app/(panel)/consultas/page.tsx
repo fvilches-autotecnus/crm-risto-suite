@@ -1,3 +1,5 @@
+import { ThOrden } from '@/components/th-orden'
+import { ambos, leerOrden, ordenarPor } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { MessageCircleQuestion, Search } from 'lucide-react'
@@ -14,6 +16,16 @@ import { resumirConsultas } from '../ia-actions'
 const ESTADOS = [{ v: 'todas', l: 'Todas' }, { v: 'pendiente', l: 'Pendientes' }, { v: 'resuelta', l: 'Resueltas' }]
 const TIPOS = [{ v: 'todos', l: 'Todos' }, { v: 'consulta', l: 'Consultas' }, { v: 'reclamo', l: 'Reclamos' }]
 
+const ORDENES = [
+  { value: 'alta_desc', label: 'Alta: más recientes primero' },
+  { value: 'alta_asc', label: 'Alta: más antiguas primero' },
+  { value: 'tipo_asc', label: 'Tipo (A–Z)' },
+  { value: 'telefono_asc', label: 'Teléfono (menor a mayor)' },
+  { value: 'telefono_desc', label: 'Teléfono (mayor a menor)' },
+]
+const COLUMNAS_ORDEN: Record<string, string[]> = { alta: ['creado_en'], tipo: ['tipo', 'creado_en'], telefono: ['telefono', 'creado_en'], mensaje: ['mensaje', 'creado_en'] }
+const ORDENES_VALIDOS = ambos('alta', 'tipo', 'telefono', 'mensaje')
+
 export default async function ConsultasYReclamosPage({ searchParams }: { searchParams: Promise<{ pagina?: string; estado?: string; tipo?: string; q?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.consultas) redirect('/')
@@ -21,13 +33,13 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
   const sp = await searchParams
   const estado = ESTADOS.some((e) => e.v === sp.estado) ? sp.estado! : 'pendiente'
   const tipo = TIPOS.some((t) => t.v === sp.tipo) ? sp.tipo! : 'todos'
-  const orden = sp.orden === 'alta_asc' ? 'alta_asc' : 'alta_desc'
+  const orden = leerOrden(sp.orden, ORDENES_VALIDOS, 'alta_desc')
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
 
   let cq = supabase.from('consultas_reclamos').select('id, telefono, mensaje, estado, tipo, creado_en').eq('negocio_id', negocio.id)
   if (sede) cq = cq.eq('sucursal_id', sede.id)
   if (q) cq = cq.or(`telefono.ilike.%${q}%,mensaje.ilike.%${q}%`)
-  const { data } = await cq.order('creado_en', { ascending: orden === 'alta_asc' }).limit(10000)
+  const { data } = await ordenarPor(cq, orden, COLUMNAS_ORDEN).limit(10000)
   const todas = data ?? []
 
   // conteos con el otro filtro aplicado, para ver cuánto hay en cada opción
@@ -64,7 +76,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
             <input name="q" defaultValue={q} placeholder="Buscar por teléfono o mensaje" className="input w-full pl-9" />
           </form>
-          <OrdenSelect />
+          <OrdenSelect opciones={ORDENES} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="label mb-0 mr-1 w-14 shrink-0">Estado</span>
@@ -82,7 +94,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
         <>
           <div className="card hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px]">
-              <thead className="border-b border-rs-border"><tr><th className="th">Alta</th><th className="th">Tipo</th><th className="th">Teléfono</th><th className="th">Mensaje</th><th className="th">Estado</th>{ctx.puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
+              <thead className="border-b border-rs-border"><tr><ThOrden ruta="/consultas" params={sp} campo="alta" orden={orden} primero="desc">Alta</ThOrden><ThOrden ruta="/consultas" params={sp} campo="tipo" orden={orden}>Tipo</ThOrden><ThOrden ruta="/consultas" params={sp} campo="telefono" orden={orden}>Teléfono</ThOrden><ThOrden ruta="/consultas" params={sp} campo="mensaje" orden={orden}>Mensaje</ThOrden><th className="th">Estado</th>{ctx.puedeEscribir && <th className="th text-right">Acciones</th>}</tr></thead>
               <tbody>
                 {lista.map((c, i) => (
                   <tr key={c.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

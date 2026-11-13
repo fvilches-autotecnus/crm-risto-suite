@@ -13,6 +13,18 @@ export const ORDENES = [
   { value: 'alta_asc', label: 'Alta: más antiguas primero' },
   { value: 'fecha_asc', label: 'Reserva: próximas primero' },
   { value: 'fecha_desc', label: 'Reserva: más lejanas primero' },
+  { value: 'hora_asc', label: 'Hora: más temprano primero' },
+  { value: 'hora_desc', label: 'Hora: más tarde primero' },
+  { value: 'nombre_asc', label: 'Nombre (A–Z)' },
+  { value: 'nombre_desc', label: 'Nombre (Z–A)' },
+  { value: 'personas_desc', label: 'Personas: de más a menos' },
+  { value: 'personas_asc', label: 'Personas: de menos a más' },
+  { value: 'telefono_asc', label: 'Teléfono (menor a mayor)' },
+  { value: 'telefono_desc', label: 'Teléfono (mayor a menor)' },
+  { value: 'tipo_asc', label: 'Tipo (A–Z)' },
+  { value: 'tipo_desc', label: 'Tipo (Z–A)' },
+  { value: 'ubicacion_asc', label: 'Ubicación (A–Z)' },
+  { value: 'ubicacion_desc', label: 'Ubicación (Z–A)' },
 ] as const
 
 const RANGOS = [

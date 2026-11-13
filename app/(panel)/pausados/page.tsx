@@ -1,3 +1,4 @@
+import { ambos, leerOrden } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { PauseCircle, Search } from 'lucide-react'
@@ -9,7 +10,7 @@ import { MOTIVOS_PAUSA, labelMotivoPausa, leerPausaAuto, motivoValido, textoPaus
 import { createAdminClient } from '@/lib/supabase/server'
 import { numPagina, paginar } from '@/lib/paginacion'
 
-export default async function PausadosPage({ searchParams }: { searchParams: Promise<{ motivo?: string; q?: string; pagina?: string }> }) {
+export default async function PausadosPage({ searchParams }: { searchParams: Promise<{ motivo?: string; q?: string; pagina?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.puedeApagarBot) redirect('/')   // solo los negocios con el botón de apagado y los roles que pueden usarlo
   const sp = await searchParams
@@ -38,8 +39,24 @@ export default async function PausadosPage({ searchParams }: { searchParams: Pro
     await buscaEnCrm(base.map((c) => c.telefono))
     filtrados = base.filter((c) => c.telefono.includes(q.replace(/\D/g, '') || '\u0000') || (nombreDe(c) ?? '').toLowerCase().includes(q))
   }
+  // orden pedido en el encabezado (por defecto, los pausados más recientes primero). Sin dato (pausa indefinida, sin nombre) va al final.
+  const orden = leerOrden(sp.orden, ambos('cliente', 'telefono', 'sede', 'motivo', 'pausado', 'reactiva'), 'pausado_desc')
+  const campoOrden = orden.slice(0, orden.lastIndexOf('_'))
+  const sentido = orden.endsWith('_desc') ? -1 : 1
+  if (campoOrden === 'cliente' && !q) await buscaEnCrm(filtrados.map((c) => c.telefono))
+  const sinDato = (c: (typeof filtrados)[number]) => (campoOrden === 'reactiva' ? !c.reactivar_en : campoOrden === 'cliente' ? !nombreDe(c) : campoOrden === 'sede' ? !c.sucursal_id : false)
+  filtrados = [...filtrados].sort((a, b) => {
+    if (sinDato(a) !== sinDato(b)) return sinDato(a) ? 1 : -1
+    const r = campoOrden === 'cliente' ? (nombreDe(a) ?? '').localeCompare(nombreDe(b) ?? '', 'es')
+      : campoOrden === 'telefono' ? a.telefono.localeCompare(b.telefono)
+      : campoOrden === 'sede' ? (nombresSede.get(a.sucursal_id ?? '') ?? '').localeCompare(nombresSede.get(b.sucursal_id ?? '') ?? '', 'es')
+      : campoOrden === 'motivo' ? labelMotivoPausa(a.motivo_pausa).localeCompare(labelMotivoPausa(b.motivo_pausa), 'es')
+      : campoOrden === 'reactiva' ? (a.reactivar_en ?? '').localeCompare(b.reactivar_en ?? '')
+      : (a.pausado_en ?? '').localeCompare(b.pausado_en ?? '')
+    return sentido * r
+  })
   const pg = paginar(filtrados, numPagina(sp.pagina))
-  if (!q) await buscaEnCrm(pg.items.map((c) => c.telefono))
+  if (!q && campoOrden !== 'cliente') await buscaEnCrm(pg.items.map((c) => c.telefono))
 
   const chats: PausadoUI[] = pg.items.map((c) => ({ id: c.id, telefono: c.telefono, nombre: nombreDe(c), motivo_pausa: c.motivo_pausa, pausado_en: c.pausado_en, reactivar_en: c.reactivar_en, sede: c.sucursal_id ? nombresSede.get(c.sucursal_id) ?? null : null }))
   const auto = leerPausaAuto(ctx.negocio.modulos)
@@ -79,7 +96,7 @@ export default async function PausadosPage({ searchParams }: { searchParams: Pro
         </form>
       </div>
 
-      <ListaPausados chats={chats} ahora={Date.now()} hayVarias={ctx.sedesTodas.length > 0} />
+      <ListaPausados chats={chats} ahora={Date.now()} hayVarias={ctx.sedesTodas.length > 0} orden={{ ruta: '/pausados', params: sp, actual: orden }} />
       <Paginacion ruta="/pausados" params={sp} {...pg} />
     </div>
   )

@@ -13,6 +13,7 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import PlanoElegir from '@/components/plano-elegir'
 import { EstadoVacio, Spinner } from '@/components/ui'
+import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
 import { resumenPromoElegida } from '@/lib/promos'
 import { TIPOS_RESERVA, esEstadoAviso, numeroVisible, formatoMonto, labelEstado, labelTipo, type EstadoReserva, type Reserva } from '@/lib/reservas'
@@ -263,7 +264,7 @@ function SelectorColumnas({ activas, onChange, hayUbicacion, haySede }: { activa
   )
 }
 
-export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false, mesas = {}, columnas = COLUMNAS_DEFECTO }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; mesas?: Record<string, string>; op: OpcionesSede; columnas?: ColumnaClave[] }) {
+export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontraron reservas.', op, asistencia = false, mesas = {}, columnas = COLUMNAS_DEFECTO, orden }: { reservas: Reserva[]; puedeEscribir: boolean; vacio?: string; asistencia?: boolean; mesas?: Record<string, string>; op: OpcionesSede; columnas?: ColumnaClave[]; orden?: OrdenTabla }) {
   const toast = useToast()
   const [cols, setCols] = useState<ColumnaClave[]>(columnas)
   const ver = (c: ColumnaClave) => cols.includes(c)
@@ -321,6 +322,10 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
     </div>
   )
 
+  const Th = ({ campo, primero, children }: { campo: string; primero?: 'asc' | 'desc'; children: React.ReactNode }) => orden
+    ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero}>{children}</ThOrden>
+    : <th className="th">{children}</th>
+
   const nota = (r: Reserva) => (r.estado === 'cancelada' && r.motivo_cancelacion ? `Motivo: ${r.motivo_cancelacion}` : r.observaciones)
 
   if (reservas.length === 0) {
@@ -341,8 +346,8 @@ export function ReservasTabla({ reservas, puedeEscribir, vacio = 'No se encontra
         <table className="w-full">
           <thead className="sticky top-0 border-b border-rs-border bg-rs-card">
             <tr>
-              <th className="th">#</th><th className="th">Nombre</th>{ver('telefono') && <th className="th">Tel</th>}{mostrarSede && ver('sede') && <th className="th">Sede</th>}{ver('fecha') && <th className="th">Fecha</th>}{ver('hora') && <th className="th">Hora</th>}
-              {ver('personas') && <th className="th">Personas</th>}{ver('tipo') && <th className="th">Tipo</th>}{mostrarUbicacion && ver('ubicacion') && <th className="th">Ubicación</th>}{ver('observaciones') && <th className="th">Observaciones</th>}<th className="th">Estado</th>{ver('alta') && <th className="th">Alta</th>}
+              <th className="th">#</th><Th campo="nombre">Nombre</Th>{ver('telefono') && <Th campo="telefono">Tel</Th>}{mostrarSede && ver('sede') && <th className="th">Sede</th>}{ver('fecha') && <Th campo="fecha">Fecha</Th>}{ver('hora') && <Th campo="hora">Hora</Th>}
+              {ver('personas') && <Th campo="personas" primero="desc">Personas</Th>}{ver('tipo') && <Th campo="tipo">Tipo</Th>}{mostrarUbicacion && ver('ubicacion') && <Th campo="ubicacion">Ubicación</Th>}{ver('observaciones') && <th className="th">Observaciones</th>}<th className="th">Estado</th>{ver('alta') && <Th campo="alta" primero="desc">Alta</Th>}
               {puedeEscribir && <th className="th text-right">Acciones</th>}
             </tr>
           </thead>

@@ -1,3 +1,5 @@
+import { ThOrden } from '@/components/th-orden'
+import { ambos, leerOrden } from '@/lib/orden'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Gift, Search } from 'lucide-react'
@@ -15,13 +17,14 @@ const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 
 interface PremioFila { id: string; hito: number; creado_en: string; avisado_en: string | null; cliente: { id: string; nombre: string } | null; regla: { nombre: string } | null; voucher: { codigo: string; estado: string } | null }
 
-export default async function FidelizacionPage({ searchParams }: { searchParams: Promise<{ filtro?: string; q?: string; pagina?: string }> }) {
+export default async function FidelizacionPage({ searchParams }: { searchParams: Promise<{ filtro?: string; q?: string; pagina?: string; orden?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.fidelizacion) redirect('/')
   const { supabase, negocio } = ctx
   const sp = await searchParams
   const filtro = FILTROS.some((f) => f.v === sp.filtro) ? sp.filtro! : 'todos'
   const q = norm((sp.q ?? '').trim())
+  const orden = leerOrden(sp.orden, ambos('cliente', 'visitas', 'ultima', 'proximo', 'premios'), 'visitas_desc')
   const hoy = hoyEn(negocio.zona_horaria)
 
   const [{ data: cfg }, { data: reglasDb }, { data: premiosDb }, { count: totalPremios }, { count: sinAvisar }, { data: porEmitirDb }] = await Promise.all([
@@ -49,8 +52,21 @@ export default async function FidelizacionPage({ searchParams }: { searchParams:
   const filas = conVisitas
     .map((c) => ({ ...c, prox: proximoPremio(c.visitas, reglas) }))
     .filter((c) => (!q || norm(c.nombre).includes(q) || (c.telefono ?? '').includes(q)) && (filtro === 'todos' || (filtro === 'cerca' ? c.prox?.faltan === 1 : c.premios > 0)))
+  // orden pedido en el encabezado; los empates van por visitas (más a menos) y nombre. Lo que no tiene dato (sin visita, sin próximo premio) va al final.
+  const sentido = orden.endsWith('_desc') ? -1 : 1
+  const campoOrden = orden.slice(0, orden.lastIndexOf('_'))
+  const sinDato = (c: (typeof filas)[number]) => (campoOrden === 'ultima' ? !c.ultima : campoOrden === 'proximo' ? !c.prox : false)
+  filas.sort((a, b) => {
+    if (sinDato(a) !== sinDato(b)) return sinDato(a) ? 1 : -1
+    const r = campoOrden === 'cliente' ? a.nombre.localeCompare(b.nombre, 'es')
+      : campoOrden === 'ultima' ? (a.ultima ?? '').localeCompare(b.ultima ?? '')
+      : campoOrden === 'proximo' ? (a.prox?.faltan ?? 0) - (b.prox?.faltan ?? 0)
+      : campoOrden === 'premios' ? a.premios - b.premios
+      : a.visitas - b.visitas
+    return sentido * r || b.visitas - a.visitas || a.nombre.localeCompare(b.nombre, 'es')
+  })
   const pg = paginar(filas, numPagina(sp.pagina))
-  const link = (f: string) => `/fidelizacion?filtro=${f}${q ? `&q=${encodeURIComponent(sp.q ?? '')}` : ''}`
+  const link = (f: string) => `/fidelizacion?filtro=${f}${q ? `&q=${encodeURIComponent(sp.q ?? '')}` : ''}${orden !== 'visitas_desc' ? `&orden=${orden}` : ''}`
   const criterio = CRITERIOS.find((c) => c.value === config.criterio)!
 
   return (
@@ -93,7 +109,7 @@ export default async function FidelizacionPage({ searchParams }: { searchParams:
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]">
-              <thead className="border-b border-rs-border"><tr><th className="th">Cliente</th><th className="th">Visitas</th><th className="th">Última visita</th><th className="th">Próximo premio</th><th className="th text-right">Premios</th></tr></thead>
+              <thead className="border-b border-rs-border"><tr><ThOrden ruta="/fidelizacion" params={sp} campo="cliente" orden={orden}>Cliente</ThOrden><ThOrden ruta="/fidelizacion" params={sp} campo="visitas" orden={orden} primero="desc">Visitas</ThOrden><ThOrden ruta="/fidelizacion" params={sp} campo="ultima" orden={orden} primero="desc">Última visita</ThOrden><ThOrden ruta="/fidelizacion" params={sp} campo="proximo" orden={orden}>Próximo premio</ThOrden><ThOrden ruta="/fidelizacion" params={sp} campo="premios" orden={orden} primero="desc" className="text-right">Premios</ThOrden></tr></thead>
               <tbody>
                 {pg.items.map((c, i) => (
                   <tr key={c.cliente_id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>

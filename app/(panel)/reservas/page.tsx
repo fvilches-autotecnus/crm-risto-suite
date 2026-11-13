@@ -1,3 +1,4 @@
+import { ambos, leerOrden } from '@/lib/orden'
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -16,6 +17,8 @@ import SolicitudesWeb, { type SolicitudWebUI } from '@/components/solicitudes-we
 
 type SP = { pagina?: string; estado?: string; rango?: string; tipo?: string; ubic?: string; q?: string; desde?: string; hasta?: string; orden?: string }
 
+const ORDENES_VALIDOS = ambos('alta', 'fecha', 'hora', 'nombre', 'telefono', 'personas', 'tipo', 'ubicacion')
+
 export default async function ReservasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.reservas) redirect('/')
@@ -25,7 +28,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const rango = sp.rango ?? 'hoy'
-  const orden = ['alta_asc', 'fecha_asc', 'fecha_desc'].includes(sp.orden ?? '') ? sp.orden! : 'alta_desc'
+  const orden = leerOrden(sp.orden, ORDENES_VALIDOS, 'alta_desc')
 
   // Todos los filtros menos "estado": así se pueden mostrar los conteos por estado de lo que se está viendo.
   let q = supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null)
@@ -45,10 +48,17 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
   const nroBuscado = /^\d{1,9}$/.test(busqueda ?? '') ? Number(busqueda) : null
   if (busqueda) q = q.or(`cliente_nombre.ilike.%${busqueda}%,cliente_telefono.ilike.%${busqueda}%${nroBuscado !== null ? `,numero_sede.eq.${nroBuscado},and(numero_sede.is.null,numero.eq.${nroBuscado})` : ''}`)
 
-  const ordenado = orden === 'alta_desc' ? q.order('creado_en', { ascending: false })
-    : orden === 'alta_asc' ? q.order('creado_en', { ascending: true })
-    : orden === 'fecha_asc' ? q.order('fecha', { ascending: true, nullsFirst: true }).order('hora', { ascending: true })
-    : q.order('fecha', { ascending: false, nullsFirst: false }).order('hora', { ascending: false })
+  // orden pedido (?orden=campo_asc|campo_desc): cada campo se ordena por su columna y desempata por el otro dato que lo acompaña
+  const asc = orden.endsWith('_asc')
+  const campoOrden = orden.slice(0, orden.lastIndexOf('_'))
+  const ordenado = campoOrden === 'alta' ? q.order('creado_en', { ascending: asc })
+    : campoOrden === 'fecha' ? q.order('fecha', { ascending: asc, nullsFirst: asc }).order('hora', { ascending: asc })
+    : campoOrden === 'hora' ? q.order('hora', { ascending: asc }).order('fecha', { ascending: asc })
+    : campoOrden === 'nombre' ? q.order('cliente_nombre', { ascending: asc }).order('fecha', { ascending: false })
+    : campoOrden === 'telefono' ? q.order('cliente_telefono', { ascending: asc }).order('fecha', { ascending: false })
+    : campoOrden === 'personas' ? q.order('cantidad_personas', { ascending: asc }).order('fecha', { ascending: false })
+    : campoOrden === 'tipo' ? q.order('tipo_reserva', { ascending: asc }).order('fecha', { ascending: false })
+    : q.order('ubicacion', { ascending: asc, nullsFirst: false }).order('fecha', { ascending: false })
   const { data } = await ordenado.limit(20000)
   const todas = (data ?? []) as Reserva[]
 
@@ -81,7 +91,7 @@ export default async function ReservasPage({ searchParams }: { searchParams: Pro
       </div>
       <SolicitudesWeb solicitudes={solicitudes} puedeEscribir={ctx.puedeEscribir} etiquetasTipo={op.tiposEtiquetas} sedes={op.nombresSede} />
       <Suspense><FiltrosReservas conteos={conteos} tipos={op.tipos} etiquetasTipo={op.tiposEtiquetas} ubicaciones={ubicaciones} total={filtradas.length} /></Suspense>
-      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} columnas={leerColumnas((await cookies()).get(COLUMNAS_COOKIE)?.value)} />
+      <ReservasTabla reservas={mostradas} puedeEscribir={ctx.puedeEscribir} op={op} asistencia={asistencia} mesas={await mesasPorReserva(ctx, mostradas.map((r) => r.id))} columnas={leerColumnas((await cookies()).get(COLUMNAS_COOKIE)?.value)} orden={{ ruta: '/reservas', params: sp, actual: orden }} />
       <Paginacion ruta="/reservas" params={sp} {...pg} />
     </div>
   )
