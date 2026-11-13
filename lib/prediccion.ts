@@ -127,7 +127,9 @@ function predecirSerie(s: Serie, fecha: string, hoy: string, excluidos: Set<stri
   return { esperado: Math.max(esperadoBase, reservado), min: Math.max(lo, reservado), max: Math.max(hi, reservado), reservado, origen: 'historial' }
 }
 
-interface Franja { clave: string; etiqueta: string; desde: string; hasta: string; reglas: ReglaAforo[]; serie: Serie; porRegla: Map<ReglaAforo, Serie> }
+interface UbicFranja { nombre: string; sucursal: string | null; serie: Serie }
+interface Franja { clave: string; etiqueta: string; desde: string; hasta: string; reglas: ReglaAforo[]; serie: Serie; ubic: Map<string, UbicFranja> }
+const claveUbic = (sucursal: string | null | undefined, ubicacion: string | null | undefined) => `${sucursal ?? ''}|${ubicacion ?? ''}`
 
 export function calcularPrediccion(e: EntradaPrediccion): Prediccion {
   const { hoy, dias } = e
@@ -142,23 +144,34 @@ export function calcularPrediccion(e: EntradaPrediccion): Prediccion {
   if (semanasHistorial < 4 || totalVentana < 20) return vacio('poco_historial', 'Todavía no hay historial suficiente: se necesitan al menos 4 semanas de reservas. Va a aparecer solo cuando se junten.')
   if (e.ultimaCreada && d2n(hoy) - d2n(e.ultimaCreada) > DIAS_SIN_DATOS) return vacio('desactualizado', `No entraron reservas nuevas desde el ${e.ultimaCreada.slice(8, 10)}/${e.ultimaCreada.slice(5, 7)}: sin datos al día no se puede predecir.`)
 
-  // Franjas: las de las reglas de aforo (agrupadas por horario); sin aforo, mediodía y noche
+  // Turnos: los horarios de las reglas de aforo. Los que se pisan (por ejemplo 20:00–21:00 y 20:30–21:00) se unen en un solo turno que va del
+  // primer comienzo al último final; sin aforo, mediodía y noche.
   const conAforo = e.reglas.length > 0
   const franjas = new Map<string, Franja>()
   if (conAforo) {
+    const grupos = new Map<string, { desde: string; hasta: string; reglas: ReglaAforo[] }>()
     for (const r of e.reglas) {
-      const clave = `${hhmm(r.hora_desde ?? '00:00')}-${hhmm(r.hora_hasta ?? '24:00')}`
-      const f: Franja = franjas.get(clave) ?? { clave, etiqueta: '', desde: r.hora_desde ?? '00:00:00', hasta: r.hora_hasta ?? '24:00:00', reglas: [], serie: nuevaSerie(), porRegla: new Map() }
-      f.reglas.push(r); franjas.set(clave, f)
+      const desde = hms(r.hora_desde ?? '00:00:00'), hasta = hms(r.hora_hasta ?? '24:00:00')
+      const g = grupos.get(`${desde}|${hasta}`) ?? { desde, hasta, reglas: [] }
+      g.reglas.push(r); grupos.set(`${desde}|${hasta}`, g)
+    }
+    const unidos: { desde: string; hasta: string; reglas: ReglaAforo[] }[] = []
+    for (const g of [...grupos.values()].sort((x, y) => x.desde.localeCompare(y.desde) || x.hasta.localeCompare(y.hasta))) {
+      const u = unidos[unidos.length - 1]
+      if (u && g.desde < u.hasta) { if (g.hasta > u.hasta) u.hasta = g.hasta; u.reglas.push(...g.reglas) } else unidos.push({ desde: g.desde, hasta: g.hasta, reglas: [...g.reglas] })
+    }
+    for (const g of unidos) {
+      const clave = `${hhmm(g.desde)}-${hhmm(g.hasta)}`
+      franjas.set(clave, { clave, etiqueta: '', desde: g.desde, hasta: g.hasta, reglas: g.reglas, serie: nuevaSerie(), ubic: new Map() })
     }
   } else {
-    for (const [clave, desde, hasta, nombre] of [['00:00-16:00', '00:00:00', '16:00:00', 'Mediodía'], ['16:00-24:00', '16:00:00', '24:00:00', 'Noche']] as const) franjas.set(clave, { clave, etiqueta: nombre, desde, hasta, reglas: [], serie: nuevaSerie(), porRegla: new Map() })
+    for (const [clave, desde, hasta, nombre] of [['00:00-16:00', '00:00:00', '16:00:00', 'Mediodía'], ['16:00-24:00', '16:00:00', '24:00:00', 'Noche']] as const) franjas.set(clave, { clave, etiqueta: nombre, desde, hasta, reglas: [], serie: nuevaSerie(), ubic: new Map() })
   }
   for (const f of franjas.values()) {
     f.etiqueta = f.etiqueta || `${hhmm(f.desde) < '16:00' ? 'Mediodía' : 'Noche'} ${hhmm(f.desde)}–${hhmm(f.hasta)}`
-    for (const r of f.reglas) f.porRegla.set(r, nuevaSerie())
+    for (const r of f.reglas) if (r.ubicacion) { const k = claveUbic(r.sucursal_id, r.ubicacion); if (!f.ubic.has(k)) f.ubic.set(k, { nombre: r.ubicacion, sucursal: r.sucursal_id, serie: nuevaSerie() }) }
   }
-  // Una reserva cuenta en una franja si cae en un lugar que esa franja cubre con su aforo (una regla de solo el salón no cuenta lo de los toldos);
+  // Una reserva cuenta en un turno si cae en un lugar que ese turno cubre con su aforo (una regla de solo el salón no cuenta lo de los toldos);
   // las que no tienen un lugar con regla (sin ubicación o "cualquiera") cuentan siempre: se van a sentar en algún lado.
   const ubicacionesConRegla = new Set(e.reglas.map((x) => x.ubicacion).filter(Boolean) as string[])
   const cubre = (f: Franja, r: ReservaMin) => !r.ubicacion || !ubicacionesConRegla.has(r.ubicacion) || f.reglas.length === 0 || f.reglas.some((x) => (!x.sucursal_id || x.sucursal_id === r.sucursal_id) && (!x.ubicacion || x.ubicacion === r.ubicacion))
@@ -167,12 +180,7 @@ export function calcularPrediccion(e: EntradaPrediccion): Prediccion {
     for (const f of franjas.values()) {
       if (!enVentana(r.hora, f.desde, f.hasta, f.reglas.some((x) => x.incluye_hasta === true)) || !cubre(f, r)) continue
       sumar(f.serie, r)
-      for (const regla of f.reglas) {
-        if (regla.sucursal_id && regla.sucursal_id !== r.sucursal_id) continue
-        if (regla.ubicacion && regla.ubicacion !== r.ubicacion) continue
-        if (!enVentana(r.hora, regla.hora_desde ?? '00:00:00', regla.hora_hasta ?? '24:00:00', regla.incluye_hasta === true)) continue
-        sumar(f.porRegla.get(regla)!, r)
-      }
+      for (const u of f.ubic.values()) if (u.nombre === r.ubicacion && (!u.sucursal || u.sucursal === r.sucursal_id)) sumar(u.serie, r)
     }
   }
   // franjas sin movimiento en las últimas semanas (solo en el modo sin aforo) no se muestran
@@ -198,7 +206,10 @@ export function calcularPrediccion(e: EntradaPrediccion): Prediccion {
     for (const f of lista) {
       const vig = f.reglas.filter((r) => vigente(r, fecha))
       if (conAforo && vig.length === 0) { celdas[f.clave] = null; continue }
-      const capacidad = conAforo ? vig.reduce((a, r) => a + r.maximo, 0) : null
+      // aforo del turno ese día: por ubicación rige el tope más estricto de las reglas que se pisan (p. ej. 30 para 20:00–21:00 y 40 para 20:30–21:00 → 30)
+      const capPorUbic = new Map<string, number>()
+      for (const r of vig) { const k = claveUbic(r.sucursal_id, r.ubicacion); capPorUbic.set(k, Math.min(capPorUbic.get(k) ?? Infinity, r.maximo)) }
+      const capacidad = conAforo ? [...capPorUbic.values()].reduce((a, c) => a + c, 0) : null
       const reservado = f.serie.y.get(fecha) ?? 0
       let p: Pred
       if (esp?.tipo === 'cerrado') p = { esperado: 0, min: 0, max: 0, reservado, origen: 'cerrado' }
@@ -209,10 +220,11 @@ export function calcularPrediccion(e: EntradaPrediccion): Prediccion {
       }
       const sinPred = Number.isNaN(p.esperado)
       const ubic = conAforo && !sinPred && p.origen !== 'cerrado' && p.origen !== 'habitualmente_cerrado'
-        ? vig.filter((r) => r.ubicacion).map((r) => {
-          const q = predecirSerie(f.porRegla.get(r)!, fecha, hoy, excluidos, pickupOk)
-          const pct = r.maximo ? q.esperado / r.maximo : 0
-          return { nombre: r.ubicacion as string, esperado: Math.round(q.esperado), min: Math.round(q.min), max: Math.round(q.max), reservado: q.reservado, capacidad: r.maximo, pct, banda: bandaDe(pct) }
+        ? [...f.ubic.entries()].filter(([k]) => capPorUbic.has(k)).map(([k, u]) => {
+          const cap = capPorUbic.get(k)!
+          const q = predecirSerie(u.serie, fecha, hoy, excluidos, pickupOk)
+          const pct = cap ? q.esperado / cap : 0
+          return { nombre: u.nombre, esperado: Math.round(q.esperado), min: Math.round(q.min), max: Math.round(q.max), reservado: q.reservado, capacidad: cap, pct, banda: bandaDe(pct) }
         }) : []
       const pct = capacidad && !sinPred ? p.esperado / capacidad : null
       celdas[f.clave] = { esperado: sinPred ? null : Math.round(p.esperado), min: Math.round(p.min), max: Math.round(p.max), reservado: p.reservado, capacidad, pct, banda: pct === null ? null : bandaDe(pct), origen: p.origen, ubicaciones: ubic }

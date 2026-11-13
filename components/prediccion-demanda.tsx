@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useState, useTransition } from 'react'
-import { CalendarClock, CalendarPlus, ChevronDown, ChevronRight, Info, X } from 'lucide-react'
+import { CalendarClock, CalendarPlus, ChevronDown, ChevronRight, ChevronUp, Info, X } from 'lucide-react'
 import { marcarDiaEspecial, quitarDiaEspecial } from '@/app/(panel)/prediccion-actions'
 import { useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
@@ -16,6 +16,30 @@ const COLOR_BANDA: Record<Banda, { barra: string; texto: string }> = {
   alto: { barra: 'bg-rs-warn', texto: 'text-rs-warn' }, completo: { barra: 'bg-rs-danger', texto: 'text-rs-danger' },
 }
 const labelBanda = (b: Banda) => BANDAS.find((x) => x.value === b)!.label
+
+const CLAVE_PLEGADA = 'prediccion-demanda-plegada'
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+
+/** Una frase corta por día para la vista plegada: el turno más cargado (por % del aforo; sin aforo, por personas). */
+function resumenDia(d: DiaPred, franjas: { clave: string; etiqueta: string }[], hoy: string): { rotulo: string; texto: string; banda: Banda | null } {
+  const [, mm, dd] = d.fecha.split('-')
+  const rotulo = d.fecha === hoy ? 'Hoy' : `${DIA_CORTO[d.dow]} ${dd}/${mm}`
+  if (d.especial?.tipo === 'cerrado') return { rotulo, texto: 'Cerrado', banda: null }
+  let mejor: { f: string; c: Celda } | null = null
+  let eventoEn = false
+  for (const f of franjas) {
+    const c = d.celdas[f.clave]
+    if (!c) continue
+    if (c.origen === 'evento') { eventoEn = true; continue }
+    if (c.esperado === null || c.origen === 'habitualmente_cerrado') continue
+    const valor = c.pct !== null ? c.pct : c.esperado / 1000
+    const actual = mejor ? (mejor.c.pct !== null ? mejor.c.pct : (mejor.c.esperado ?? 0) / 1000) : -1
+    if (valor > actual) mejor = { f: f.etiqueta.split(' ')[0], c }
+  }
+  if (eventoEn && !mejor) return { rotulo, texto: 'Evento', banda: null }
+  if (!mejor) return { rotulo, texto: 'sin movimiento', banda: null }
+  return { rotulo, texto: mejor.c.pct !== null ? `${mejor.f} ${Math.round(mejor.c.pct * 100)}% · ${labelBanda(mejor.c.banda as Banda)}` : `${mejor.f} ≈ ${mejor.c.esperado} pers.`, banda: mejor.c.banda }
+}
 
 function CeldaVista({ c }: { c: Celda | null }) {
   if (!c) return <span className="text-rs-muted">—</span>
@@ -87,17 +111,33 @@ export default function PrediccionDemanda({ pred, hoy, puedeMarcar, marcasDispon
   const [abierto, setAbierto] = useState<string | null>(null)
   const [marcando, setMarcando] = useState<DiaPred | null>(null)
   const sinPrediccion = pred.nivel === 'poco_historial' || pred.nivel === 'desactualizado'
+  // plegada o desplegada (se recuerda en este navegador); hasta leer la preferencia solo se muestra el título, para que la página no salte
+  const [desplegada, setDesplegada] = useState<boolean | null>(null)
+  useEffect(() => { try { setDesplegada(localStorage.getItem(CLAVE_PLEGADA) !== '1') } catch { setDesplegada(true) } }, [])
+  const alternar = () => { const nuevo = !desplegada; setDesplegada(nuevo); try { localStorage.setItem(CLAVE_PLEGADA, nuevo ? '0' : '1') } catch { /* sin almacenamiento: no se recuerda */ } }
+  const resumen = pred.dias.slice(0, 4).map((d) => resumenDia(d, pred.franjas, hoy))
 
   return (
     <section className="reveal card p-4 sm:p-5" style={{ ['--i' as string]: 3 }} aria-labelledby="demanda-titulo">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 id="demanda-titulo" className="flex items-center gap-2 text-base font-semibold"><CalendarClock size={18} className="text-rs-lime" />Demanda esperada · próximos 14 días</h2>
-          <p className="mt-0.5 max-w-3xl text-xs text-rs-muted">Estimación según lo que pasó en las últimas semanas el mismo día de la semana (y lo ya reservado para los próximos días). Cuenta solo reservas: no incluye a quien llega sin reservar.</p>
+        <div className="min-w-0">
+          <h2 id="demanda-titulo" className="text-base font-semibold">
+            <button type="button" onClick={alternar} aria-expanded={desplegada === true} aria-controls="demanda-cuerpo" title={desplegada ? 'Plegar' : 'Desplegar'} className="flex items-center gap-2 text-left transition-colors hover:text-rs-lime">
+              <CalendarClock size={18} className="shrink-0 text-rs-lime" />Demanda esperada · próximos 14 días{desplegada ? <ChevronUp size={16} className="text-rs-muted" /> : <ChevronDown size={16} className="text-rs-muted" />}
+            </button>
+          </h2>
+          {desplegada && <p className="mt-0.5 max-w-3xl text-xs text-rs-muted">Estimación según lo que pasó en las últimas semanas el mismo día de la semana (y lo ya reservado para los próximos días). Cuenta solo reservas: no incluye a quien llega sin reservar.</p>}
         </div>
+        {desplegada === false && !sinPrediccion && (
+          <ul className="flex flex-wrap items-center gap-1.5" aria-label="Resumen de los próximos días">
+            {resumen.map((r) => <li key={r.rotulo} className="rounded-full border border-rs-border px-2.5 py-1 text-xs"><span className="font-semibold capitalize">{r.rotulo}</span> <span className={r.banda ? COLOR_BANDA[r.banda].texto : 'text-rs-muted'}>{r.texto}</span></li>)}
+          </ul>
+        )}
+        {desplegada === false && sinPrediccion && <p className="max-w-xl text-xs text-rs-muted">{pred.aviso}</p>}
       </div>
 
-      {sinPrediccion ? (
+      <div id="demanda-cuerpo" hidden={desplegada !== true}>
+      {desplegada === true && (sinPrediccion ? (
         <div role="status" className={'mt-4 flex gap-2 rounded-md border px-3 py-3 text-sm ' + (pred.nivel === 'desactualizado' ? 'border-rs-warn/40 bg-rs-warn/10 text-rs-warn' : 'border-rs-border bg-rs-raised/40 text-rs-muted')}>
           <Info size={16} className="mt-0.5 shrink-0" /><p>{pred.aviso}</p>
         </div>
@@ -161,7 +201,8 @@ export default function PrediccionDemanda({ pred, hoy, puedeMarcar, marcasDispon
           </div>
           <p className="mt-3 text-xs text-rs-muted">Los números son una guía, no una promesa: los eventos, los cierres y los feriados cambian mucho un día puntual. Marcá esos días con el botón de la derecha y la predicción los deja afuera del promedio.</p>
         </>
-      )}
+      ))}
+      </div>
       {marcando && <DialogoMarca dia={marcando} puedeMarcar={puedeMarcar} onClose={() => setMarcando(null)} />}
     </section>
   )
