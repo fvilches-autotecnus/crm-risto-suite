@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { BarChart3 } from 'lucide-react'
 import { BarraApilada, BarrasHorizontales, GraficoColumnas, GraficoLinea, TarjetaGrafico } from '@/components/charts'
 import { Tile } from '@/components/dashboard-ui'
+import PrediccionDemanda from '@/components/prediccion-demanda'
 import ResumenIA from '@/components/resumen-ia'
 import SelectorPeriodo from '@/components/selector-periodo'
 import { resumirMetricas } from '../ia-actions'
@@ -10,6 +11,7 @@ import { getContexto } from '@/lib/context'
 import { fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
 import { agrupacionAuto, serieEvolucion, type Agrupacion } from '@/lib/metricas'
 import { cargarPedidos, cargarReservas, diasEntre } from '@/lib/metricas-datos'
+import { cargarPrediccion } from '@/lib/prediccion-datos'
 import { dinero, labelEstadoPedido, labelPago, labelTipo } from '@/lib/pedidos'
 import { labelEstado } from '@/lib/reservas'
 
@@ -83,10 +85,13 @@ async function MetricasDeReservas({ p }: { p: Periodo }) {
   const nombresSede = new Map(ctx.sedesTodas.map((x) => [x.id, x.nombre]))
   const verSedes = ctx.sedesTodas.length > 0 && !sede
   const vacio = m.total === 0 && m.canceladas === 0
-
+  // demanda esperada de los próximos días (no depende del período elegido); quien marca eventos/cierres: encargado o más
+  const pr = await cargarPrediccion(ctx)
+  const puedeMarcar = ['superadmin', 'owner', 'admin', 'encargado'].includes(ctx.rol)
 
   return (
     <>
+      <PrediccionDemanda pred={pr.pred} hoy={pr.hoy} puedeMarcar={puedeMarcar} marcasDisponibles={pr.marcasDisponibles} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <Tile i={0} valor={m.total} etiqueta={`Reservas (${dias} días)`} color="text-rs-lav" sub={m.canceladas ? `${m.canceladas} cancelada${m.canceladas > 1 ? 's' : ''} aparte` : 'Sin cancelaciones'} />
         <div className="reveal card card-hover p-4 sm:p-5" style={{ ['--i' as string]: 1 }}>
