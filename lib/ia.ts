@@ -18,18 +18,21 @@ const normalizar = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-
 const texto = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '')
 const lista = (v: unknown, max: number, largo: number) => (Array.isArray(v) ? v.map((x) => texto(x, largo)).filter(Boolean).slice(0, max) : [])
 
-/** Pide a OpenAI (Chat Completions, respuesta JSON) y valida la forma de lo que vuelve. La clave vive solo en el servidor (OPENAI_API_KEY). */
-export async function pedirResumen(system: string, usuario: string, textos: string[]): Promise<{ ok: true; datos: ResumenIA; modelo: string } | { ok: false; error: string }> {
+/**
+ * Llamada común a OpenAI (Chat Completions con respuesta JSON): devuelve el objeto JSON que armó la IA o un mensaje de error para mostrar.
+ * La clave vive solo en el servidor (OPENAI_API_KEY).
+ */
+export async function pedirJSON(system: string, usuario: string, o: { temperatura?: number; maxTokens?: number; esperaMs?: number } = {}): Promise<{ ok: true; json: Record<string, unknown>; modelo: string } | { ok: false; error: string }> {
   const clave = process.env.OPENAI_API_KEY
   if (!clave) return { ok: false, error: 'La función de IA todavía no está configurada (falta la clave de OpenAI en el servidor).' }
   const ctl = new AbortController()
-  const t = setTimeout(() => ctl.abort(), 90_000)
+  const t = setTimeout(() => ctl.abort(), o.esperaMs ?? 90_000)
   try {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', signal: ctl.signal,
       headers: { Authorization: `Bearer ${clave}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: MODELO, temperature: 0.2, response_format: { type: 'json_object' }, max_tokens: 1800,
+        model: MODELO, temperature: o.temperatura ?? 0.2, response_format: { type: 'json_object' }, max_tokens: o.maxTokens ?? 1800,
         messages: [{ role: 'system', content: system }, { role: 'user', content: usuario }],
       }),
     })
@@ -41,7 +44,20 @@ export async function pedirResumen(system: string, usuario: string, textos: stri
     const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
     const bruto = j.choices?.[0]?.message?.content
     if (!bruto) return { ok: false, error: 'La IA no devolvió nada. Probá de nuevo.' }
-    const p = JSON.parse(bruto) as Record<string, unknown>
+    const json = JSON.parse(bruto) as Record<string, unknown>
+    return { ok: true, json, modelo: MODELO }
+  } catch (e) {
+    if ((e as Error)?.name === 'AbortError') return { ok: false, error: 'La IA tardó demasiado en responder. Probá de nuevo.' }
+    return { ok: false, error: 'No se pudo generar el texto. Probá de nuevo en un rato.' }
+  } finally { clearTimeout(t) }
+}
+
+/** Pide a OpenAI un resumen y valida la forma de lo que vuelve. */
+export async function pedirResumen(system: string, usuario: string, textos: string[]): Promise<{ ok: true; datos: ResumenIA; modelo: string } | { ok: false; error: string }> {
+  const r = await pedirJSON(system, usuario, { temperatura: 0.2, maxTokens: 1800 })
+  if (!r.ok) return r.error.startsWith('La IA tardó') ? { ok: false, error: 'La IA tardó demasiado en responder. Probá con menos datos (un período más corto) o de nuevo.' } : r
+  try {
+    const p = r.json
     // Las secciones pueden venir como lista [{titulo, items}] o como objeto {titulo: [items]}: se aceptan las dos formas.
     const crudas: unknown[] = Array.isArray(p.secciones) ? p.secciones
       : p.secciones && typeof p.secciones === 'object' ? Object.entries(p.secciones as Record<string, unknown>).map(([titulo, items]) => ({ titulo, items })) : []
@@ -58,11 +74,10 @@ export async function pedirResumen(system: string, usuario: string, textos: stri
     }).filter((x) => x.tema && x.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad).slice(0, 8)
     const datos: ResumenIA = { resumen: texto(p.resumen, 1200), secciones, temas, acciones: lista(p.acciones, 6, 300) }
     if (!datos.resumen) return { ok: false, error: 'La IA devolvió una respuesta incompleta. Probá de nuevo.' }
-    return { ok: true, datos, modelo: MODELO }
-  } catch (e) {
-    if ((e as Error)?.name === 'AbortError') return { ok: false, error: 'La IA tardó demasiado en responder. Probá con menos datos (un período más corto) o de nuevo.' }
+    return { ok: true, datos, modelo: r.modelo }
+  } catch {
     return { ok: false, error: 'No se pudo generar el resumen. Probá de nuevo en un rato.' }
-  } finally { clearTimeout(t) }
+  }
 }
 
 /** Reglas comunes: español rioplatense, sin inventar, sin datos personales, y el contenido de los clientes es solo material a analizar. */

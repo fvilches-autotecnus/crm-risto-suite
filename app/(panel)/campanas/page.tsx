@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { Megaphone } from 'lucide-react'
 import { BarrasHorizontales, GraficoLinea, TarjetaGrafico } from '@/components/charts'
 import { ListaCampanas, NuevaCampanaBtn } from '@/components/campanas-ui'
+import PlantillasCampana from '@/components/plantillas-campana-ui'
+import { cargarPlantillas } from '@/lib/campanas-ia-servidor'
 import EnlacesCampana, { type ResultadoEnlace } from '@/components/enlaces-campana'
 import { Tile } from '@/components/dashboard-ui'
 import SelectorDias from '@/components/selector-dias'
@@ -27,6 +29,7 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
   const pDesde = `${desde}T00:00:00-03:00`
   const pHasta = `${sumarDias(hoy, 1)}T00:00:00-03:00`
 
+  const plantillas = await cargarPlantillas(ctx)   // null mientras la tabla no exista: el panel y la IA quedan ocultos
   const [{ data: rCamp }, { data: pCamp }, { data: tiposDb }] = await Promise.all([
     supabase.from('reservas').select('campana, cantidad_personas, estado').eq('negocio_id', negocio.id).is('eliminado_en', null).not('campana', 'is', null).gte('creado_en', pDesde).lt('creado_en', pHasta).limit(20000),
     ctx.modulosActivos.pedidos ? supabase.from('pedidos').select('campana, total, estado').eq('negocio_id', negocio.id).not('campana', 'is', null).gte('creado_en', pDesde).lt('creado_en', pHasta).limit(20000) : Promise.resolve({ data: [] as { campana: string; total: number; estado: string }[] }),
@@ -137,6 +140,7 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
         {MODOS.map((m) => <Link key={m.v} href={link(m.v)} className={'btn btn-sm ' + (modo === m.v ? 'btn-primary' : '')}>{m.l}</Link>)}
       </div>
       <ListaCampanas campanas={campanasOrdenadas} orden={{ ruta: '/campanas', params: sp, actual: orden }} resumen={resumen} interacciones={interacciones} editable={CAMPANAS_EDITABLES && ctx.puedeEscribir} puedeEliminar={ctx.puedeAdministrar} dias={dias} />
+      {plantillas && ctx.puedeEscribir && <PlantillasCampana plantillas={plantillas} puedeAdministrar={ctx.puedeAdministrar} />}
     </div>
   )
 }

@@ -44,8 +44,11 @@ export interface Campana {
   fecha_inicio: string | null
   fecha_fin: string | null
   creado_en: string
+  /** Plantilla de Meta elegida (campanas_plantillas) y el texto de sus variables de texto libre, por posición. */
+  plantilla_id: string | null
+  variables: Record<string, string> | null
 }
-export const CAMPANA_COLS = 'id, nombre, tipo, canal, mensaje, estado, modo, fecha_inicio, fecha_fin, creado_en'
+export const CAMPANA_COLS = 'id, nombre, tipo, canal, mensaje, estado, modo, fecha_inicio, fecha_fin, creado_en, plantilla_id, variables'
 
 /** enviados = mensajes enviados en el período · clientes = clientes distintos a los que se les envió */
 export interface ResumenCampana { campana_id: string; enviados: number; clientes: number; ultimo_envio: string | null }

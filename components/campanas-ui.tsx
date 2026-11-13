@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { Megaphone, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { eliminarCampana, eliminarEnvio, guardarCampana, registrarEnvios } from '@/app/(panel)/campanas-actions'
 import { useConfirm, useToast } from '@/components/feedback'
+import GenerarIACampana from '@/components/generar-ia-campana'
 import { FechaInput, HoraInput } from '@/components/inputs'
 import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
@@ -33,10 +34,16 @@ function CampanaForm({ campana, onDone }: { campana?: Campana; onDone: () => voi
   const { state, pending, formProps } = useAccionFormulario(guardarCampana, { okTexto: campana ? 'Campaña actualizada' : 'Campaña creada' })
   const tipoConocido = !campana || TIPOS_CAMPANA.some((t) => t.value === campana.tipo)
   const [tipo, setTipo] = useState(campana ? (tipoConocido ? campana.tipo : 'otro_texto') : 'promocion')
+  // el mensaje y la plantilla elegida se pueden completar con "Generar con IA"
+  const [mensaje, setMensaje] = useState(campana?.mensaje ?? '')
+  const [plantillaId, setPlantillaId] = useState<string | null>(campana?.plantilla_id ?? null)
+  const [variables, setVariables] = useState<Record<string, string> | null>(campana?.variables ?? null)
   useEffect(() => { if (state?.ok) onDone() }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3" noValidate>
       {campana && <input type="hidden" name="id" value={campana.id} />}
+      <input type="hidden" name="plantilla_id" value={plantillaId ?? ''} />
+      <input type="hidden" name="variables" value={variables ? JSON.stringify(variables) : ''} />
       <div className="col-span-2"><label className="label" htmlFor="c_nombre">Nombre de la campaña *</label><input id="c_nombre" name="nombre" defaultValue={campana?.nombre ?? ''} placeholder="Ej. Promo de cumple" maxLength={120} className="input w-full" required /></div>
       <div>
         <label className="label" htmlFor="c_modo">Modo</label>
@@ -61,7 +68,8 @@ function CampanaForm({ campana, onDone }: { campana?: Campana; onDone: () => voi
       {tipo === 'otro_texto' && <div className="col-span-2"><label className="label" htmlFor="c_tipo_otro">Nombre del tipo</label><input id="c_tipo_otro" name="tipo_otro" defaultValue={!tipoConocido ? campana?.tipo.replace(/_/g, ' ') : ''} placeholder="Ej. reactivación" className="input w-full" /></div>}
       <div><label className="label" htmlFor="c_ini">Desde</label><FechaInput id="c_ini" name="fecha_inicio" defaultValue={campana?.fecha_inicio ?? ''} /></div>
       <div><label className="label" htmlFor="c_fin">Hasta</label><FechaInput id="c_fin" name="fecha_fin" defaultValue={campana?.fecha_fin ?? ''} /></div>
-      <div className="col-span-2"><label className="label" htmlFor="c_msg">Mensaje</label><textarea id="c_msg" name="mensaje" rows={3} defaultValue={campana?.mensaje ?? ''} placeholder="Texto o plantilla que se envía (opcional)" className="input w-full" /></div>
+      <div className="col-span-2"><label className="label" htmlFor="c_msg">Mensaje</label><textarea id="c_msg" name="mensaje" rows={4} value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Texto o plantilla que se envía (opcional)" className="input w-full" /></div>
+      <GenerarIACampana tipo={tipo === 'otro_texto' ? 'otra' : tipo} plantillaId={plantillaId} variables={variables} onUsar={(u) => { setMensaje(u.mensaje); setPlantillaId(u.plantilla_id); setVariables(u.variables) }} onQuitarPlantilla={() => { setPlantillaId(null); setVariables(null) }} />
       {state && !state.ok && <p role="alert" className="col-span-2 animate-fade-in text-sm text-rs-danger">{state.error}</p>}
       <div className="col-span-2 flex justify-end gap-2">
         <button type="button" onClick={onDone} className="btn">Cancelar</button>

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { CAMPANAS_EDITABLES, ESTADOS_CAMPANA, MODOS_CAMPANA } from '@/lib/campanas'
+import { sanearVariable } from '@/lib/campanas-ia'
+import { UUID } from '@/lib/validar'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -42,7 +44,21 @@ export async function guardarCampana(_prev: ActionResult | null, fd: FormData): 
   if (fin && !FECHA_RE.test(fin)) return fail('La fecha de fin no es válida')
   if (inicio && fin && fin < inicio) return fail('La fecha de fin no puede ser anterior al inicio')
 
-  const fila = { nombre, tipo, estado, modo, mensaje: text(fd, 'mensaje') || null, fecha_inicio: inicio || null, fecha_fin: fin || null }
+  // plantilla de Meta elegida (opcional) y el texto de sus variables de texto libre
+  const plantillaId = text(fd, 'plantilla_id')
+  let variables: Record<string, string> | null = null
+  if (plantillaId) {
+    if (!UUID.test(plantillaId)) return fail('Plantilla no válida')
+    const { data: pl } = await ctx.supabase.from('campanas_plantillas').select('id').eq('id', plantillaId).eq('negocio_id', ctx.negocio.id).maybeSingle()
+    if (!pl) return fail('La plantilla elegida no existe')
+    try {
+      const crudo = JSON.parse(text(fd, 'variables') || '{}') as Record<string, unknown>
+      const limpio = Object.entries(crudo).filter(([k, v]) => /^\d{1,2}$/.test(k) && typeof v === 'string').map(([k, v]) => [k, sanearVariable(v, 200)] as const).filter(([, v]) => v)
+      variables = limpio.length ? Object.fromEntries(limpio) : null
+    } catch { return fail('Las variables de la plantilla no son válidas') }
+  }
+
+  const fila = { nombre, tipo, estado, modo, mensaje: text(fd, 'mensaje') || null, fecha_inicio: inicio || null, fecha_fin: fin || null, plantilla_id: plantillaId || null, variables }
   const { error } = id
     ? await ctx.supabase.from('campanas').update(fila).eq('id', id).eq('negocio_id', ctx.negocio.id)
     : await ctx.supabase.from('campanas').insert({ ...fila, negocio_id: ctx.negocio.id })
