@@ -45,5 +45,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.jpeg|marcas/).*)'],
+  // Sin pasar por el login: archivos estáticos, la app instalable (manifest, service worker, íconos: el navegador los pide sin sesión)
+  // y /api/push/evento (lo llama la base; se autentica con un secreto propio).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.jpeg|marcas/|manifest.webmanifest|sw.js|icons/|api/push/evento).*)'],
 }

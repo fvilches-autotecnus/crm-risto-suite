@@ -1,9 +1,11 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import { LogOut } from 'lucide-react'
 import BarraProgreso from '@/components/barra-progreso'
 import BotToggle from '@/components/bot-toggle'
 import AvisosEnVivo from '@/components/avisos-en-vivo'
+import AvisosPush from '@/components/avisos-push'
 import { FeedbackProvider } from '@/components/feedback'
 import Nav from '@/components/nav'
 import NegocioSelect from '@/components/negocio-select'
@@ -14,6 +16,17 @@ import { cargarNotificaciones } from '@/lib/notificaciones'
 import { contarPausados } from '@/lib/pausados'
 import { AvisoComandera, ComanderaProvider } from '@/components/comandera-auto'
 
+/** App instalable (manifest, ícono de iPhone): por ahora solo para superadmin; el resto del panel no ofrece instalarla. */
+export async function generateMetadata(): Promise<Metadata> {
+  const ctx = await getContexto()
+  if (!ctx.esSuperadmin) return {}
+  return {
+    manifest: '/manifest.webmanifest',
+    appleWebApp: { capable: true, title: 'RistoSuite', statusBarStyle: 'black-translucent' },
+    icons: { icon: process.env.VERCEL_ENV === 'production' ? 'https://crm.ristosuite.app/logo.jpeg' : '/logo.jpeg', apple: '/icons/apple-touch-icon.png' },
+  }
+}
+
 /** La impresión automática de pedidos vive acá, en el layout, para que imprima desde cualquier pantalla del panel y no solo desde Pedidos. */
 function ConImpresion({ activa, desde, negocio, negocioId, puedeEscribir, children }: { activa: boolean; desde: string | null; negocio: string; negocioId: string; puedeEscribir: boolean; children: React.ReactNode }) {
   if (!activa) return <>{children}</>
@@ -22,10 +35,12 @@ function ConImpresion({ activa, desde, negocio, negocioId, puedeEscribir, childr
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContexto()
-  const [pausados, notificaciones, cfgImpresion] = await Promise.all([
+  const clavePush = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+  const [pausados, notificaciones, cfgImpresion, apagadosPush] = await Promise.all([
     ctx.puedeApagarBot ? contarPausados(ctx) : 0,   // chats que el bot dejó esperando a una persona
     cargarNotificaciones(ctx),
     ctx.modulosActivos.pedidos ? ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle() : Promise.resolve(null),   // interruptor de la impresión automática
+    ctx.esSuperadmin ? ctx.supabase.from('push_negocios_apagados').select('negocio_id').eq('usuario_id', ctx.userId) : Promise.resolve(null),   // negocios cuyos avisos push apagó este superadmin
   ])
   const desdeImpresion = (cfgImpresion?.data?.comandera_desde as string | null | undefined) ?? null
 
@@ -51,6 +66,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
+              {ctx.esSuperadmin && <AvisosPush negocios={ctx.negocios.map((n) => ({ id: n.id, nombre: n.nombre }))} apagadosInicial={(apagadosPush?.data ?? []).map((f) => f.negocio_id as string)} clavePublica={clavePush} listo={!!clavePush && !apagadosPush?.error} />}
               <CampanaNotificaciones key={ctx.negocio.id} inicial={notificaciones} />
               <span className="hidden text-sm font-semibold md:inline">{ctx.nombreUsuario}</span>
               <form action="/salir" method="post">

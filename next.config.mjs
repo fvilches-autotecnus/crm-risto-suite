@@ -34,6 +34,8 @@ const nextConfig = {
   async headers() {
     return [
       { source: '/:path*', headers: [...comunes, { key: 'Content-Security-Policy-Report-Only', value: csp() }] },
+      // el service worker nunca se guarda en caché: así una versión nueva se toma enseguida
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }, { key: 'Content-Type', value: 'application/javascript; charset=utf-8' }] },
       // el panel no se puede incrustar en otro sitio (anti-clickjacking). Los sitios públicos (reservas, carta, shows) sí pueden mostrarse
       // dentro de la web del local, y los dominios cortos (reservas./carta.) tampoco llevan esta regla porque solo aplica al dominio del CRM.
       { source: '/((?!reservar/|carta/|shows/).*)', has: [{ type: 'host', value: new URL(DOMINIO).hostname }], headers: [{ key: 'X-Frame-Options', value: 'DENY' }] },
