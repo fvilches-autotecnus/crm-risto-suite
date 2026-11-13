@@ -18,7 +18,13 @@ export type DatosCartaPublica = NonNullable<Awaited<ReturnType<typeof cargarCart
 export async function cargarCartaPublica(slug: string, modo: ModoCarta) {
   if (!/^[a-z0-9-]{2,49}$/.test(slug)) return null
   const admin = createAdminClient()
-  const { data: negocio } = await admin.from('negocios').select('id, nombre, modulos').eq('slug', slug).eq('activo', true).maybeSingle()
+  let { data: negocio } = await admin.from('negocios').select('id, nombre, modulos').eq('slug', slug).eq('activo', true).maybeSingle()
+  if (!negocio) {
+    // La dirección corta también vale sin los guiones del slug (carta.ristosuite.app/granvia para el negocio "gran-via"), si no hay duda de a cuál se refiere
+    const { data: todos } = await admin.from('negocios').select('id, nombre, modulos, slug').eq('activo', true)
+    const parecidos = (todos ?? []).filter((n) => String(n.slug).replace(/-/g, '') === slug)
+    if (parecidos.length === 1) negocio = { id: parecidos[0].id, nombre: parecidos[0].nombre, modulos: parecidos[0].modulos }
+  }
   if (!negocio || !resolverModulos(negocio.modulos as Record<string, unknown> | null).carta) return null
   const modulos = resolverModulos(negocio.modulos as Record<string, unknown> | null)
   const [{ data: cfg }, { data: cats }, { data: prods }, { data: web }, ped] = await Promise.all([
