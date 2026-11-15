@@ -38,15 +38,15 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
     consulta.order('creado_en', { ascending: tab === 'activos' }).limit(300),
     cargarConfigPedidos(supabase, negocio.id),
     supabase.from('pedidos').select('estado, total').eq('negocio_id', negocio.id).gte('creado_en', `${hoy}T00:00:00-03:00`).limit(2000),
-    supabase.from('carta_productos').select('id, nombre, precio, variantes, categoria:carta_categorias(nombre, visible, orden)').eq('negocio_id', negocio.id).eq('visible', true).eq('disponible', true).order('orden').limit(3000),
+    supabase.from('carta_productos').select('id, nombre, precio, variantes, solo_local, categoria:carta_categorias(nombre, visible, orden)').eq('negocio_id', negocio.id).eq('visible', true).eq('disponible', true).order('orden').limit(3000),
   ])
   const pedidos: Pedido[] = (data ?? []).map((p) => ({ ...p, subtotal: Number(p.subtotal), envio: Number(p.envio), total: Number(p.total), descuento: Number(p.descuento ?? 0), items: ((p as unknown as { items: Pedido['items'] }).items ?? []).map((i) => ({ ...i, precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal), categoria: categoriaDeItem(i) })) })) as unknown as Pedido[]
 
   const catalogo: OpcionCatalogo[] = []
-  for (const p of (prods ?? []) as unknown as { id: string; nombre: string; precio: number | null; variantes: { nombre: string; precio: number }[]; categoria: { nombre: string; visible: boolean; orden: number } | null }[]) {
+  for (const p of (prods ?? []) as unknown as { id: string; nombre: string; precio: number | null; solo_local: boolean; variantes: { nombre: string; precio: number }[]; categoria: { nombre: string; visible: boolean; orden: number } | null }[]) {
     if (!p.categoria?.visible) continue
-    if (Array.isArray(p.variantes) && p.variantes.length) for (const v of p.variantes) catalogo.push({ clave: `${p.id}|${v.nombre}`, producto_id: p.id, variante: v.nombre, label: `${p.nombre} · ${v.nombre}`, precio: Number(v.precio), categoria: p.categoria.nombre })
-    else if (p.precio !== null) catalogo.push({ clave: p.id, producto_id: p.id, variante: null, label: p.nombre, precio: Number(p.precio), categoria: p.categoria.nombre })
+    if (Array.isArray(p.variantes) && p.variantes.length) for (const v of p.variantes) catalogo.push({ clave: `${p.id}|${v.nombre}`, producto_id: p.id, variante: v.nombre, label: `${p.nombre} · ${v.nombre}`, precio: Number(v.precio), categoria: p.categoria.nombre, solo_local: p.solo_local })
+    else if (p.precio !== null) catalogo.push({ clave: p.id, producto_id: p.id, variante: null, label: p.nombre, precio: Number(p.precio), categoria: p.categoria.nombre, solo_local: p.solo_local })
   }
 
   // ¿ahora se reciben pedidos? Según los horarios y los días sin pedidos que se configuraron (cada forma de entrega puede tener los suyos)

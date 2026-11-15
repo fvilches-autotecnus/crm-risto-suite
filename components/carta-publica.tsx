@@ -33,6 +33,11 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   const abiertas: EntregaPedido[] = estados.filter((x) => x.abierto).map((x) => x.e)
   const fuera = estados.filter((x) => !x.abierto && (x.motivo === 'horario' || x.motivo === 'fecha'))
   const puedePedir = !!pedidos?.recibe && abiertas.length > 0
+  // Los productos "solo en el local" se ven siempre, pero únicamente se piden desde la mesa (enlace con ?mesa=…, como el QR de la mesa) y con la entrega "mesa" abierta
+  const [enMesa, setEnMesa] = useState(false)
+  useEffect(() => { setEnMesa(!!new URLSearchParams(window.location.search).get('mesa')) }, [])
+  const mesaPedible = enMesa && abiertas.some((e) => e.base === 'mesa')
+  const soloLocalIds = useMemo(() => new Set(categorias.flatMap((c) => c.productos.filter((p) => p.solo_local).map((p) => p.id))), [categorias])
   const [carrito, setCarrito] = useState<Record<string, Linea>>({})
   const [abierto, setAbierto] = useState(false)
   const [listo, setListo] = useState(false)
@@ -62,6 +67,10 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   useEffect(() => { const ul = navRef.current, chip = activa ? document.getElementById('chip-' + activa) : null; if (ul && chip) ul.scrollTo({ left: chip.offsetLeft - ul.clientWidth / 2 + chip.clientWidth / 2, behavior: 'smooth' }) }, [activa])
   useEffect(() => { const f = () => setVerArriba(window.scrollY > 700); f(); window.addEventListener('scroll', f, { passive: true }); return () => window.removeEventListener('scroll', f) }, [])
 
+  useEffect(() => {
+    if (!listo || mesaPedible) return
+    setCarrito((c) => (Object.values(c).some((l) => soloLocalIds.has(l.producto_id)) ? Object.fromEntries(Object.entries(c).filter(([, l]) => !soloLocalIds.has(l.producto_id))) : c))
+  }, [listo, mesaPedible, soloLocalIds])
   const lineas = Object.values(carrito)
   const unidades = lineas.reduce((s, l) => s + l.cantidad, 0)
   const subtotal = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0)
@@ -145,13 +154,14 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
             <ul className="mt-3 space-y-3">
               {c.productos.map((p) => {
                 const precio = config.mostrar_precios ? textoPrecio(p, config.moneda) : null
-                const pedible = puedePedir && p.disponible
+                const pedible = puedePedir && p.disponible && (!p.solo_local || mesaPedible)
                 return (
                   <li key={p.id} className={'card flex gap-3 p-3 ' + (p.disponible ? '' : 'opacity-55')}>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <h3 className="font-semibold">{p.nombre}</h3>
                         {!p.disponible && <span className="badge bg-rs-danger/15 text-rs-danger">Agotado</span>}
+                        {p.solo_local && <span className="badge bg-rs-lav/15 text-rs-lav" title="No se puede pedir para llevar ni con delivery">Solo en el local</span>}
                         {p.destacado && p.disponible && <span className="badge bg-rs-lime/15 text-rs-lime">Destacado</span>}
                       </div>
                       {p.descripcion && <p className="mt-1 whitespace-pre-line text-sm text-rs-muted">{p.descripcion}</p>}
@@ -200,7 +210,7 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
         </div>
       )}
       {abierto && pedidos && (
-        <Pedido slug={slug} nombre={nombre} pedidos={pedidos} cfg={cfgPed!} pub={pedidos.medios} abiertas={abiertas} moneda={config.moneda} lineas={lineas} subtotal={subtotal} exito={exito}
+        <Pedido soloLocal={soloLocalIds} slug={slug} nombre={nombre} pedidos={pedidos} cfg={cfgPed!} pub={pedidos.medios} abiertas={abiertas} moneda={config.moneda} lineas={lineas} subtotal={subtotal} exito={exito}
           onCerrar={() => setAbierto(false)} onVaciar={() => { setCarrito({}); setAbierto(false) }} onCambiar={(l, d) => setCarrito((c) => { const k = clave(l.producto_id, l.variante), n = Math.max(0, Math.min(99, (c[k]?.cantidad ?? 0) + d)); const { [k]: _q, ...resto } = c; void _q; return n === 0 ? resto : { ...resto, [k]: { ...l, cantidad: n } } })}
           onExito={(r) => { setExito(r); setCarrito({}) }} />
       )}
@@ -208,8 +218,8 @@ export default function CartaPublica({ slug, nombre, config, categorias, pedidos
   )
 }
 
-function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, subtotal, exito, onCerrar, onVaciar, onCambiar, onExito }: {
-  slug: string; nombre: string; pedidos: PedidosPublicos; cfg: ConfigPedidos; pub: PedidosPublicos['medios']; abiertas: EntregaPedido[]; moneda: string; lineas: Linea[]; subtotal: number; exito: Extract<ResultadoPedidoPublico, { ok: true }> | null
+function Pedido({ soloLocal, slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, subtotal, exito, onCerrar, onVaciar, onCambiar, onExito }: {
+  soloLocal: Set<string>; slug: string; nombre: string; pedidos: PedidosPublicos; cfg: ConfigPedidos; pub: PedidosPublicos['medios']; abiertas: EntregaPedido[]; moneda: string; lineas: Linea[]; subtotal: number; exito: Extract<ResultadoPedidoPublico, { ok: true }> | null
   onCerrar: () => void; onVaciar: () => void; onCambiar: (l: Linea, d: number) => void; onExito: (r: Extract<ResultadoPedidoPublico, { ok: true }>) => void
 }) {
   const sinTipo = abiertas.length === 0
@@ -227,6 +237,7 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
   const ent = abiertas.find((e) => e.clave === tipo) ?? abiertas[0]
   const base = ent?.base ?? 'retiro'
   const envio = ent ? costoEnvioFinal(ent, subtotal) : 0
+  const soloEnLocal = base === 'mesa' ? [] : lineas.filter((l) => soloLocal.has(l.producto_id))   // productos que no se pueden pedir con esta entrega
   const medios = ent ? mediosDisponibles(cfg, ent) : []
   const medioElegido = pub.find((m) => m.clave === form.medio_pago)
   // si cambia la forma de entrega (o se cierra una por horario), el tipo y el medio de pago elegidos siguen siendo válidos
@@ -376,8 +387,9 @@ function Pedido({ slug, nombre, pedidos, cfg, pub, abiertas, moneda, lineas, sub
                 <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="tabular-nums text-rs-lime">{dinero(totalFinal, moneda)}</span></div>
               </div>
               {faltaMinimo && <p role="status" className="text-sm text-rs-warn">El pedido mínimo es {dinero(pedidos.pedido_minimo, moneda)}: te faltan {dinero(pedidos.pedido_minimo - subtotal, moneda)}.</p>}
+              {soloEnLocal.length > 0 && <p role="alert" className="text-sm text-rs-warn">{soloEnLocal.map((l) => l.nombre).join(', ')} {soloEnLocal.length === 1 ? 'es' : 'son'} solo para consumir en el local: sacalo{soloEnLocal.length === 1 ? '' : 's'} del pedido para continuar.</p>}
               {pedidos.mensaje && <p className="whitespace-pre-line text-xs text-rs-muted">{pedidos.mensaje}</p>}
-              <button disabled={pend || lineas.length === 0 || faltaMinimo} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : confirmaWA ? `Continuar y confirmar por WhatsApp · ${dinero(totalFinal, moneda)}` : `Hacer el pedido · ${dinero(totalFinal, moneda)}`}</button>
+              <button disabled={pend || lineas.length === 0 || faltaMinimo || soloEnLocal.length > 0} className="btn btn-primary h-12 w-full text-base">{pend ? 'Enviando…' : confirmaWA ? `Continuar y confirmar por WhatsApp · ${dinero(totalFinal, moneda)}` : `Hacer el pedido · ${dinero(totalFinal, moneda)}`}</button>
             </form>
           )}
         </div>

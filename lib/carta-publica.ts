@@ -30,7 +30,7 @@ export async function cargarCartaPublica(slug: string, modo: ModoCarta) {
   const [{ data: cfg }, { data: cats }, { data: prods }, { data: web }, ped] = await Promise.all([
     admin.from('carta_config').select('publica, titulo, mensaje, mostrar_precios, moneda, lectura, etiquetas').eq('negocio_id', negocio.id).maybeSingle(),
     admin.from('carta_categorias').select('id, nombre, descripcion, orden, visible').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en'),
-    admin.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, orden').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en').limit(5000),
+    admin.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, solo_local, orden').eq('negocio_id', negocio.id).eq('visible', true).order('orden').order('creado_en').limit(5000),
     admin.from('reservas_web_config').select('marca').eq('negocio_id', negocio.id).maybeSingle(),
     modo === 'pedir' && modulos.pedidos ? cargarConfigPedidos(admin, negocio.id) : Promise.resolve(null),
   ])

@@ -2,11 +2,11 @@
 
 import { CHIP_CHECK_CHICO } from '@/lib/chips'
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { ArrowDown, ArrowUp, BookOpen, Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, QrCode, Settings, Star, Trash2, X, ExternalLink, Download } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, QrCode, Settings, Star, Trash2, Utensils, X, ExternalLink, Download } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
   alternarCategoria, alternarProducto, borrarEtiquetaCarta, crearEtiquetaCarta, descartarImagen, eliminarCategoria, eliminarProducto, guardarAjustesCarta, guardarCategoria, guardarProducto,
-  importarCarta, moverCategoria, moverProducto, subirImagen,
+  cambiarProductos, importarCarta, moverCategoria, moverProducto, subirImagen, type AccionMasiva,
 } from '@/app/(panel)/carta-actions'
 import { useConfirm, useToast } from '@/components/feedback'
 import Modal from '@/components/modal'
@@ -38,8 +38,11 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
   const [q, setQ] = useState('')
   const [modal, setModal] = useState<Dialogo | null>(null)
   const cerrar = () => setModal(null)
+  const [marcados, setMarcados] = useState<Set<string>>(() => new Set())   // selección múltiple de productos
   const catSel = categorias.find((c) => c.id === sel) ?? null
   useEffect(() => { if (sel !== 'todas' && !categorias.some((c) => c.id === sel)) setSel('todas') }, [categorias, sel])
+  // si un producto desaparece (borrado, otra pestaña) deja de estar elegido
+  useEffect(() => { setMarcados((m) => { const ids = new Set(productos.map((p) => p.id)); const n = new Set([...m].filter((id) => ids.has(id))); return n.size === m.size ? m : n }) }, [productos])
 
   const cuenta = useMemo(() => { const m = new Map<string, number>(); for (const p of productos) m.set(p.categoria_id, (m.get(p.categoria_id) ?? 0) + 1); return m }, [productos])
   const nombreCat = useMemo(() => new Map(categorias.map((c) => [c.id, c.nombre])), [categorias])
@@ -62,7 +65,25 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
     ejecutar(() => eliminarProducto(p.id), 'Producto eliminado')
   }
 
-  const agotados = productos.filter((p) => !p.disponible).length, ocultos = productos.filter((p) => !p.visible).length
+  const idsLista = lista.map((p) => p.id)
+  const todosMarcados = idsLista.length > 0 && idsLista.every((id) => marcados.has(id))
+  const alternarMarca = (id: string) => setMarcados((m) => { const n = new Set(m); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const marcarTodos = () => setMarcados((m) => { const n = new Set(m); if (todosMarcados) idsLista.forEach((id) => n.delete(id)); else idsLista.forEach((id) => n.add(id)); return n })
+  const TEXTO_MASIVO: Record<AccionMasiva, string> = { ocultar: 'ocultados', mostrar: 'visibles de nuevo', agotar: 'marcados como agotados', disponible: 'disponibles de nuevo', solo_local: 'marcados como solo en el local', pedible: 'pedibles de nuevo' }
+  const masivo = async (accion: AccionMasiva) => {
+    const ids = [...marcados]
+    if (!ids.length) return
+    // ocultar o dejar "solo en el local" cambia lo que ven los clientes: se pide confirmación
+    if ((accion === 'ocultar' || accion === 'solo_local') && !(await confirmar({ titulo: `¿${accion === 'ocultar' ? 'Ocultar' : 'Marcar como solo en el local'} ${ids.length} producto${ids.length === 1 ? '' : 's'}?`, texto: accion === 'ocultar' ? 'Dejan de verse en la carta pública y en la de pedidos. Se pueden volver a mostrar cuando quieras.' : 'Se siguen viendo en la carta, pero no se pueden pedir con retiro ni delivery. Se revierte cuando quieras.', confirmar: accion === 'ocultar' ? 'Ocultar' : 'Marcar' }))) return
+    start(async () => {
+      const r = await cambiarProductos(ids, accion)
+      if (!r.ok) { toast({ tipo: 'error', texto: r.error ?? 'Ocurrió un error' }); return }
+      toast({ texto: `${r.cantidad ?? ids.length} producto${(r.cantidad ?? ids.length) === 1 ? '' : 's'} ${TEXTO_MASIVO[accion]}` })
+      setMarcados(new Set())
+    })
+  }
+
+  const agotados = productos.filter((p) => !p.disponible).length, ocultos = productos.filter((p) => !p.visible).length, soloLocal = productos.filter((p) => p.solo_local).length
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
   const enlace = `${origen}/carta/${slug}`, enlaceLectura = `${origen}/carta/${slug}/ver`   // la de pedidos y la de solo lectura (mismo catálogo, siempre sincronizadas)
   const copiar = async (url: string = enlace) => { try { await navigator.clipboard.writeText(url); toast({ texto: url === enlaceLectura ? 'Enlace de la carta de solo lectura copiado' : 'Enlace de la carta copiado' }) } catch { toast({ tipo: 'error', texto: 'No se pudo copiar: ' + url }) } }
@@ -86,8 +107,8 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
 
       {!config.publica && <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">La carta pública está desactivada: quien abra el enlace verá “carta no disponible”. Se activa en Ajustes.</p>}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[['Productos', productos.length, 'text-rs-text'], ['Categorías', categorias.length, 'text-rs-text'], ['Agotados', agotados, agotados ? 'text-rs-danger' : 'text-rs-muted'], ['Ocultos', ocultos, ocultos ? 'text-rs-warn' : 'text-rs-muted']].map(([l, n, c]) => (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {[['Productos', productos.length, 'text-rs-text'], ['Categorías', categorias.length, 'text-rs-text'], ['Agotados', agotados, agotados ? 'text-rs-danger' : 'text-rs-muted'], ['Ocultos', ocultos, ocultos ? 'text-rs-warn' : 'text-rs-muted'], ['Solo en el local', soloLocal, soloLocal ? 'text-rs-lav' : 'text-rs-muted']].map(([l, n, c]) => (
           <div key={l as string} className="card px-4 py-3"><div className={'text-2xl font-bold tabular-nums ' + c}>{n}</div><div className="card-title mt-1">{l}</div></div>
         ))}
       </div>
@@ -130,6 +151,23 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
             </>}
           </div>
 
+          {puedeEscribir && lista.length > 0 && (
+            <div className={'card flex flex-wrap items-center gap-2 px-3 py-2 text-sm ' + (marcados.size ? 'border-rs-lime/40' : '')}>
+              <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" checked={todosMarcados} onChange={marcarTodos} aria-label="Seleccionar todos los productos de esta vista" className="h-4 w-4 accent-[#c8e62b]" />{marcados.size ? <b>{marcados.size} seleccionado{marcados.size === 1 ? '' : 's'}</b> : <span className="text-rs-muted">Seleccionar {sel === 'todas' && !q.trim() ? 'todos' : `los ${lista.length} de esta vista`}</span>}</label>
+              {marcados.size > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" disabled={pend} onClick={() => masivo('ocultar')} className="btn btn-sm"><EyeOff size={13} />Ocultar</button>
+                  <button type="button" disabled={pend} onClick={() => masivo('mostrar')} className="btn btn-sm"><Eye size={13} />Mostrar</button>
+                  <button type="button" disabled={pend} onClick={() => masivo('agotar')} className="btn btn-sm">Agotar</button>
+                  <button type="button" disabled={pend} onClick={() => masivo('disponible')} className="btn btn-sm">Disponible</button>
+                  <button type="button" disabled={pend} onClick={() => masivo('solo_local')} className="btn btn-sm"><Utensils size={13} />Solo en el local</button>
+                  <button type="button" disabled={pend} onClick={() => masivo('pedible')} className="btn btn-sm">Pedible</button>
+                  <button type="button" onClick={() => setMarcados(new Set())} className="btn btn-sm text-rs-muted"><X size={13} />Limpiar</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {lista.length === 0 ? (
             <div className="card"><EstadoVacio icono={<BookOpen size={26} />} titulo={productos.length === 0 ? 'La carta está vacía' : 'No hay productos para mostrar'} texto={productos.length === 0 ? 'Creá categorías y cargá productos uno por uno, o pegá la carta entera con “Importar”.' : 'Probá con otra búsqueda o categoría.'} /></div>
           ) : (
@@ -137,7 +175,8 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
               {lista.map((p, i) => {
                 const precio = textoPrecio(p, config.moneda), img = urlImagen(p.imagen_path)
                 return (
-                  <li key={p.id} className={'card flex flex-wrap items-start gap-3 p-3 sm:flex-nowrap ' + (p.visible ? '' : 'opacity-60')}>
+                  <li key={p.id} className={'card flex flex-wrap items-start gap-3 p-3 sm:flex-nowrap ' + (p.visible ? '' : 'opacity-60') + (marcados.has(p.id) ? ' border-rs-lime/50' : '')}>
+                    {puedeEscribir && <input type="checkbox" checked={marcados.has(p.id)} onChange={() => alternarMarca(p.id)} aria-label={`Seleccionar ${p.nombre}`} className="mt-1 h-4 w-4 shrink-0 accent-[#c8e62b]" />}
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-rs-raised">
                       {img ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={img} alt="" loading="lazy" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-rs-muted"><ImageIcon size={20} /></div>}
                     </div>
@@ -147,6 +186,7 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
                         {p.destacado && <Star size={13} className="fill-rs-lime text-rs-lime" aria-label="Destacado" />}
                         {sel === 'todas' && <span className="text-xs text-rs-muted">· {nombreCat.get(p.categoria_id)}</span>}
                         {!p.visible && <span className="badge bg-rs-raised text-rs-muted">Oculto</span>}
+                        {p.solo_local && <span className="badge bg-rs-lav/15 text-rs-lav">Solo en el local</span>}
                       </div>
                       {p.descripcion && <p className="mt-0.5 line-clamp-2 text-sm text-rs-muted">{p.descripcion}</p>}
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -164,6 +204,7 @@ export default function CartaAdmin({ categorias, productos, config, slug, negoci
                             <button type="button" disabled={pend || i === lista.length - 1} onClick={() => ejecutar(() => moverProducto(p.id, 'abajo'))} aria-label="Bajar producto" className="btn btn-sm w-7 px-0"><ArrowDown size={13} /></button>
                           </>}
                           <button type="button" disabled={pend} onClick={() => ejecutar(() => alternarProducto(p.id, 'destacado'))} aria-label={p.destacado ? 'Quitar destacado' : 'Destacar'} title={p.destacado ? 'Quitar destacado' : 'Destacar'} className="btn btn-sm w-7 px-0"><Star size={13} className={p.destacado ? 'fill-rs-lime text-rs-lime' : ''} /></button>
+                          <button type="button" disabled={pend} onClick={() => ejecutar(() => alternarProducto(p.id, 'solo_local'))} aria-label={p.solo_local ? 'Permitir pedirlo' : 'Solo consumo en el local'} aria-pressed={p.solo_local} title={p.solo_local ? 'Es solo para consumir en el local: tocá para permitir pedirlo' : 'Marcar como solo para consumir en el local (no se puede pedir con retiro ni delivery)'} className="btn btn-sm w-7 px-0"><Utensils size={13} className={p.solo_local ? 'text-rs-lav' : ''} /></button>
                           <button type="button" disabled={pend} onClick={() => ejecutar(() => alternarProducto(p.id, 'visible'))} aria-label={p.visible ? 'Ocultar producto' : 'Mostrar producto'} title={p.visible ? 'Ocultar de la carta pública' : 'Mostrar en la carta pública'} className="btn btn-sm w-7 px-0">{p.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
                           <button type="button" onClick={() => setModal({ t: 'producto', prod: p })} aria-label="Editar producto" className="btn btn-sm w-7 px-0"><Pencil size={13} /></button>
                           {puedeEliminar && <button type="button" disabled={pend} onClick={() => borrarProducto(p)} aria-label="Eliminar producto" className="btn btn-sm btn-danger w-7 px-0"><Trash2 size={13} /></button>}
@@ -265,6 +306,7 @@ function ModalProducto({ prod, categorias, categoriaInicial, moneda, propias, on
           <label className="flex items-center gap-2"><input type="checkbox" name="disponible" defaultChecked={prod?.disponible ?? true} className="h-4 w-4 accent-[#c8e62b]" />Disponible <span className="text-xs text-rs-muted">(si no, se muestra “Agotado”)</span></label>
           <label className="flex items-center gap-2"><input type="checkbox" name="visible" defaultChecked={prod?.visible ?? true} className="h-4 w-4 accent-[#c8e62b]" />Visible en la carta</label>
           <label className="flex items-center gap-2"><input type="checkbox" name="destacado" defaultChecked={prod?.destacado ?? false} className="h-4 w-4 accent-[#c8e62b]" />Destacado</label>
+          <label className="flex items-center gap-2"><input type="checkbox" name="solo_local" defaultChecked={prod?.solo_local ?? false} className="h-4 w-4 accent-[#c8e62b]" />Solo consumo en el local <span className="text-xs text-rs-muted">(se ve, pero no se puede pedir con retiro ni delivery)</span></label>
         </div>
         {state && !state.ok && <p role="alert" className="col-span-2 text-sm text-rs-danger">{state.error}</p>}
         <div className="col-span-2"><Acciones pending={pending || campo.subiendo} texto={prod ? 'Guardar' : 'Crear producto'} onCancel={cerrar} /></div>

@@ -123,7 +123,7 @@ export async function guardarProducto(_prev: ActionResult | null, fd: FormData):
   if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id)) return fail('La foto no es válida: volvé a subirla')
   const datos = {
     categoria_id: categoria, nombre, descripcion: descripcion || null, precio, variantes, etiquetas, imagen_path: imagen,
-    disponible: fd.get('disponible') === 'on', visible: fd.get('visible') === 'on', destacado: fd.get('destacado') === 'on',
+    disponible: fd.get('disponible') === 'on', visible: fd.get('visible') === 'on', destacado: fd.get('destacado') === 'on', solo_local: fd.get('solo_local') === 'on',
   }
 
   if (id) {
@@ -168,10 +168,10 @@ export async function moverProducto(id: string, dir: 'arriba' | 'abajo'): Promis
   return { ok: true }
 }
 
-/** Cambia un interruptor del producto: disponible (agotado), visible (oculto) o destacado. */
-export async function alternarProducto(id: string, campo: 'disponible' | 'visible' | 'destacado'): Promise<ActionResult> {
+/** Cambia un interruptor del producto: disponible (agotado), visible (oculto), destacado o solo_local (solo consumo en el local). */
+export async function alternarProducto(id: string, campo: 'disponible' | 'visible' | 'destacado' | 'solo_local'): Promise<ActionResult> {
   const { ctx, error } = await permiso(); if (error) return fail(error)
-  if (!UUID.test(id) || !['disponible', 'visible', 'destacado'].includes(campo)) return fail('Producto no válido')
+  if (!UUID.test(id) || !['disponible', 'visible', 'destacado', 'solo_local'].includes(campo)) return fail('Producto no válido')
   const { data } = await ctx.supabase.from('carta_productos').select(campo).eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()
   if (!data) return fail('Producto no encontrado')
   const { error: e } = await ctx.supabase.from('carta_productos').update({ [campo]: !(data as unknown as Record<string, boolean>)[campo] }).eq('id', id).eq('negocio_id', ctx.negocio.id)
@@ -304,4 +304,30 @@ export async function importarCarta(_prev: ResultadoImportacion | null, fd: Form
   }
   refrescar(ctx.negocio.slug)
   return { ok: true, cantidad: filas.length, omitidas, categorias: categoriasNuevas }
+}
+
+/** Qué cambia cada acción masiva sobre los productos elegidos. */
+const ACCIONES_MASIVAS = {
+  ocultar: { visible: false }, mostrar: { visible: true },
+  agotar: { disponible: false }, disponible: { disponible: true },
+  solo_local: { solo_local: true }, pedible: { solo_local: false },
+} as const
+export type AccionMasiva = keyof typeof ACCIONES_MASIVAS
+const MAX_MASIVO = 1000
+
+/**
+ * Cambia de una vez varios productos del negocio (ocultar / mostrar / agotar / volver a disponible / solo en el local / pedible).
+ * El catálogo es uno solo: el cambio vale para la carta pública y para la de pedidos. Devuelve cuántos productos cambió.
+ */
+export async function cambiarProductos(ids: string[], accion: AccionMasiva): Promise<ActionResult & { cantidad?: number }> {
+  const { ctx, error } = await permiso(); if (error) return fail(error)
+  const patch = ACCIONES_MASIVAS[accion]
+  if (!patch) return fail('Acción no válida')
+  const lista = [...new Set((Array.isArray(ids) ? ids : []).map(String))]
+  if (!lista.length) return fail('No elegiste ningún producto')
+  if (lista.length > MAX_MASIVO || lista.some((i) => !UUID.test(i))) return fail('La selección no es válida')
+  const { data, error: e } = await ctx.supabase.from('carta_productos').update(patch).in('id', lista).eq('negocio_id', ctx.negocio.id).select('id')
+  if (e) return fail('No se pudieron cambiar los productos')
+  refrescar(ctx.negocio.slug)
+  return { ok: true, cantidad: data?.length ?? 0 }
 }

@@ -184,6 +184,7 @@ export const ERRORES_PEDIDO: Record<string, string> = {
   demasiados_items: 'El pedido tiene demasiados productos.',
   cantidad_invalida: 'Revisá las cantidades.',
   producto_no_disponible: 'Algún producto ya no está disponible. Revisá tu pedido.',
+  producto_solo_local: 'Algún producto es solo para consumir en el local. Sacalo del pedido.',
   falta_variante: 'Elegí el tamaño u opción de cada producto.',
   producto_sin_precio: 'Algún producto no tiene precio cargado. Consultanos por ese producto.',
   demasiados_pedidos: 'Hiciste varios pedidos seguidos. Esperá unos minutos o escribinos.',

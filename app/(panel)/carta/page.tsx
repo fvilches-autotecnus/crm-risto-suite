@@ -9,7 +9,7 @@ export default async function CartaPage() {
   const { supabase, negocio } = ctx
   const [{ data: cats }, { data: prods }, { data: cfg }] = await Promise.all([
     supabase.from('carta_categorias').select('id, nombre, descripcion, orden, visible').eq('negocio_id', negocio.id).order('orden').order('creado_en'),
-    supabase.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, orden').eq('negocio_id', negocio.id).order('orden').order('creado_en').limit(5000),
+    supabase.from('carta_productos').select('id, categoria_id, nombre, descripcion, precio, variantes, etiquetas, imagen_path, disponible, visible, destacado, solo_local, orden').eq('negocio_id', negocio.id).order('orden').order('creado_en').limit(5000),
     supabase.from('carta_config').select('publica, titulo, mensaje, mostrar_precios, moneda, lectura, etiquetas').eq('negocio_id', negocio.id).maybeSingle(),
   ])
   const productos: ProductoCarta[] = (prods ?? []).map((p) => ({ ...p, precio: p.precio === null ? null : Number(p.precio), variantes: leerVariantes(p.variantes), etiquetas: p.etiquetas ?? [] }))

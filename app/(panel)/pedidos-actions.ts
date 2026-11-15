@@ -198,7 +198,7 @@ export async function crearPedidoManual(_prev: ActionResult | null, fd: FormData
   } })
   if (e) return fail('No se pudo crear el pedido')
   const r = data as { ok: boolean; error?: string; minimo?: number; detalle?: string }
-  if (!r.ok) return fail(mensajeError(r.error, r) + (r.error === 'producto_no_disponible' || r.error === 'falta_variante' || r.error === 'producto_sin_precio' ? (r.detalle ? ` (${r.detalle})` : '') : ''))
+  if (!r.ok) return fail(mensajeError(r.error, r) + (r.error === 'producto_no_disponible' || r.error === 'producto_solo_local' || r.error === 'falta_variante' || r.error === 'producto_sin_precio' ? (r.detalle ? ` (${r.detalle})` : '') : ''))
   refrescar(ctx.negocio.slug)
   return { ok: true }
 }

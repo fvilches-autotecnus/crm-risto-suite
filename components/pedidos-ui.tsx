@@ -21,7 +21,7 @@ import {
   type ConfigPedidos, type Pedido,
 } from '@/lib/pedidos'
 
-export interface OpcionCatalogo { clave: string; producto_id: string; variante: string | null; label: string; precio: number; categoria: string }
+export interface OpcionCatalogo { clave: string; producto_id: string; variante: string | null; label: string; precio: number; categoria: string; /** Solo para consumir en el local: no se ofrece con retiro ni delivery. */ solo_local?: boolean }
 
 const hace = (iso: string) => {
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -193,11 +193,13 @@ function FormManual({ catalogo, config, onDone }: { catalogo: OpcionCatalogo[]; 
   const ent = entregas.find((e) => e.clave === tipo) ?? entregas[0]
   const base = ent?.base ?? 'retiro'
   const [lineas, setLineas] = useState<LineaManual[]>([{ clave: '', cantidad: 1 }])
-  const porClave = useMemo(() => new Map(catalogo.map((o) => [o.clave, o])), [catalogo])
+  // lo "solo en el local" se ofrece únicamente con la entrega de mesa (la base también lo rechaza con retiro y delivery)
+  const ofrecidos = useMemo(() => catalogo.filter((o) => base === 'mesa' || !o.solo_local), [catalogo, base])
+  const porClave = useMemo(() => new Map(ofrecidos.map((o) => [o.clave, o])), [ofrecidos])
   const items = lineas.filter((l) => porClave.has(l.clave)).map((l) => ({ producto_id: porClave.get(l.clave)!.producto_id, variante: porClave.get(l.clave)!.variante, cantidad: l.cantidad }))
   const subtotal = lineas.reduce((s, l) => s + (porClave.get(l.clave)?.precio ?? 0) * l.cantidad, 0)
   const envio = ent ? costoEnvioFinal(ent, subtotal) : 0
-  const grupos = useMemo(() => { const m = new Map<string, OpcionCatalogo[]>(); for (const o of catalogo) m.set(o.categoria, [...(m.get(o.categoria) ?? []), o]); return [...m] }, [catalogo])
+  const grupos = useMemo(() => { const m = new Map<string, OpcionCatalogo[]>(); for (const o of ofrecidos) m.set(o.categoria, [...(m.get(o.categoria) ?? []), o]); return [...m] }, [ofrecidos])
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       <input type="hidden" name="items" value={JSON.stringify(items)} />

@@ -10,6 +10,8 @@ export interface ProductoCarta {
   id: string; categoria_id: string; nombre: string; descripcion: string | null; precio: number | null
   variantes: Variante[]; etiquetas: string[]; imagen_path: string | null
   disponible: boolean; visible: boolean; destacado: boolean; orden: number
+  /** Solo para consumir en el local: se ve en la carta pero no se puede pedir con retiro ni delivery (sí desde la mesa). */
+  solo_local: boolean
 }
 
 export interface ConfigCarta {
