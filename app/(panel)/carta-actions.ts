@@ -120,7 +120,9 @@ export async function guardarProducto(_prev: ActionResult | null, fd: FormData):
   const validas = [...CLAVES_ETIQUETAS, ...(await etiquetasPropias(ctx)).map((e) => e.clave)]
   const etiquetas = [...new Set(fd.getAll('etiquetas').map(String))].filter((e) => validas.includes(e))
   const imagen = text(fd, 'imagen_path') || null
-  if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id)) return fail('La foto no es válida: volvé a subirla')
+  // Una foto que ya tenía el producto como dirección completa (viene de otro sistema) se conserva tal cual; cualquier otra tiene que ser una subida a este negocio.
+  const fotoPrevia = id && UUID.test(id) ? ((await ctx.supabase.from('carta_productos').select('imagen_path').eq('id', id).eq('negocio_id', ctx.negocio.id).maybeSingle()).data?.imagen_path ?? null) : null
+  if (imagen && !imagenDelNegocio(imagen, ctx.negocio.id) && !(/^https:\/\//i.test(imagen) && imagen === fotoPrevia)) return fail('La foto no es válida: volvé a subirla')
   const datos = {
     categoria_id: categoria, nombre, descripcion: descripcion || null, precio, variantes, etiquetas, imagen_path: imagen,
     disponible: fd.get('disponible') === 'on', visible: fd.get('visible') === 'on', destacado: fd.get('destacado') === 'on', solo_local: fd.get('solo_local') === 'on',
