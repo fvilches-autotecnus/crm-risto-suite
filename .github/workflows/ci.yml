@@ -1,0 +1,28 @@
+name: Verificación
+
+# Se corre en cada push a main/staging y en cada pull request: tipos + compilación de producción.
+# Las claves son de mentira: alcanza para compilar; nada de esto toca datos reales.
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (TypeScript)
+        run: npx tsc --noEmit
+      - name: Compilación de producción
+        run: npm run build
