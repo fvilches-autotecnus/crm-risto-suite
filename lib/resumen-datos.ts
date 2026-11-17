@@ -22,7 +22,7 @@ export interface DatosResumen {
     clientesNuevos: Comparado
     reservas: (Comparado & { personas: number }) | null
     pedidos: (Comparado & { ventas: number; ventasAntes: number }) | null
-    resenas5: (Comparado & { quejasPrivadas: number }) | null
+    resenas5: (Comparado & { quejasPrivadas: number; validadas: boolean }) | null
   }
   riesgo: { habituales: number; conPedidos: number; potencial: number | null; ticketPromedio: number | null; lista: ClienteResumen[] }
   mejores: ClienteResumen[]
@@ -62,7 +62,7 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
       ? (async () => ((await supabase.from('pedidos').select('estado, total, creado_en').eq('negocio_id', negocio.id).in('origen', ['bot', 'web']).gte('creado_en', inicio(antDesde)).lte('creado_en', fin(hasta)).limit(MAX_FILAS)).data ?? []) as Fila[])()
       : Promise.resolve([] as Fila[]),
     mod.resenas
-      ? (async () => { let q = supabase.from('resenas').select('puntaje, origen, fecha').eq('negocio_id', negocio.id).gte('fecha', antDesde).lte('fecha', hasta); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
+      ? (async () => { let q = supabase.from('resenas').select('puntaje, origen, fecha, telefono, datos_origen').eq('negocio_id', negocio.id).gte('fecha', antDesde).lte('fecha', hasta); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
       : Promise.resolve([] as Fila[]),
     // historial de visitas para "habituales" y "mejores clientes"
     mod.reservas
@@ -93,12 +93,19 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
     return { valor: c.a, antes: c.p, ventas: t.a, ventasAntes: t.p }
   })() : null
 
+  // Reseñas de 5★: cuentan las que GENERARON VOUCHER (así las validó el sistema; misma regla que "Emitido" en Reseñas: el teléfono tiene un voucher no anulado o la reseña ya lo marcó).
+  // Sin el módulo de vouchers no hay forma de validarlas: ahí se cuentan las de 5★ con origen Google.
+  const telConVoucher = mod.resenas && mod.vouchers
+    ? new Set(((await supabase.from('vouchers').select('telefono').eq('negocio_id', negocio.id).neq('estado', 'anulado').not('telefono', 'is', null).limit(20000)).data ?? []).map((v) => String(v.telefono)))
+    : null
   const resenas5 = mod.resenas ? (() => {
-    const g5 = resenasRows.filter((r) => r.origen === 'google' && Number(r.puntaje) === 5)
+    const g5 = resenasRows.filter((r) => Number(r.puntaje) === 5 && (telConVoucher
+      ? (!!r.telefono && telConVoucher.has(String(r.telefono))) || !!(r.datos_origen as { voucher_enviado?: unknown } | null)?.voucher_enviado
+      : r.origen === 'google'))
     const q = resenasRows.filter((r) => r.origen === 'encuesta' && Number(r.puntaje) <= 3)
     const a = porPeriodo(g5, (f) => String(f.fecha), () => 1, 0, (x, y) => x + y)
     const b = porPeriodo(q, (f) => String(f.fecha), () => 1, 0, (x, y) => x + y)
-    return { valor: a.a, antes: a.p, quejasPrivadas: b.a }
+    return { valor: a.a, antes: a.p, quejasPrivadas: b.a, validadas: !!telConVoucher }
   })() : null
 
   // ───────── Historial por cliente: visitas (días distintos), última visita, gasto (solo pedidos) y ticket propio

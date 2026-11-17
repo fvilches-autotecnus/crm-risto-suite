@@ -88,7 +88,7 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
           <Logro valor={num(logros.clientesNuevos.valor)} etiqueta="Clientes nuevos" cambio={logros.clientesNuevos} ayuda="Fichas de clientes creadas en el período (personas que escribieron o reservaron por primera vez)." />
           {logros.reservas && <Logro valor={num(logros.reservas.valor)} etiqueta="Reservas tomadas por el asistente" nota={`${num(logros.reservas.personas)} comensales`} cambio={logros.reservas} ayuda="Reservas que entraron solas (bot o sitio web), sin carga manual y sin contar las canceladas." />}
           {logros.pedidos && <Logro valor={dinero(logros.pedidos.ventas)} etiqueta="Ventas de pedidos del asistente" nota={`${num(logros.pedidos.valor)} pedidos`} cambio={{ valor: logros.pedidos.ventas, antes: logros.pedidos.ventasAntes }} ayuda="Suma del total de los pedidos que entraron por el bot o la carta web, sin contar los cancelados." />}
-          {logros.resenas5 && <Logro valor={num(logros.resenas5.valor)} etiqueta="Reseñas de 5★ en Google" nota={`${num(logros.resenas5.quejasPrivadas)} quejas recibidas en privado`} cambio={logros.resenas5} ayuda="Reseñas de 5 estrellas con origen Google. Las quejas privadas son encuestas internas con 3★ o menos: llegaron al local, no a Google." />}
+          {logros.resenas5 && <Logro valor={num(logros.resenas5.valor)} etiqueta={logros.resenas5.validadas ? 'Reseñas de 5★ validadas' : 'Reseñas de 5★ en Google'} nota={`${num(logros.resenas5.quejasPrivadas)} quejas recibidas en privado`} cambio={logros.resenas5} ayuda={(logros.resenas5.validadas ? 'Reseñas de 5 estrellas que generaron voucher: el sistema las validó. ' : 'Reseñas de 5 estrellas con origen Google (sin validar: este negocio no usa vouchers). ') + 'Las quejas privadas son encuestas internas con 3★ o menos: llegaron al local, no a Google.'} />}
         </div>
         {!mod.pedidos && <p className="text-xs text-rs-muted">Los montos en pesos solo se muestran para pedidos: el sistema no tiene un ticket de las reservas.</p>}
       </section>
@@ -121,7 +121,7 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
             <ul className="mt-3 divide-y divide-rs-warn/20 rounded-md bg-rs-bg/40 px-3">
               {d.riesgo.lista.map((c) => <FilaCliente key={c.id} c={c} texto={`${c.visitas} visitas · última ${fechaCorta(c.ultima)}${c.gasto > 0 ? ` · gastó ${dinero(c.gasto)}` : ''}`} boton={`Hola${primerNombre(c.nombre) ? ' ' + primerNombre(c.nombre) : ''}! Hace tiempo que no te vemos por ${negocio.nombre} y te extrañamos. ¿Te esperamos pronto? 🙌`} />)}
             </ul>
-            <p className="mt-2 text-xs text-rs-muted">Son los 5 que más venían. Para llegar a todos podés armar una promo o un voucher de reactivación{mod.campanas ? <> y mandarlo desde <Link href="/campanas" className="underline">Campañas</Link></> : mod.vouchers ? <> desde <Link href="/vouchers" className="underline">Vouchers</Link></> : ''}.</p>
+            <p className="mt-2 text-xs text-rs-muted">Son los 5 que más venían. Para llegar a todos podés armar una promo o un voucher de reactivación{mod.vouchers ? <> desde <Link href="/vouchers" className="underline">Vouchers</Link></> : ''}.</p>
           </>
         )}
       </section>
@@ -147,7 +147,7 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
             {flojas.length > 0 && (
               <div className="rounded-md border border-rs-ok/40 bg-rs-ok/10 px-3 py-2 text-sm">
                 <strong>Sugerencia:</strong> {flojas.map((x) => `${x.dia.fecha === pr.hoy ? 'hoy' : 'mañana'} ${x.f.etiqueta.split(' ')[0].toLowerCase()} (${x.pct}% del aforo)`).join(', ')}: {flojas.length > 1 ? 'vienen' : 'viene'} tranquilo{flojas.length > 1 ? 's' : ''}.
-                Podés difundir una promo o un voucher para llenar esas mesas{mod.campanas ? <> desde <Link href="/campanas" className="underline">Campañas</Link></> : mod.vouchers ? <> desde <Link href="/vouchers" className="underline">Vouchers</Link></> : ''}.
+                Podés difundir una promo o un voucher para llenar esas mesas{mod.vouchers ? <> desde <Link href="/vouchers" className="underline">Vouchers</Link></> : ''}.
               </div>
             )}
             <p className="text-xs text-rs-muted">Es una estimación con lo ya reservado y lo que suele sumarse; solo cuenta reservas. El detalle de los próximos 14 días está en <Link href="/metricas" className="underline">Métricas</Link>.</p>
