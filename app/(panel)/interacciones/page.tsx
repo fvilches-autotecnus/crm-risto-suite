@@ -1,3 +1,5 @@
+import FiltroPeriodo from '@/components/filtro-periodo'
+import { diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Check, CheckCheck, Clock, Megaphone, MessagesSquare, TriangleAlert } from 'lucide-react'
@@ -7,6 +9,7 @@ import { getContexto } from '@/lib/context'
 import { fechaHoraCorta } from '@/lib/fechas'
 
 const DIAS = [7, 14, 30, 90]
+
 const ESTADO: Record<EstadoEntrega, { txt: string; cls: string }> = {
   leido: { txt: 'Leído', cls: 'text-rs-lime' }, entregado: { txt: 'Entregado', cls: 'text-rs-ok' }, enviado: { txt: 'Enviado', cls: 'text-rs-muted' },
   fallido: { txt: 'No entregado', cls: 'text-rs-warn' }, sin_seguimiento: { txt: 'Sin seguimiento', cls: 'text-rs-muted' },
@@ -20,17 +23,19 @@ function Tick({ estado }: { estado: EstadoEntrega | null }) {
 }
 
 // Solo el superadmin: es una herramienta de seguimiento de las campañas de todos los negocios.
-export default async function InteraccionesPage({ searchParams }: { searchParams: Promise<{ tel?: string; filtro?: string; campana?: string; dias?: string; q?: string }> }) {
+export default async function InteraccionesPage({ searchParams }: { searchParams: Promise<{ tel?: string; filtro?: string; campana?: string; dias?: string; q?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.esSuperadmin) redirect('/')
   const { negocio } = ctx
   const sp = await searchParams
-  const dias = DIAS.includes(Number(sp.dias)) ? Number(sp.dias) : 30
+  const hoyReal = new Intl.DateTimeFormat('en-CA', { timeZone: negocio.zona_horaria }).format(new Date())
+  const rango = leerRango(sp, hoyReal)   // período personalizado (?desde=&hasta=): si viene, manda sobre los botones
+  const dias = rango ? diasEnRango(rango) : DIAS.includes(Number(sp.dias)) ? Number(sp.dias) : 30
   const filtro: FiltroChat = FILTROS_CHAT.some((f) => f.v === sp.filtro) ? (sp.filtro as FiltroChat) : 'todos'
   const q = (sp.q ?? '').slice(0, 60)
   const campanaSel = /^[0-9a-f-]{36}$/i.test(sp.campana ?? '') ? sp.campana! : ''
 
-  const { chats, hilo, campanas } = await cargarChatsCampanas(ctx, dias)
+  const { chats, hilo, campanas } = await cargarChatsCampanas(ctx, rango ?? dias)
   const lista = filtrarChats(chats, filtro, q, campanaSel)
   const k = sp.tel && /^\d{6,20}$/.test(sp.tel) ? sp.tel.slice(-10) : lista[0]?.tel10
   const activo = chats.find((c) => c.tel10 === k)
@@ -38,7 +43,7 @@ export default async function InteraccionesPage({ searchParams }: { searchParams
 
   const href = (cambio: Record<string, string | undefined>) => {
     const p = new URLSearchParams()
-    const base: Record<string, string | undefined> = { filtro: filtro !== 'todos' ? filtro : undefined, campana: campanaSel || undefined, dias: dias !== 30 ? String(dias) : undefined, q: q || undefined, tel: undefined, ...cambio }
+    const base: Record<string, string | undefined> = { filtro: filtro !== 'todos' ? filtro : undefined, campana: campanaSel || undefined, dias: !rango && dias !== 30 ? String(dias) : undefined, desde: rango?.desde, hasta: rango?.hasta, q: q || undefined, tel: undefined, ...cambio }
     for (const [a, b] of Object.entries(base)) if (b) p.set(a, b)
     const s = p.toString()
     return `/interacciones${s ? `?${s}` : ''}`
@@ -51,9 +56,9 @@ export default async function InteraccionesPage({ searchParams }: { searchParams
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="animate-fade-up">
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Megaphone className="text-rs-lime" size={22} />Interacciones de campañas</h1>
-          <p className="text-sm text-rs-muted">{negocio.nombre} · {chats.length} conversaciones · {respondieron} respondieron · últimos {dias} días · solo superadmin</p>
+          <p className="text-sm text-rs-muted">{negocio.nombre} · {chats.length} conversaciones · {respondieron} respondieron · {rango ? rotuloRango(rango) : `últimos ${dias} días`} · solo superadmin</p>
         </div>
-        <nav aria-label="Período" className="flex gap-1.5">{DIAS.map((d) => <Link key={d} href={href({ dias: d !== 30 ? String(d) : undefined })} className={chip(d === dias)}>{d} d</Link>)}</nav>
+        <FiltroPeriodo ruta="/interacciones" param="dias" opciones={DIAS.map((d) => ({ v: String(d), l: `${d} d` }))} actual={String(dias)} desde={rango?.desde} hasta={rango?.hasta} hoy={hoyReal} extra={{ filtro: filtro !== 'todos' ? filtro : undefined, campana: campanaSel || undefined, q: q || undefined }} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -62,7 +67,7 @@ export default async function InteraccionesPage({ searchParams }: { searchParams
         {campanas.length > 1 && <Link href={href({ campana: undefined })} className={chip(!campanaSel)}>Todas las campañas</Link>}
         {campanas.length > 1 && campanas.map((c) => <Link key={c.id} href={href({ campana: c.id })} className={chip(c.id === campanaSel)}>{c.nombre}</Link>)}
         <form action="/interacciones" className="ml-auto flex gap-1.5">
-          {filtro !== 'todos' && <input type="hidden" name="filtro" value={filtro} />}{campanaSel && <input type="hidden" name="campana" value={campanaSel} />}{dias !== 30 && <input type="hidden" name="dias" value={dias} />}
+          {filtro !== 'todos' && <input type="hidden" name="filtro" value={filtro} />}{campanaSel && <input type="hidden" name="campana" value={campanaSel} />}{rango ? <><input type="hidden" name="desde" value={rango.desde} /><input type="hidden" name="hasta" value={rango.hasta} /></> : dias !== 30 && <input type="hidden" name="dias" value={dias} />}
           <input name="q" defaultValue={q} placeholder="Buscar nombre o teléfono" aria-label="Buscar" className="input h-8 w-48" maxLength={60} />
         </form>
       </div>

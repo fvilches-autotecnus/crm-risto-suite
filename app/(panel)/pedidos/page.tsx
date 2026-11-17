@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Search, ShoppingBag } from 'lucide-react'
 import { Tile } from '@/components/dashboard-ui'
+import FiltroPeriodo from '@/components/filtro-periodo'
 import Paginacion from '@/components/paginacion'
+import { finDia, inicioDia, leerRango } from '@/lib/periodo'
 import { BotonesPedidos, ListaPedidos, PedidosEnVivo, type OpcionCatalogo } from '@/components/pedidos-ui'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
@@ -16,7 +18,7 @@ const TABS = [{ v: 'activos', l: 'En curso' }, { v: 'entregados', l: 'Entregados
 const PERIODOS = [{ v: 'hoy', l: 'Hoy' }, { v: '7', l: '7 días' }, { v: '30', l: '30 días' }, { v: 'todos', l: 'Todo' }]
 const COLS = 'id, numero, nombre, telefono, tipo, entrega_nombre, medio_pago_nombre, mesa, direccion, observaciones, medio_pago, estado, subtotal, envio, total, descuento, descuento_nombre, descuento_codigo, motivo_cancelacion, origen, campana, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en, items:pedido_items(id, nombre, variante, precio_unit, cantidad, observaciones, subtotal, producto:carta_productos(categoria:carta_categorias(nombre)))'
 
-export default async function PedidosPage({ searchParams }: { searchParams: Promise<{ tab?: string; periodo?: string; q?: string; pagina?: string }> }) {
+export default async function PedidosPage({ searchParams }: { searchParams: Promise<{ tab?: string; periodo?: string; q?: string; pagina?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.pedidos) redirect('/')
   const { supabase, negocio } = ctx
@@ -26,12 +28,14 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
   const hoy = hoyEn(negocio.zona_horaria)
   const desde = (p: string) => (p === 'todos' ? null : `${p === 'hoy' ? hoy : sumarDias(hoy, -Number(p))}T00:00:00-03:00`)
+  const rango = leerRango(sp, hoy)   // período personalizado (?desde=&hasta=): si viene, manda sobre los botones
 
   let consulta = supabase.from('pedidos').select(COLS).eq('negocio_id', negocio.id)
   if (tab === 'activos') consulta = consulta.in('estado', ESTADOS_ACTIVOS)
   else if (tab === 'entregados') consulta = consulta.eq('estado', 'entregado')
   else if (tab === 'cancelados') consulta = consulta.eq('estado', 'cancelado')
-  if (tab !== 'activos' && desde(periodo)) consulta = consulta.gte('creado_en', desde(periodo)!)
+  if (tab !== 'activos' && rango) consulta = consulta.gte('creado_en', inicioDia(rango.desde)).lte('creado_en', finDia(rango.hasta))
+  else if (tab !== 'activos' && desde(periodo)) consulta = consulta.gte('creado_en', desde(periodo)!)
   if (q) { const n = Number(q.replace('#', '')); consulta = Number.isInteger(n) && n > 0 ? consulta.or(`numero.eq.${n},nombre.ilike.%${q}%,telefono.ilike.%${q}%`) : consulta.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`) }
 
   const [{ data }, { config, hayConfig }, { data: hoyRows }, { data: prods }] = await Promise.all([
@@ -58,7 +62,7 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
   const validos = delDia.filter((r) => r.estado !== 'cancelado')
   const ventas = validos.reduce((s, r) => s + Number(r.total), 0)
   const pg = paginar(pedidos, numPagina(sp.pagina), 20)
-  const link = (cambios: Record<string, string>) => { const p = new URLSearchParams({ tab, periodo, ...(q ? { q } : {}), ...cambios }); return `/pedidos?${p.toString()}` }
+  const link = (cambios: Record<string, string>) => { const p = new URLSearchParams({ tab, ...(rango ? { desde: rango.desde, hasta: rango.hasta } : { periodo }), ...(q ? { q } : {}), ...cambios }); return `/pedidos?${p.toString()}` }
 
   // la impresión automática vive en el layout del panel (imprime desde cualquier pantalla); acá solo está su franja de control
   const puedeAjustes = ctx.puedeEscribir && (ctx.puedeAdministrar || ctx.rol === 'encargado') && ctx.sinRestriccionSede
@@ -96,13 +100,13 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
       <div className="card space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <form className="relative min-w-[220px] flex-1">
-            <input type="hidden" name="tab" value={tab} /><input type="hidden" name="periodo" value={periodo} />
+            <input type="hidden" name="tab" value={tab} />{rango ? <><input type="hidden" name="desde" value={rango.desde} /><input type="hidden" name="hasta" value={rango.hasta} /></> : <input type="hidden" name="periodo" value={periodo} />}
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
             <input name="q" defaultValue={sp.q ?? ''} placeholder="Buscar por número, nombre o teléfono" className="input w-full pl-9" />
           </form>
         </div>
         <div className="flex flex-wrap items-center gap-2"><span className="label mb-0 mr-1 w-14 shrink-0">Ver</span>{TABS.map((t) => <Link key={t.v} href={link({ tab: t.v })} className={'btn btn-sm ' + (tab === t.v ? 'btn-primary' : '')}>{t.l}</Link>)}</div>
-        {tab !== 'activos' && <div className="flex flex-wrap items-center gap-2"><span className="label mb-0 mr-1 w-14 shrink-0">Período</span>{PERIODOS.map((p) => <Link key={p.v} href={link({ periodo: p.v })} className={'btn btn-sm ' + (periodo === p.v ? 'btn-primary' : '')}>{p.l}</Link>)}</div>}
+        {tab !== 'activos' && <div className="flex flex-wrap items-center gap-2"><span className="label mb-0 mr-1 w-14 shrink-0">Período</span><FiltroPeriodo ruta="/pedidos" param="periodo" opciones={PERIODOS} actual={periodo} desde={rango?.desde} hasta={rango?.hasta} hoy={hoy} extra={{ tab, q: q || undefined }} /></div>}
       </div>
 
       <BarraComandera puedeAjustes={puedeAjustes} />

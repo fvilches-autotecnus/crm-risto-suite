@@ -47,12 +47,19 @@ export const textoEntrante = (m: { clase: string; texto: string | null }) => {
   return t[m.clase] ?? `[${m.clase}]`
 }
 
-/** Carga y arma todo lo necesario (lista + hilos) de los últimos `dias` días. */
-export async function cargarChatsCampanas(ctx: Ctx, dias: number) {
+/**
+ * Carga y arma todo lo necesario (lista + hilos): de los últimos `dias` días o de un rango de fechas { desde, hasta }.
+ * En un rango se acotan los ENVÍOS al período; las respuestas y los estados de entrega se leen desde el inicio (una respuesta que llega después del último día sigue contando).
+ */
+export async function cargarChatsCampanas(ctx: Ctx, periodo: number | { desde: string; hasta: string }) {
   const { supabase, negocio } = ctx
-  const desde = `${sumarDias(new Intl.DateTimeFormat('en-CA', { timeZone: negocio.zona_horaria }).format(new Date()), -dias)}T00:00:00-03:00`
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: negocio.zona_horaria }).format(new Date())
+  const desde = `${typeof periodo === 'number' ? sumarDias(hoy, -periodo) : periodo.desde}T00:00:00-03:00`
+  const hasta = typeof periodo === 'number' ? null : `${sumarDias(periodo.hasta, 1)}T00:00:00-03:00`
+  let qEnvios = supabase.from('campanas_envios').select('id, campana_id, cliente_id, nombre, telefono, enviado_en, wamid, detalle').eq('negocio_id', negocio.id).neq('estado', 'fallido').not('telefono', 'is', null).gte('enviado_en', desde)
+  if (hasta) qEnvios = qEnvios.lt('enviado_en', hasta)
   const [{ data: env }, { data: camp }, { data: evs }, { data: msgs }] = await Promise.all([
-    supabase.from('campanas_envios').select('id, campana_id, cliente_id, nombre, telefono, enviado_en, wamid, detalle').eq('negocio_id', negocio.id).neq('estado', 'fallido').not('telefono', 'is', null).gte('enviado_en', desde).order('enviado_en', { ascending: true }).limit(30000),
+    qEnvios.order('enviado_en', { ascending: true }).limit(30000),
     supabase.from('campanas').select('id, nombre').eq('negocio_id', negocio.id),
     supabase.from('whatsapp_eventos').select('wamid, estado, ocurrido_en, error').eq('negocio_id', negocio.id).eq('tipo', 'estado').gte('ocurrido_en', desde).limit(100000),
     supabase.from('whatsapp_eventos').select('id, telefono, tel10, estado, ocurrido_en, texto').eq('negocio_id', negocio.id).eq('tipo', 'mensaje').gte('ocurrido_en', desde).order('ocurrido_en', { ascending: true }).limit(30000),

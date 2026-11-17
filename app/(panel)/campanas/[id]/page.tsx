@@ -6,6 +6,7 @@ import { GraficoLinea, TarjetaGrafico } from '@/components/charts'
 import { Tile } from '@/components/dashboard-ui'
 import Paginacion from '@/components/paginacion'
 import SelectorDias from '@/components/selector-dias'
+import { despuesDeDia, diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
 import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, ENVIO_COLS, labelTipoCampana, pct, type Campana, type Envio, type Interaccion, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { getContexto } from '@/lib/context'
 import { TZ_AR, fechaCorta, fechaHoraLarga, hoyEn, sumarDias } from '@/lib/fechas'
@@ -14,7 +15,7 @@ import { POR_PAGINA, numPagina } from '@/lib/paginacion'
 
 const ymdAR = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ_AR }).format(new Date(iso))
 
-export default async function CampanaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ dias?: string; pagina?: string }> }) {
+export default async function CampanaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ dias?: string; pagina?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.campanas) redirect('/')
   const { id } = await params
@@ -25,11 +26,13 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
   if (!c) notFound()
   const campana = c as Campana
 
-  const dias = DIAS_PERIODO.includes(Number(sp.dias)) ? Number(sp.dias) : 30
   const hoy = hoyEn(negocio.zona_horaria)
-  const desde = sumarDias(hoy, -(dias - 1))
+  const rango = leerRango(sp, hoy)   // período personalizado (?desde=&hasta=): si viene, manda sobre el selector
+  const dias = rango ? diasEnRango(rango) : DIAS_PERIODO.includes(Number(sp.dias)) ? Number(sp.dias) : 30
+  const desde = rango ? rango.desde : sumarDias(hoy, -(dias - 1))
+  const rotulo = rango ? rotuloRango(rango) : `últimos ${dias} días`
   const pDesde = `${desde}T00:00:00-03:00`
-  const pHasta = `${sumarDias(hoy, 1)}T00:00:00-03:00`
+  const pHasta = despuesDeDia(rango ? rango.hasta : hoy)
   const pagina = numPagina(sp.pagina)
   const desdeFila = (pagina - 1) * POR_PAGINA
 
@@ -74,10 +77,10 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
         {campana.mensaje && <p className="mt-3 whitespace-pre-wrap rounded-rs-lg border border-rs-border bg-rs-raised/40 px-3 py-2 text-sm text-rs-muted">{campana.mensaje}</p>}
       </div>
 
-      <div className="flex justify-end"><SelectorDias ruta={`/campanas/${id}`} dias={dias} /></div>
+      <div className="flex justify-end"><SelectorDias ruta={`/campanas/${id}`} dias={dias} desde={rango?.desde} hasta={rango?.hasta} hoy={hoy} /></div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
-        <Tile i={0} valor={enviados} etiqueta={`Enviados (${dias} días)`} color="text-rs-lav" sub="mensajes" />
+        <Tile i={0} valor={enviados} etiqueta={`Enviados (${rango ? rotulo : dias + ' días'})`} color="text-rs-lav" sub="mensajes" />
         <Tile i={1} valor={clientes} etiqueta="Clientes alcanzados" color="text-rs-ok" sub="clientes distintos" />
         <Tile i={2} valor={entregados} etiqueta="Entregados" color="text-rs-ok" sub={seguidos ? `${pct(entregados, seguidos)}% de ${seguidos}` : 'sin seguimiento'} />
         <Tile i={3} valor={leidos} etiqueta="Leídos" color="text-rs-lime" sub={seguidos ? `${pct(leidos, seguidos)}% de ${seguidos}` : 'sin seguimiento'} />
@@ -86,7 +89,7 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
       </div>
       {sinSeguimiento > 0 && <p className="rounded-md bg-rs-raised/50 px-3 py-2 text-xs text-rs-muted">{sinSeguimiento} de los {enviados} envíos son anteriores al seguimiento de entrega (se empezó a guardar el 3/11): figuran como enviados, pero no se sabe si se entregaron o leyeron y no entran en los porcentajes.</p>}
 
-      <TarjetaGrafico i={6} titulo={`Envíos ${modo === 'dia' ? 'por día' : 'por semana'} — últimos ${dias} días`} vacio={enviados === 0} columnas={[modo === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])}>
+      <TarjetaGrafico i={6} titulo={`Envíos ${modo === 'dia' ? 'por día' : 'por semana'} — ${rotulo}`} vacio={enviados === 0} columnas={[modo === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])}>
         <GraficoLinea puntos={serie} unidad="envíos" />
       </TarjetaGrafico>
 

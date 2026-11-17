@@ -11,6 +11,8 @@ import { Estrellas, ListaResenas, NuevaResenaBtn, type ResenaUI } from '@/compon
 import { resumirResenas } from '../ia-actions'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
+import FiltroPeriodo from '@/components/filtro-periodo'
+import { leerRango, rotuloRango } from '@/lib/periodo'
 import { numPagina, paginar } from '@/lib/paginacion'
 import { ORIGENES_LISTA } from '@/lib/resenas'
 
@@ -29,7 +31,7 @@ const ORDENES_VALIDOS = ambos('alta', 'fecha', 'cliente', 'puntaje', 'origen')
 const PERIODOS = [{ v: 'todas', l: 'Todas' }, { v: '30', l: 'Últimos 30 días' }, { v: '90', l: 'Últimos 90 días' }, { v: '365', l: 'Último año' }]
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string; voucher?: string; pagina?: string }> }) {
+export default async function ResenasPage({ searchParams }: { searchParams: Promise<{ puntaje?: string; origen?: string; periodo?: string; q?: string; orden?: string; voucher?: string; pagina?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.resenas) redirect('/')
   const { supabase, negocio, sede } = ctx
@@ -38,6 +40,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const puntaje = ['1', '2', '3', '4', '5'].includes(sp.puntaje ?? '') ? Number(sp.puntaje) : 0
   const origen = ORIGENES_LISTA.some((o) => o.value === sp.origen) ? sp.origen! : ''
   const periodo = PERIODOS.some((p) => p.v === sp.periodo) ? sp.periodo! : 'todas'
+  const rango = leerRango(sp, hoy)   // período personalizado (?desde=&hasta=): si viene, manda sobre los botones
   const orden = leerOrden(sp.orden, ORDENES_VALIDOS, 'alta_desc')
   const voucherFiltro = ['pendiente', 'emitido'].includes(sp.voucher ?? '') ? sp.voucher! : ''
   const q = (sp.q ?? '').trim().replace(/[,()%*]/g, ' ')
@@ -45,7 +48,8 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   // Base (período, origen, búsqueda, sede) para KPIs y distribución; el filtro de puntaje se aplica solo a la lista.
   let base = supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id, datos_origen').eq('negocio_id', negocio.id)
   if (sede) base = base.eq('sucursal_id', sede.id)
-  if (periodo !== 'todas') base = base.gte('fecha', sumarDias(hoy, -Number(periodo)))
+  if (rango) base = base.gte('fecha', rango.desde).lte('fecha', rango.hasta)
+  else if (periodo !== 'todas') base = base.gte('fecha', sumarDias(hoy, -Number(periodo)))
   if (origen) base = base.eq('origen', origen)
   if (q) base = base.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,comentario.ilike.%${q}%`)
   const ordenada = ordenarPor(base, orden, COLUMNAS_ORDEN)
@@ -74,7 +78,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
   const porMes = meses.map(({ y: yy, m: mm }) => ({ etiqueta: MESES[mm - 1], valor: todas.filter((r) => r.fecha.startsWith(`${yy}-${String(mm).padStart(2, '0')}`)).length }))
 
   const url = (cambios: Record<string, string>) => {
-    const p = new URLSearchParams({ ...(puntaje ? { puntaje: String(puntaje) } : {}), ...(origen ? { origen } : {}), ...(periodo !== 'todas' ? { periodo } : {}), ...(q ? { q } : {}), ...(voucherFiltro ? { voucher: voucherFiltro } : {}), ...(orden !== 'alta_desc' ? { orden } : {}), ...cambios })
+    const p = new URLSearchParams({ ...(puntaje ? { puntaje: String(puntaje) } : {}), ...(origen ? { origen } : {}), ...(rango ? { desde: rango.desde, hasta: rango.hasta } : periodo !== 'todas' ? { periodo } : {}), ...(q ? { q } : {}), ...(voucherFiltro ? { voucher: voucherFiltro } : {}), ...(orden !== 'alta_desc' ? { orden } : {}), ...cambios })
     for (const [k, v] of [...p.entries()]) if (!v) p.delete(k)
     return `/resenas?${p.toString()}`
   }
@@ -89,13 +93,13 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
           <p className="text-sm text-rs-muted">Cuántas conseguimos y qué dicen los clientes</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ResumenIA key={JSON.stringify({ puntaje: puntaje ? String(puntaje) : '', origen, periodo, q })} titulo="Resumen de reseñas con IA" pista="Resume lo que dicen las reseñas que ves con los filtros actuales" generar={resumirResenas.bind(null, { puntaje: puntaje ? String(puntaje) : '', origen, periodo, q })} />
+          <ResumenIA key={JSON.stringify({ puntaje: puntaje ? String(puntaje) : '', origen, periodo, q, rango })} titulo="Resumen de reseñas con IA" pista="Resume lo que dicen las reseñas que ves con los filtros actuales" generar={resumirResenas.bind(null, { puntaje: puntaje ? String(puntaje) : '', origen, periodo, q, desde: rango?.desde, hasta: rango?.hasta })} />
           {ctx.puedeEscribir && <NuevaResenaBtn sedes={sedesOpc} hoy={hoy} />}
         </div>
       </div>
 
       <div className={'grid grid-cols-2 gap-3 sm:gap-4 ' + (conVoucher ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
-        <Tile i={0} valor={total} etiqueta="Reseñas conseguidas" color="text-rs-text" sub={periodo === 'todas' ? 'En total' : `Últimos ${periodo} días`} />
+        <Tile i={0} valor={total} etiqueta="Reseñas conseguidas" color="text-rs-text" sub={rango ? rotuloRango(rango).replace(/^d/, 'D') : periodo === 'todas' ? 'En total' : `Últimos ${periodo} días`} />
         <div className="reveal card card-hover p-4 sm:p-5" style={{ ['--i' as string]: 1 }}>
           <div className="text-2xl font-bold tabular-nums text-rs-lime sm:text-3xl">{promedio ? promedio.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'}</div>
           <div className="card-title mt-3">Puntaje promedio</div><div className="mt-1"><Estrellas n={Math.round(promedio)} tam={12} /></div>
@@ -128,7 +132,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
       <div className="card space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <form className="relative min-w-[220px] flex-1">
-            {voucherFiltro ? <input type="hidden" name="voucher" value={voucherFiltro} /> : null}{puntaje ? <input type="hidden" name="puntaje" value={puntaje} /> : null}{origen ? <input type="hidden" name="origen" value={origen} /> : null}{periodo !== 'todas' ? <input type="hidden" name="periodo" value={periodo} /> : null}
+            {voucherFiltro ? <input type="hidden" name="voucher" value={voucherFiltro} /> : null}{puntaje ? <input type="hidden" name="puntaje" value={puntaje} /> : null}{origen ? <input type="hidden" name="origen" value={origen} /> : null}{rango ? <><input type="hidden" name="desde" value={rango.desde} /><input type="hidden" name="hasta" value={rango.hasta} /></> : periodo !== 'todas' ? <input type="hidden" name="periodo" value={periodo} /> : null}
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-rs-muted" />
             <input name="q" defaultValue={q} placeholder="Buscar por nombre, teléfono o comentario" className="input w-full pl-9" />
           </form>
@@ -149,7 +153,7 @@ export default async function ResenasPage({ searchParams }: { searchParams: Prom
         )}
         <div className="flex flex-wrap items-center gap-2">
           <span className="label mb-0 mr-1 w-14 shrink-0">Período</span>
-          {PERIODOS.map((p) => <Link key={p.v} href={url({ periodo: p.v === 'todas' ? '' : p.v })} className={'btn btn-sm ' + (periodo === p.v ? 'btn-primary' : '')}>{p.l}</Link>)}
+          <FiltroPeriodo ruta="/resenas" param="periodo" opciones={PERIODOS} actual={periodo} desde={rango?.desde} hasta={rango?.hasta} hoy={hoy} extra={{ puntaje: puntaje ? String(puntaje) : undefined, origen: origen || undefined, q: q || undefined, voucher: voucherFiltro || undefined, orden: orden !== 'alta_desc' ? orden : undefined }} />
           <span className="label mb-0 ml-3 mr-1">Origen</span>
           <Link href={url({ origen: '' })} className={'btn btn-sm ' + (!origen ? 'btn-primary' : '')}>Todos</Link>
           {ORIGENES_LISTA.map((o) => <Link key={o.value} href={url({ origen: origen === o.value ? '' : o.value })} className={'btn btn-sm ' + (origen === o.value ? 'btn-primary' : '')}>{o.label}</Link>)}

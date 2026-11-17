@@ -15,7 +15,9 @@ export interface DatosResumen {
   dias: number
   inactivoDias: number
   hoy: string
+  /** Primer y último día del período mirado (el último es hoy salvo que se haya elegido un rango). */
   desde: string
+  hasta: string
   logros: {
     clientesNuevos: Comparado
     reservas: (Comparado & { personas: number }) | null
@@ -35,13 +37,14 @@ const fin = (f: string) => `${f}T23:59:59-03:00`
 type Fila = Record<string, unknown>
 const dia = (iso: string, zona: string) => hoyEn(zona, new Date(iso))
 
-export async function cargarResumen(ctx: Contexto, opt: { dias: number; inactivoDias: number }): Promise<DatosResumen> {
+export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: string; inactivoDias: number }): Promise<DatosResumen> {
   const { supabase, negocio, sede } = ctx
   const mod = ctx.modulosActivos
   const hoy = hoyEn(negocio.zona_horaria)
-  const desde = sumarDias(hoy, -(opt.dias - 1))
+  const hasta = opt.hasta && opt.hasta <= hoy ? opt.hasta : hoy   // último día del período (hoy, o el final de un rango elegido)
+  const desde = sumarDias(hasta, -(opt.dias - 1))
   const antDesde = sumarDias(desde, -opt.dias)
-  const enPeriodo = (f: string) => f >= desde && f <= hoy
+  const enPeriodo = (f: string) => f >= desde && f <= hasta
   const enAnterior = (f: string) => f >= antDesde && f < desde
   const limiteInactivo = sumarDias(hoy, -opt.inactivoDias)
   const histDesde = sumarDias(hoy, -HISTORIAL_DIAS)
@@ -51,15 +54,15 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; inactivo
     .or('es_demo.is.null,es_demo.eq.false').gte('creado_en', inicio(d)).lte('creado_en', fin(h))).count ?? 0
 
   const [cNuevos, cNuevosAnt, resRows, pedAsist, resenasRows, resHist, pedHist] = await Promise.all([
-    nuevos(desde, hoy), nuevos(antDesde, sumarDias(desde, -1)),
+    nuevos(desde, hasta), nuevos(antDesde, sumarDias(desde, -1)),
     mod.reservas
-      ? (async () => { let q = supabase.from('reservas').select('estado, cantidad_personas, creado_en').eq('negocio_id', negocio.id).eq('es_manual', false).is('eliminado_en', null).gte('creado_en', inicio(antDesde)).lte('creado_en', fin(hoy)); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
+      ? (async () => { let q = supabase.from('reservas').select('estado, cantidad_personas, creado_en').eq('negocio_id', negocio.id).eq('es_manual', false).is('eliminado_en', null).gte('creado_en', inicio(antDesde)).lte('creado_en', fin(hasta)); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
       : Promise.resolve([] as Fila[]),
     mod.pedidos
-      ? (async () => ((await supabase.from('pedidos').select('estado, total, creado_en').eq('negocio_id', negocio.id).in('origen', ['bot', 'web']).gte('creado_en', inicio(antDesde)).lte('creado_en', fin(hoy)).limit(MAX_FILAS)).data ?? []) as Fila[])()
+      ? (async () => ((await supabase.from('pedidos').select('estado, total, creado_en').eq('negocio_id', negocio.id).in('origen', ['bot', 'web']).gte('creado_en', inicio(antDesde)).lte('creado_en', fin(hasta)).limit(MAX_FILAS)).data ?? []) as Fila[])()
       : Promise.resolve([] as Fila[]),
     mod.resenas
-      ? (async () => { let q = supabase.from('resenas').select('puntaje, origen, fecha').eq('negocio_id', negocio.id).gte('fecha', antDesde).lte('fecha', hoy); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
+      ? (async () => { let q = supabase.from('resenas').select('puntaje, origen, fecha').eq('negocio_id', negocio.id).gte('fecha', antDesde).lte('fecha', hasta); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
       : Promise.resolve([] as Fila[]),
     // historial de visitas para "habituales" y "mejores clientes"
     mod.reservas
@@ -131,7 +134,7 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; inactivo
     visitas: delPeriodo ? a.diasPeriodo.size : a.dias.size, ultima: a.ultima, gasto: delPeriodo ? a.gastoPeriodo : a.gasto })
 
   return {
-    dias: opt.dias, inactivoDias: opt.inactivoDias, hoy, desde,
+    dias: opt.dias, inactivoDias: opt.inactivoDias, hoy, desde, hasta,
     logros: { clientesNuevos: { valor: cNuevos, antes: cNuevosAnt }, reservas, pedidos, resenas5 },
     riesgo: { habituales: dormidos.length, conPedidos: conPedidos.length, potencial, ticketPromedio, lista: topDormidos.map(([id, a]) => armar(id, a, false)) },
     mejores: topMes.map(([id, a]) => armar(id, a, true)),

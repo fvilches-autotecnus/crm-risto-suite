@@ -7,6 +7,7 @@ import { cargarPedidos, cargarReservas, diasEntre } from '@/lib/metricas-datos'
 import { dinero, labelEstadoPedido, labelPago, labelTipo } from '@/lib/pedidos'
 import { labelEstado } from '@/lib/reservas'
 import { REGLAS, pedirResumen, type ResumenIAResult } from '@/lib/ia'
+import { leerRango } from '@/lib/periodo'
 import { ORIGENES_LISTA } from '@/lib/resenas'
 
 const MAX_TEXTOS = 250   // textos que se mandan a la IA (los más recientes)
@@ -18,7 +19,7 @@ const limpio = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim().slice
 const sinTags = (t: string) => t.replace(/<\/?datos>/gi, '')   // que un cliente no pueda "cerrar" el bloque de datos
 
 /** Resumen y conclusiones de las reseñas que se ven con los filtros actuales. A la IA solo van puntaje, origen, mes y comentario (nada de nombres ni teléfonos). */
-export async function resumirResenas(f: { puntaje?: string; origen?: string; periodo?: string; q?: string }): Promise<ResumenIAResult> {
+export async function resumirResenas(f: { puntaje?: string; origen?: string; periodo?: string; q?: string; desde?: string; hasta?: string }): Promise<ResumenIAResult> {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.resenas) return { ok: false, error: 'Las reseñas no están habilitadas en este negocio.' }
   const { supabase, negocio, sede } = ctx
@@ -30,7 +31,9 @@ export async function resumirResenas(f: { puntaje?: string; origen?: string; per
 
   let consulta = supabase.from('resenas').select('puntaje, comentario, origen, fecha').eq('negocio_id', negocio.id)
   if (sede) consulta = consulta.eq('sucursal_id', sede.id)
-  if (periodo !== 'todas') consulta = consulta.gte('fecha', sumarDias(hoy, -Number(periodo)))
+  const rango = leerRango(f, hoy)
+  if (rango) consulta = consulta.gte('fecha', rango.desde).lte('fecha', rango.hasta)
+  else if (periodo !== 'todas') consulta = consulta.gte('fecha', sumarDias(hoy, -Number(periodo)))
   if (origen) consulta = consulta.eq('origen', origen)
   if (puntaje) consulta = consulta.eq('puntaje', puntaje)
   if (q) consulta = consulta.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,comentario.ilike.%${q}%`)
@@ -48,7 +51,7 @@ export async function resumirResenas(f: { puntaje?: string; origen?: string; per
 
   const sistema = `Sos analista de reputación de un restaurante. Analizás reseñas de clientes y sacás conclusiones útiles.\n${REGLAS}\nSecciones a devolver (en este orden): "Lo que más valoran", "Lo que molesta o hay que mejorar". Si no hay nada negativo, la segunda puede decirlo en un ítem.`
   const usuario = `Negocio: ${negocio.nombre}${sede ? ` · sede ${sede.nombre}` : ''}.
-Período: ${periodo === 'todas' ? 'todas las reseñas' : `últimos ${periodo} días`}${puntaje ? ` · solo de ${puntaje}★` : ''}${origen ? ` · origen ${origen}` : ''}.
+Período: ${rango ? `del ${fechaCorta(rango.desde)} al ${fechaCorta(rango.hasta)}` : periodo === 'todas' ? 'todas las reseñas' : `últimos ${periodo} días`}${puntaje ? ` · solo de ${puntaje}★` : ''}${origen ? ` · origen ${origen}` : ''}.
 Total de reseñas: ${todas.length} (promedio ${promedio.toFixed(1)}). Distribución: ${dist}. Con comentario escrito: ${conComentario.length}.
 Comentarios (los más recientes primero${conComentario.length > muestra.length ? `; se muestran ${muestra.length} de ${conComentario.length}` : ''}):
 <datos>

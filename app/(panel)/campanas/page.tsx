@@ -9,6 +9,7 @@ import { cargarPlantillas } from '@/lib/campanas-ia-servidor'
 import EnlacesCampana, { type ResultadoEnlace } from '@/components/enlaces-campana'
 import { Tile } from '@/components/dashboard-ui'
 import SelectorDias from '@/components/selector-dias'
+import { despuesDeDia, diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
 import { CAMPANAS_EDITABLES, CAMPANA_COLS, DIAS_PERIODO, labelTipoCampana, type Campana, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { getContexto } from '@/lib/context'
 import { TZ_AR, fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
@@ -17,17 +18,20 @@ import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
 const ymdAR = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ_AR }).format(new Date(iso))
 const MODOS = [{ v: 'todas', l: 'Todas' }, { v: 'automatica', l: 'Automáticas' }, { v: 'manual', l: 'Manuales' }]
 
-export default async function CampanasPage({ searchParams }: { searchParams: Promise<{ dias?: string; modo?: string; orden?: string }> }) {
+export default async function CampanasPage({ searchParams }: { searchParams: Promise<{ dias?: string; modo?: string; orden?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.campanas) redirect('/')
   const { supabase, negocio } = ctx
   const sp = await searchParams
-  const dias = DIAS_PERIODO.includes(Number(sp.dias)) ? Number(sp.dias) : 30
   const modo = MODOS.some((m) => m.v === sp.modo) ? sp.modo! : 'todas'
   const hoy = hoyEn(negocio.zona_horaria)
-  const desde = sumarDias(hoy, -(dias - 1))
+  const rango = leerRango(sp, hoy)   // período personalizado (?desde=&hasta=): si viene, manda sobre el selector
+  const dias = rango ? diasEnRango(rango) : DIAS_PERIODO.includes(Number(sp.dias)) ? Number(sp.dias) : 30
+  const hasta = rango ? rango.hasta : hoy
+  const desde = rango ? rango.desde : sumarDias(hoy, -(dias - 1))
+  const rotulo = rango ? rotuloRango(rango) : `últimos ${dias} días`
   const pDesde = `${desde}T00:00:00-03:00`
-  const pHasta = `${sumarDias(hoy, 1)}T00:00:00-03:00`
+  const pHasta = despuesDeDia(hasta)
 
   const plantillas = await cargarPlantillas(ctx)   // null mientras la tabla no exista: el panel y la IA quedan ocultos
   const [{ data: rCamp }, { data: pCamp }, { data: tiposDb }] = await Promise.all([
@@ -100,41 +104,41 @@ export default async function CampanasPage({ searchParams }: { searchParams: Pro
   for (const c of campanas) porTipoMapa.set(c.tipo, (porTipoMapa.get(c.tipo) ?? 0) + (resumen[c.id]?.enviados ?? 0))
   const porTipo = [...porTipoMapa.entries()].filter(([, v]) => v > 0).map(([t, v]) => ({ etiqueta: labelTipoCampana(t), valor: v })).sort((a, b) => b.valor - a.valor)
   const vacio = enviados === 0
-  const link = (m: string) => `/campanas?dias=${dias}${m !== 'todas' ? `&modo=${m}` : ''}`
+  const link = (m: string) => `/campanas?${rango ? `desde=${rango.desde}&hasta=${rango.hasta}` : `dias=${dias}`}${m !== 'todas' ? `&modo=${m}` : ''}`
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="animate-fade-up">
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Megaphone className="text-rs-lime" size={22} />Campañas</h1>
-          <p className="text-sm text-rs-muted">{negocio.nombre} · mensajes de marketing enviados · {fechaCorta(desde)} al {fechaCorta(hoy)}</p>
+          <p className="text-sm text-rs-muted">{negocio.nombre} · mensajes de marketing enviados · {fechaCorta(desde)} al {fechaCorta(hasta)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <SelectorDias ruta="/campanas" dias={dias} extra={modo !== 'todas' ? { modo } : {}} />
+          <SelectorDias ruta="/campanas" dias={dias} desde={rango?.desde} hasta={rango?.hasta} hoy={hoy} extra={modo !== 'todas' ? { modo } : {}} />
           {CAMPANAS_EDITABLES && ctx.puedeEscribir && <NuevaCampanaBtn />}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
-        <Tile i={0} valor={enviados} etiqueta={`Enviados (${dias} días)`} color="text-rs-lav" sub="mensajes de marketing" />
+        <Tile i={0} valor={enviados} etiqueta={`Enviados (${rango ? rotulo : dias + ' días'})`} color="text-rs-lav" sub="mensajes de marketing" />
         <Tile i={1} valor={alcanzados} etiqueta="Clientes alcanzados" color="text-rs-ok" sub="clientes distintos que recibieron algo" />
         <Tile i={2} valor={activas} etiqueta="Campañas activas" color="text-rs-text" sub={`de ${campanas.length} ${modo === 'todas' ? 'en total' : modo === 'automatica' ? 'automáticas' : 'manuales'}`} />
         <Tile i={3} valor={automaticas} etiqueta="Automáticas" color="text-rs-lime" sub={`${todas.length - automaticas} manual${todas.length - automaticas === 1 ? '' : 'es'}`} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <TarjetaGrafico i={4} titulo={`Envíos ${agrup === 'dia' ? 'por día' : 'por semana'} — últimos ${dias} días`} vacio={vacio} columnas={[agrup === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])} ancho>
+        <TarjetaGrafico i={4} titulo={`Envíos ${agrup === 'dia' ? 'por día' : 'por semana'} — ${rotulo}`} vacio={vacio} columnas={[agrup === 'dia' ? 'Día' : 'Semana', 'Envíos']} filas={serie.map((d) => [d.titulo, d.valor])} ancho>
           <GraficoLinea puntos={serie} unidad="envíos" />
         </TarjetaGrafico>
-        <TarjetaGrafico i={5} titulo={`Envíos por campaña — últimos ${dias} días`} vacio={porCampana.length === 0} columnas={['Campaña', 'Envíos']} filas={porCampana.map((d) => [d.etiqueta, d.valor])}>
+        <TarjetaGrafico i={5} titulo={`Envíos por campaña — ${rotulo}`} vacio={porCampana.length === 0} columnas={['Campaña', 'Envíos']} filas={porCampana.map((d) => [d.etiqueta, d.valor])}>
           <BarrasHorizontales datos={porCampana} unidad="envíos" />
         </TarjetaGrafico>
-        <TarjetaGrafico i={6} titulo={`Envíos por tipo — últimos ${dias} días`} vacio={porTipo.length === 0} columnas={['Tipo', 'Envíos']} filas={porTipo.map((d) => [d.etiqueta, d.valor])}>
+        <TarjetaGrafico i={6} titulo={`Envíos por tipo — ${rotulo}`} vacio={porTipo.length === 0} columnas={['Tipo', 'Envíos']} filas={porTipo.map((d) => [d.etiqueta, d.valor])}>
           <BarrasHorizontales datos={porTipo} unidad="envíos" />
         </TarjetaGrafico>
       </div>
 
-      <EnlacesCampana slug={negocio.slug} sedes={ctx.sedesTodas.filter((s) => s.activa).map((s) => ({ nombre: s.nombre }))} tipos={(tiposDb ?? []).map((t) => ({ value: t.clave as string, label: t.etiqueta as string }))} conPedidos={ctx.modulosActivos.pedidos} resultados={resultadosEnlaces} dias={dias} />
+      <EnlacesCampana slug={negocio.slug} sedes={ctx.sedesTodas.filter((s) => s.activa).map((s) => ({ nombre: s.nombre }))} tipos={(tiposDb ?? []).map((t) => ({ value: t.clave as string, label: t.etiqueta as string }))} conPedidos={ctx.modulosActivos.pedidos} resultados={resultadosEnlaces} dias={dias} rotulo={rotulo} />
 
       <div className="flex flex-wrap items-center gap-2">
         {MODOS.map((m) => <Link key={m.v} href={link(m.v)} className={'btn btn-sm ' + (modo === m.v ? 'btn-primary' : '')}>{m.l}</Link>)}

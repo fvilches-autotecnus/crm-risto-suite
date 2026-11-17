@@ -14,8 +14,8 @@ const dinero = (n: number) => '$ ' + n.toLocaleString('es-AR', { maximumFraction
  * Enlaces para difusiones: la misma dirección de reservas (y de pedidos) con un código de campaña (?c=…), así se ve cuántas reservas y pedidos
  * entraron por cada difusión. El código viaja con la solicitud y queda guardado en la reserva o el pedido.
  */
-export default function EnlacesCampana({ slug, sedes, tipos, conPedidos, resultados, dias }: {
-  slug: string; sedes: { nombre: string }[]; tipos: { value: string; label: string }[]; conPedidos: boolean; resultados: ResultadoEnlace[]; dias: number
+export default function EnlacesCampana({ slug, sedes, tipos, conPedidos, resultados, dias, rotulo }: {
+  slug: string; sedes: { nombre: string }[]; tipos: { value: string; label: string }[]; conPedidos: boolean; resultados: ResultadoEnlace[]; dias: number; rotulo?: string
 }) {
   const [nombre, setNombre] = useState('')
   const [sede, setSede] = useState('')
@@ -56,7 +56,7 @@ export default function EnlacesCampana({ slug, sedes, tipos, conPedidos, resulta
         </ul>
       )}
       <div>
-        <h3 className="text-sm font-semibold">Qué entró por cada enlace (últimos {dias} días)</h3>
+        <h3 className="text-sm font-semibold">Qué entró por cada enlace ({rotulo ?? `últimos ${dias} días`})</h3>
         {resultados.length === 0 ? <p className="mt-1 text-sm text-rs-muted">Todavía no entró nada por un enlace de campaña en este período.</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[420px] text-sm">

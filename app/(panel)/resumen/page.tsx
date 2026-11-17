@@ -6,10 +6,14 @@ import { getContexto } from '@/lib/context'
 import { fechaCorta } from '@/lib/fechas'
 import { dinero, linkWhatsApp } from '@/lib/pedidos'
 import { cargarPrediccion } from '@/lib/prediccion-datos'
+import FiltroPeriodo from '@/components/filtro-periodo'
+import { diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
+import { hoyEn } from '@/lib/fechas'
 import { cargarResumen, type ClienteResumen, type Comparado } from '@/lib/resumen-datos'
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 const INACTIVOS = [35, 60, 90]
+const PERIODOS = [7, 14, 30, 90, 180]
 const num = (n: number) => n.toLocaleString('es-AR')
 
 /** "+12% vs período anterior" (sin datos previos no se inventa un porcentaje). */
@@ -46,14 +50,19 @@ function FilaCliente({ c, texto, boton }: { c: ClienteResumen; texto: string; bo
   )
 }
 
-export default async function ResumenPage({ searchParams }: { searchParams: Promise<{ inactivo?: string }> }) {
+export default async function ResumenPage({ searchParams }: { searchParams: Promise<{ inactivo?: string; dias?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
   if (!ctx.modulosActivos.resumen || !ctx.puedeAdministrar) redirect('/')
   const { negocio, sede } = ctx
   const mod = ctx.modulosActivos
   const sp = await searchParams
-  const inactivoDias = INACTIVOS.includes(Number(sp.inactivo)) ? Number(sp.inactivo) : 35
-  const [d, pr] = await Promise.all([cargarResumen(ctx, { dias: 30, inactivoDias }), mod.reservas ? cargarPrediccion(ctx) : Promise.resolve(null)])
+  const hoyReal = hoyEn(negocio.zona_horaria)
+  const inact = Math.round(Number(sp.inactivo))
+  const inactivoDias = Number.isFinite(inact) && inact >= 7 && inact <= 365 ? inact : 35   // los botones (35/60/90) o el número que se escriba (7 a 365)
+  const rango = leerRango(sp, hoyReal)   // período personalizado (?desde=&hasta=): si viene, manda sobre el selector
+  const dias = rango ? diasEnRango(rango) : PERIODOS.includes(Number(sp.dias)) ? Number(sp.dias) : 30
+  const parametrosPeriodo: Record<string, string> = rango ? { desde: rango.desde, hasta: rango.hasta } : { dias: String(dias) }
+  const [d, pr] = await Promise.all([cargarResumen(ctx, { dias, hasta: rango?.hasta, inactivoDias }), mod.reservas ? cargarPrediccion(ctx) : Promise.resolve(null)])
   const { logros } = d
 
   // Radar: hoy y mañana, con sugerencia para las franjas que vienen flojas
@@ -62,9 +71,14 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="space-y-6">
-      <div className="animate-fade-up">
-        <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Sparkles className="text-rs-lime" size={22} />Resumen del dueño</h1>
-        <p className="text-sm text-rs-muted">{negocio.nombre}{sede ? ` · ${sede.nombre}` : ''} · últimos {d.dias} días ({fechaCorta(d.desde)} al {fechaCorta(d.hoy)}), comparados con los {d.dias} anteriores</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="animate-fade-up">
+          <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><Sparkles className="text-rs-lime" size={22} />Resumen del dueño</h1>
+          <p className="text-sm text-rs-muted">{negocio.nombre}{sede ? ` · ${sede.nombre}` : ''} · {rango ? `${rotuloRango(rango)} (${d.dias} ${d.dias === 1 ? 'día' : 'días'})` : `últimos ${d.dias} días (${fechaCorta(d.desde)} al ${fechaCorta(d.hasta)})`}, comparados con los {d.dias} {d.dias === 1 ? 'día' : 'días'} anteriores</p>
+        </div>
+        <label className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.05em] text-rs-muted">Período:
+          <FiltroPeriodo ruta="/resumen" param="dias" variante="select" opciones={PERIODOS.map((n) => ({ v: String(n), l: `Últimos ${n} días` }))} actual={String(dias)} desde={rango?.desde} hasta={rango?.hasta} hoy={hoyReal} extra={{ inactivo: sp.inactivo ? String(inactivoDias) : undefined }} />
+        </label>
       </div>
 
       {/* 1. Lo que el sistema ya hizo por vos */}
@@ -85,7 +99,13 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
           <h2 id="h-riesgo" className="flex items-center gap-2 text-lg font-semibold text-rs-warn"><AlertTriangle size={18} />Oportunidad detectada en tu base de clientes</h2>
           <nav aria-label="Cuántos días sin venir" className="flex items-center gap-1.5 text-xs">
             <span className="text-rs-muted">Sin venir hace más de</span>
-            {INACTIVOS.map((n) => <Link key={n} href={`/resumen?inactivo=${n}`} aria-current={n === d.inactivoDias ? 'page' : undefined} className={'rounded-full border px-2.5 py-1 font-semibold ' + (n === d.inactivoDias ? 'border-rs-warn bg-rs-warn/20 text-rs-warn' : 'border-rs-control text-rs-muted')}>{n} días</Link>)}
+            {INACTIVOS.map((n) => <Link key={n} href={`/resumen?${new URLSearchParams({ ...parametrosPeriodo, inactivo: String(n) }).toString()}`} aria-current={n === d.inactivoDias ? 'page' : undefined} className={'rounded-full border px-2.5 py-1 font-semibold ' + (n === d.inactivoDias ? 'border-rs-warn bg-rs-warn/20 text-rs-warn' : 'border-rs-control text-rs-muted')}>{n} días</Link>)}
+            <form action="/resumen" className="ml-1 flex items-center gap-1">
+              {Object.entries(parametrosPeriodo).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+              <label htmlFor="inactivo_n" className="sr-only">Otra cantidad de días sin venir</label>
+              <input id="inactivo_n" name="inactivo" type="number" min={7} max={365} step={1} placeholder="otro" defaultValue={INACTIVOS.includes(d.inactivoDias) ? '' : d.inactivoDias} className="input h-7 w-16 px-2 text-xs" />
+              <button className="rounded-full border border-rs-control px-2.5 py-1 font-semibold text-rs-muted">Aplicar</button>
+            </form>
           </nav>
         </div>
         {d.riesgo.habituales === 0 ? (
@@ -136,8 +156,8 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
 
         {/* 4. Mejores clientes */}
         <section aria-labelledby="h-top" className="card p-4 sm:p-5">
-          <h2 id="h-top" className="flex items-center gap-2 text-lg font-semibold"><Crown size={18} className="text-rs-lime" />Top 5 del mes</h2>
-          <p className="text-xs text-rs-muted">Quienes más vinieron o pidieron en los últimos {d.dias} días.</p>
+          <h2 id="h-top" className="flex items-center gap-2 text-lg font-semibold"><Crown size={18} className="text-rs-lime" />{rango || d.dias !== 30 ? 'Top 5 del período' : 'Top 5 del mes'}</h2>
+          <p className="text-xs text-rs-muted">Quienes más vinieron o pidieron {rango ? rotuloRango(rango) : `en los últimos ${d.dias} días`}.</p>
           {d.mejores.length === 0 ? <p className="mt-3 text-sm text-rs-muted">Todavía no hay visitas registradas en el período.</p> : (
             <ul className="mt-2 divide-y divide-rs-border">
               {d.mejores.map((c, i) => <FilaCliente key={c.id} c={c} texto={`${i + 1}º · ${c.visitas} ${c.visitas === 1 ? 'visita' : 'visitas'}${c.gasto > 0 ? ` · ${dinero(c.gasto)} en pedidos` : ''}`} boton={`Hola${primerNombre(c.nombre) ? ' ' + primerNombre(c.nombre) : ''}! Gracias por elegir ${negocio.nombre}, nos encanta tenerte como cliente. 🙌`} />)}
