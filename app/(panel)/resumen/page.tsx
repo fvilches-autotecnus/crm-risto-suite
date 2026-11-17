@@ -27,7 +27,7 @@ function delta(c: Comparado): { texto: string; color: string } {
 function Logro({ valor, etiqueta, nota, cambio, ayuda }: { valor: string; etiqueta: string; nota?: string; cambio?: Comparado; ayuda: string }) {
   const d = cambio ? delta(cambio) : null
   return (
-    <div className="card p-4 sm:p-5" title={ayuda}>
+    <div className="card min-w-[11.5rem] flex-1 p-4 sm:p-5" title={ayuda}>
       <div className="text-2xl font-bold tabular-nums text-rs-lime sm:text-3xl">{valor}</div>
       <div className="card-title mt-3">{etiqueta}</div>
       {nota && <div className="mt-1 text-xs text-rs-muted">{nota}</div>}
@@ -85,7 +85,7 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
       {/* 1. Lo que el sistema ya hizo por vos */}
       <section aria-labelledby="h-logros" className="space-y-3">
         <h2 id="h-logros" className="flex items-center gap-2 text-lg font-semibold"><TrendingUp size={18} className="text-rs-lime" />Lo que el sistema ya hizo por vos</h2>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex gap-3 overflow-x-auto pb-1">   {/* una sola fila, sean 3, 4 o 5: se reparten el ancho y, si no entran (celular), se desliza hacia el costado */}
           <Logro valor={num(logros.clientesNuevos.valor)} etiqueta="Clientes nuevos" cambio={logros.clientesNuevos} ayuda="Fichas de clientes creadas en el período (personas que escribieron o reservaron por primera vez)." />
           {logros.reservas && <Logro valor={num(logros.reservas.valor)} etiqueta="Reservas tomadas por el asistente" nota={`${num(logros.reservas.personas)} comensales`} cambio={logros.reservas} ayuda="Reservas que entraron solas (bot o sitio web), sin carga manual y sin contar las canceladas." />}
           {logros.reservas?.facturacion && d.ticketReservas && <Logro valor={dinero(logros.reservas.facturacion.valor)} etiqueta="Facturación estimada de reservas" nota={`Estimado: ${ticketTexto(d.ticketReservas)}`} cambio={logros.reservas.facturacion} ayuda="Reservas tomadas por el asistente multiplicadas por el ticket promedio que cargaste (el sistema no tiene un monto real por mesa)." />}
