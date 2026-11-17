@@ -14,7 +14,8 @@ import { webhookCliente } from '@/lib/notify'
 import { configuracionWebhookPedidos } from '@/lib/notify-pedidos'
 import { fechaCorta, hoyEn } from '@/lib/fechas'
 import type { UsuarioUI } from '@/lib/roles'
-import { AforoForm, AvisosForm, AvisosPedidosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, UbicacionesPanel } from './forms'
+import { AforoForm, AvisosForm, AvisosPedidosForm, BloqueoForm, BorrarBloqueo, FuncionesForm, ModulosForm, PausaAutoForm, ReglasPanel, SedesPanel, TicketReservasForm, UbicacionesPanel } from './forms'
+import { leerTicketReservas } from '@/lib/ticket'
 import { BotconversaForm, EtiquetasConfig, type EtiquetaConfig } from '@/components/etiquetas-ui'
 import { cuentasBC, integracionBC } from '@/lib/etiquetas'
 import { turnosGuardados } from '@/lib/turnos-web'
@@ -205,6 +206,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   // ¿qué secciones hay? (lo que el usuario puede cambiar y lo que el negocio usa)
   const hay = {
     negocio: !esSede && !restringido,
+    ticket: mods.reservas && ctx.puedeAdministrar && !esSede && !restringido,
     sedes: muestraSedes && !esSede,
     aforo: mods.reservas, calendario: !!cfgRes, bloqueos: mods.reservas, ubicaciones: mods.reservas && ctx.puedeAdministrar,
     tipos: !!cfgRes, confirmacion: !!cfgRes, parametros: !!cfgRes, web: !!webCfg, pedidos: veAjustesPedidos,
@@ -213,7 +215,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
     funciones: esSuper && !esSede, pausas: esSuper && ctx.tieneApagadoBot && !esSede,
   }
   const grupos: (GrupoIndice & { id: string; texto?: string })[] = [
-    { id: 'g-general', titulo: 'General', texto: 'Los datos del negocio y sus sedes.', items: [...(hay.negocio ? [{ id: 'negocio', label: 'Negocio' }] : []), ...(hay.sedes ? [{ id: 'sedes', label: 'Sedes' }] : [])] },
+    { id: 'g-general', titulo: 'General', texto: 'Los datos del negocio y sus sedes.', items: [...(hay.negocio ? [{ id: 'negocio', label: 'Negocio' }] : []), ...(hay.ticket ? [{ id: 'ticket', label: 'Ticket promedio' }] : []), ...(hay.sedes ? [{ id: 'sedes', label: 'Sedes' }] : [])] },
     { id: 'g-reservas', titulo: 'Reservas', texto: 'Cuándo se puede reservar y cuántos entran.', items: [
       ...(hay.calendario ? [{ id: 'calendario', label: 'Días de apertura' }] : []), ...(hay.aforo ? [{ id: 'aforo', label: 'Aforo' }] : []), ...(hay.bloqueos ? [{ id: 'bloqueos', label: 'Fechas bloqueadas' }] : []),
       ...(hay.ubicaciones ? [{ id: 'ubicaciones', label: 'Ubicaciones' }] : []), ...(hay.tipos ? [{ id: 'tipos', label: 'Tipos de reserva' }] : []),
@@ -253,6 +255,10 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
             <div><dt className="text-xs text-rs-muted">Horario</dt><dd className="mt-0.5 font-medium">Argentina (GMT-3)</dd></div>
             <div><dt className="text-xs text-rs-muted">Tu rol</dt><dd className="mt-0.5 font-medium">{ctx.rol === 'superadmin' ? 'Superadmin' : ROL[ctx.rol]}</dd></div>
           </dl>
+        </Seccion>}
+
+        {hay.ticket && <Seccion id="ticket" i={n++} titulo="Ticket promedio de las reservas" texto="Las reservas no tienen un monto (no hay POS). Cargá cuánto gasta en promedio cada persona (o cada reserva) y el Resumen del dueño lo usa para estimar facturación y el dinero de los clientes que dejaron de venir. Siempre se muestra como «estimado».">
+          <TicketReservasForm ticket={leerTicketReservas(negocio.modulos)} puedeEditar={ctx.puedeAdministrar} />
         </Seccion>}
 
         {hay.sedes && (

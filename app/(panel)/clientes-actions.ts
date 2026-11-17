@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { getContexto } from '@/lib/context'
 import { nombreSuscriptor } from '@/lib/botconversa'
 import { cuentaBCUsable } from '@/lib/etiquetas'
+import { createAdminClient } from '@/lib/supabase/server'
+import { FILTRO_SIN_NOMBRE, completarNombresLocales, limpiarNombre, nombreValido } from '@/lib/nombres-clientes'
 import type { ActionResult } from './actions'
 
 const fail = (error: string): ActionResult => ({ ok: false, error })
@@ -45,8 +47,24 @@ export interface AvanceNombres {
 }
 
 const LOTE_NOMBRES = 20
-const SIN_NOMBRE = 'nombre.ilike."sin nombre",nombre.eq.""'
+const SIN_NOMBRE = FILTRO_SIN_NOMBRE   // vacío, "Sin nombre", solo símbolos o emojis, un teléfono o una sola letra
 const vacio = (error: string): AvanceNombres => ({ ok: false, error, revisados: 0, completados: 0, sinDato: 0, errores: 0, ultimo: null, hecho: true })
+
+/**
+ * Limpieza de nombres con lo que ya hay en el CRM: las fichas sin nombre real toman el de la reserva que hicieron, de sus pedidos, de su reseña o de su perfil
+ * de WhatsApp. Solo para dueños y administradores del negocio activo. Nunca pisa un nombre real.
+ */
+export async function completarNombresDeLaBase(): Promise<{ ok: boolean; error?: string; revisados?: number; completados?: number; sinDato?: number; porFuente?: Record<string, number> }> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar || !ctx.puedeEscribir) return { ok: false, error: 'Solo un dueño o administrador puede completar los nombres' }
+  try {
+    const r = await completarNombresLocales(createAdminClient(), ctx.negocio.id)
+    if (r.completados) revalidatePath('/', 'layout')
+    return { ok: true, ...r }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'No se pudieron completar los nombres' }
+  }
+}
 
 /**
  * Completa las fichas que están en "Sin nombre" con el nombre que ese contacto tiene en BotConversa (el del perfil de WhatsApp),
@@ -55,7 +73,7 @@ const vacio = (error: string): AvanceNombres => ({ ok: false, error, revisados: 
  */
 export async function completarNombresDesdeBotConversa(desde: string | null): Promise<AvanceNombres> {
   const ctx = await getContexto()
-  if (!ctx.esSuperadmin) return vacio('Solo un superadmin puede completar los nombres')
+  if (!ctx.puedeAdministrar || !ctx.puedeEscribir) return vacio('Solo un dueño o administrador puede completar los nombres')
   if (desde !== null && !UUID.test(desde)) return vacio('Dato no válido')
   const cuenta = await cuentaBCUsable(ctx.negocio.id, null)
   if (!cuenta) return vacio('La integración con BotConversa no está activa')
@@ -77,9 +95,9 @@ export async function completarNombresDesdeBotConversa(desde: string | null): Pr
   const uno = async (f: { id: string; telefono: string }) => {
     const b = await nombreSuscriptor(cuenta.clave, f.telefono)
     if (!b.ok) { if (b.error === 'clave') claveMala = true; if (b.error === 'no_encontrado') r.sinDato++; else r.errores++; return }
-    // sin caracteres de control, espacios juntados y un tope de largo; hace falta al menos una letra
-    const nombre = (b.datos ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_NOMBRE)
-    if (!/\p{L}/u.test(nombre)) { r.sinDato++; return }
+    // sin caracteres de control ni invisibles, espacios juntados y un tope de largo; tiene que ser un nombre real (con letras)
+    const nombre = limpiarNombre(b.datos)
+    if (!nombreValido(nombre)) { r.sinDato++; return }
     const { data, error: e } = await supabase.from('clientes').update({ nombre }).eq('id', f.id).eq('negocio_id', negocio.id).or(SIN_NOMBRE).select('id')
     if (e) r.errores++
     else if (data && data.length) r.completados++

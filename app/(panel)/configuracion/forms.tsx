@@ -9,6 +9,8 @@ import Modal from '@/components/modal'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import { EstadoGuardado, estadoDeFormulario } from '@/components/estado-guardado'
+import { guardarTicketReservas } from '../actions'
+import type { TicketReservas } from '@/lib/ticket'
 import { agregarFechaBloqueada, alternarSede, borrarFechaBloqueada, borrarRegla, borrarUbicacion, eliminarSede, guardarAforo, guardarFuncionesNegocio, guardarRegla, guardarSede, guardarUbicacion, guardarWebhookCliente, guardarWebhookPedidos, guardarWebhookSede, probarWebhookCliente, probarWebhookPedidos, quitarWebhookSede, type ActionResult } from '../actions'
 import { guardarModulos } from '../modulos-actions'
 import ModulosPicker from '@/components/modulos-picker'
@@ -34,6 +36,26 @@ export function AforoForm({ aforo, puedeEditar, sedeId }: { aforo: number | null
       {sedeId && <input type="hidden" name="sucursal_id" value={sedeId} />}
       <input name="aforo" type="number" min={1} defaultValue={aforo ?? ''} placeholder="Sin límite" disabled={!puedeEditar} aria-label="Aforo máximo" className="input w-32" />
       <span className="text-sm text-rs-muted">personas por día</span>
+      {puedeEditar && <EstadoGuardado estado={estadoDeFormulario(f)} />}
+      {state && !state.ok && <p role="alert" className="basis-full text-sm text-rs-danger">{state.error}</p>}
+    </form>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Ticket promedio de las reservas (estimado)
+// ---------------------------------------------------------------------------
+export function TicketReservasForm({ ticket, puedeEditar }: { ticket: TicketReservas | null; puedeEditar: boolean }) {
+  const f = useAccionFormulario(guardarTicketReservas, { auto: puedeEditar })
+  const { state, formProps } = f
+  return (
+    <form {...formProps} className="mt-3 flex flex-wrap items-center gap-3">
+      <span className="text-sm text-rs-muted">$</span>
+      <input name="valor" type="number" min={1} step="any" defaultValue={ticket?.valor ?? ''} placeholder="Sin cargar" disabled={!puedeEditar} aria-label="Ticket promedio" className="input w-36" />
+      <select name="modo" defaultValue={ticket?.modo ?? 'persona'} disabled={!puedeEditar} aria-label="El ticket es por" className="input">
+        <option value="persona">por persona</option>
+        <option value="reserva">por reserva</option>
+      </select>
       {puedeEditar && <EstadoGuardado estado={estadoDeFormulario(f)} />}
       {state && !state.ok && <p role="alert" className="basis-full text-sm text-rs-danger">{state.error}</p>}
     </form>

@@ -4,9 +4,9 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { diaMes } from '@/lib/fechas'
 
 /**
- * Notificaciones push de la app instalada (solo superadmin, por ahora).
+ * Notificaciones push de la app instalada (superadmin, y dueños y administradores de cada negocio).
  * La base avisa a /api/push/evento cuando entra una reserva o un pedido; acá se arma el texto y se envía a los dispositivos
- * de los superadmin que activaron los avisos y no apagaron ese negocio.
+ * de quienes activaron los avisos y no apagaron ese negocio.
  */
 export interface AvisoPush { titulo: string; cuerpo: string; url: string; tag: string; prueba?: boolean }
 export type TablaPush = 'reservas' | 'pedidos'
@@ -34,7 +34,7 @@ interface FilaReserva { id: string; negocio_id: string; numero: number; numero_s
 interface FilaPedido { id: string; negocio_id: string; numero: number; nombre: string; tipo: string; total: number; origen: string; creado_en: string }
 
 /** El aviso de una reserva o pedido ya guardado (con la clave de servicio: lo llama la base, no una persona). Null si no corresponde avisar. */
-export async function armarAviso(tabla: TablaPush, id: string): Promise<{ negocioId: string; aviso: AvisoPush } | null> {
+export async function armarAviso(tabla: TablaPush, id: string): Promise<{ negocioId: string; sucursalId: string | null; aviso: AvisoPush } | null> {
   const sb = createAdminClient()
   const reciente = (iso: string) => Date.now() - new Date(iso).getTime() <= MAX_ANTIGUEDAD_MS
   if (tabla === 'reservas') {
@@ -45,6 +45,7 @@ export async function armarAviso(tabla: TablaPush, id: string): Promise<{ negoci
     const cuando = r.fecha ? `${diaMes(r.fecha)}${r.hora ? ' ' + r.hora.slice(0, 5) : ''}` : 'a coordinar'
     return {
       negocioId: r.negocio_id,
+      sucursalId: r.sucursal_id,
       aviso: {
         titulo: `Nueva reserva · ${negocio}`,
         cuerpo: [`#${r.numero_sede ?? r.numero}`, corto(r.cliente_nombre, 40) || 'Sin nombre', r.cantidad_personas ? `${r.cantidad_personas} ${r.cantidad_personas === 1 ? 'persona' : 'personas'}` : null, cuando, sede].filter(Boolean).join(' · '),
@@ -59,6 +60,7 @@ export async function armarAviso(tabla: TablaPush, id: string): Promise<{ negoci
   const negocio = await nombreNegocio(p.negocio_id)
   return {
     negocioId: p.negocio_id,
+    sucursalId: null,
     aviso: {
       titulo: `Nuevo pedido · ${negocio}`,
       cuerpo: [`#${p.numero}`, p.tipo === 'delivery' ? 'Delivery' : p.tipo === 'mesa' ? 'Mesa' : 'Retiro', corto(p.nombre, 40), `$ ${Number(p.total).toLocaleString('es-AR')}`].join(' · '),
@@ -104,16 +106,45 @@ export async function enviarAviso(subs: Suscripcion[], aviso: AvisoPush): Promis
   return ok.length
 }
 
-/** Dispositivos que deben recibir el aviso de ese negocio: superadmin activos, con ese negocio encendido. */
-export async function destinatarios(negocioId: string): Promise<Suscripcion[]> {
+/**
+ * Dispositivos que deben recibir el aviso de ese negocio: superadmin activos y los dueños y administradores del negocio (con acceso activo),
+ * con ese negocio encendido. Quien está limitado a algunas sedes solo recibe lo de sus sedes.
+ */
+export async function destinatarios(negocioId: string, sucursalId: string | null = null): Promise<Suscripcion[]> {
   const sb = createAdminClient()
-  const [{ data: admins }, { data: apagados }] = await Promise.all([
+  const [{ data: admins }, { data: miembros }, { data: apagados }] = await Promise.all([
     sb.from('perfiles').select('id').eq('es_superadmin', true).eq('activo', true),
+    sb.from('membresias').select('user_id, sucursal_ids').eq('negocio_id', negocioId).eq('activo', true).in('rol', ['owner', 'admin']),
     sb.from('push_negocios_apagados').select('usuario_id').eq('negocio_id', negocioId),
   ])
+  const delNegocio = (miembros ?? []).filter((m) => !sucursalId || !((m.sucursal_ids as string[] | null)?.length) || (m.sucursal_ids as string[]).includes(sucursalId)).map((m) => m.user_id as string)
+  let activos: string[] = []
+  if (delNegocio.length) {
+    const { data } = await sb.from('perfiles').select('id').in('id', delNegocio).eq('activo', true)
+    activos = (data ?? []).map((p) => p.id as string)
+  }
   const sinAvisos = new Set((apagados ?? []).map((a) => a.usuario_id as string))
-  const ids = (admins ?? []).map((a) => a.id as string).filter((id) => !sinAvisos.has(id))
+  const ids = [...new Set([...(admins ?? []).map((a) => a.id as string), ...activos])].filter((id) => !sinAvisos.has(id))
   if (!ids.length) return []
   const { data } = await sb.from('push_suscripciones').select('id, usuario_id, endpoint, p256dh, auth').in('usuario_id', ids)
   return (data ?? []) as Suscripcion[]
+}
+
+/**
+ * Lo que necesita la campanita de avisos de este usuario: de qué negocios puede recibir (superadmin: todos los suyos; dueño o administrador: solo
+ * aquellos donde lo es) y cuáles apagó. Null si el usuario no puede recibir avisos.
+ */
+export async function avisosDeUsuario(userId: string, esSuperadmin: boolean, puedeAdministrar: boolean, negocios: { id: string; nombre: string }[]): Promise<{ negocios: { id: string; nombre: string }[]; apagados: string[] } | null> {
+  if (!esSuperadmin && !puedeAdministrar) return null
+  const sb = createAdminClient()
+  let lista = negocios
+  if (!esSuperadmin) {
+    const { data } = await sb.from('membresias').select('negocio_id').eq('user_id', userId).eq('activo', true).in('rol', ['owner', 'admin'])
+    const ok = new Set((data ?? []).map((m) => m.negocio_id as string))
+    lista = negocios.filter((n) => ok.has(n.id))
+  }
+  if (!lista.length) return null
+  const { data: ap, error } = await sb.from('push_negocios_apagados').select('negocio_id').eq('usuario_id', userId)
+  if (error) return null
+  return { negocios: lista, apagados: (ap ?? []).map((a) => a.negocio_id as string) }
 }

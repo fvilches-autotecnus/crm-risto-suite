@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
+import { estimarConTicket, leerTicketReservas, type TicketReservas } from '@/lib/ticket'
 
 /**
  * Datos de la pantalla "Resumen del dueño". Todo sale de lo que el CRM ya guarda (reservas, pedidos, clientes, reseñas): no hay POS, así que
@@ -20,11 +21,13 @@ export interface DatosResumen {
   hasta: string
   logros: {
     clientesNuevos: Comparado
-    reservas: (Comparado & { personas: number }) | null
+    reservas: (Comparado & { personas: number; facturacion: Comparado | null }) | null
     pedidos: (Comparado & { ventas: number; ventasAntes: number }) | null
     resenas5: (Comparado & { quejasPrivadas: number; validadas: boolean }) | null
   }
-  riesgo: { habituales: number; conPedidos: number; potencial: number | null; ticketPromedio: number | null; lista: ClienteResumen[] }
+  riesgo: { habituales: number; conPedidos: number; potencial: number | null; ticketPromedio: number | null; conReservas: number; potencialReservas: number | null; lista: ClienteResumen[] }
+  /** Ticket estimado que cargó el dueño para las reservas (null = no cargado). */
+  ticketReservas: TicketReservas | null
   mejores: ClienteResumen[]
 }
 
@@ -47,6 +50,7 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
   const enPeriodo = (f: string) => f >= desde && f <= hasta
   const enAnterior = (f: string) => f >= antDesde && f < desde
   const limiteInactivo = sumarDias(hoy, -opt.inactivoDias)
+  const ticket = mod.reservas ? leerTicketReservas(negocio.modulos) : null   // estimado que cargó el dueño (el sistema no tiene POS)
   const histDesde = sumarDias(hoy, -HISTORIAL_DIAS)
 
   // ───────── Lo que hizo el asistente (período y período anterior)
@@ -66,7 +70,7 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
       : Promise.resolve([] as Fila[]),
     // historial de visitas para "habituales" y "mejores clientes"
     mod.reservas
-      ? (async () => { let q = supabase.from('reservas').select('cliente_id, fecha').eq('negocio_id', negocio.id).eq('estado', 'confirmada').is('eliminado_en', null).not('cliente_id', 'is', null).gte('fecha', histDesde).lte('fecha', hoy); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
+      ? (async () => { let q = supabase.from('reservas').select('cliente_id, fecha, cantidad_personas').eq('negocio_id', negocio.id).eq('estado', 'confirmada').is('eliminado_en', null).not('cliente_id', 'is', null).gte('fecha', histDesde).lte('fecha', hoy); if (sede) q = q.eq('sucursal_id', sede.id); return ((await q.limit(MAX_FILAS)).data ?? []) as Fila[] })()
       : Promise.resolve([] as Fila[]),
     mod.pedidos
       ? (async () => ((await supabase.from('pedidos').select('cliente_id, total, creado_en').eq('negocio_id', negocio.id).neq('estado', 'cancelado').gte('creado_en', inicio(histDesde)).lte('creado_en', fin(hoy)).limit(MAX_FILAS)).data ?? []) as Fila[])()
@@ -83,7 +87,7 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
     const v = resRows.filter((r) => r.estado !== 'cancelada')
     const c = porPeriodo(v, (f) => dia(String(f.creado_en), negocio.zona_horaria), () => 1, 0, (x, y) => x + y)
     const pe = porPeriodo(v, (f) => dia(String(f.creado_en), negocio.zona_horaria), (f) => Number(f.cantidad_personas) || 0, 0, (x, y) => x + y)
-    return { valor: c.a, antes: c.p, personas: pe.a }
+    return { valor: c.a, antes: c.p, personas: pe.a, facturacion: ticket ? { valor: estimarConTicket(ticket, c.a, pe.a), antes: estimarConTicket(ticket, c.p, pe.p) } : null }
   })() : null
 
   const pedidos = mod.pedidos ? (() => {
@@ -109,10 +113,10 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
   })() : null
 
   // ───────── Historial por cliente: visitas (días distintos), última visita, gasto (solo pedidos) y ticket propio
-  interface Acum { dias: Set<string>; ultima: string; gasto: number; pedidosDias: Set<string>; gastoPeriodo: number; diasPeriodo: Set<string> }
+  interface Acum { dias: Set<string>; ultima: string; gasto: number; pedidosDias: Set<string>; gastoPeriodo: number; diasPeriodo: Set<string>; personas: number; reservasN: number }
   const por = new Map<string, Acum>()
-  const acum = (id: string) => { let a = por.get(id); if (!a) { a = { dias: new Set(), ultima: '', gasto: 0, pedidosDias: new Set(), gastoPeriodo: 0, diasPeriodo: new Set() }; por.set(id, a) } return a }
-  for (const r of resHist) { const id = String(r.cliente_id), f = String(r.fecha); const a = acum(id); a.dias.add(f); if (f > a.ultima) a.ultima = f; if (enPeriodo(f)) a.diasPeriodo.add(f) }
+  const acum = (id: string) => { let a = por.get(id); if (!a) { a = { dias: new Set(), ultima: '', gasto: 0, pedidosDias: new Set(), gastoPeriodo: 0, diasPeriodo: new Set(), personas: 0, reservasN: 0 }; por.set(id, a) } return a }
+  for (const r of resHist) { const id = String(r.cliente_id), f = String(r.fecha); const a = acum(id); a.dias.add(f); a.personas += Number(r.cantidad_personas) || 0; a.reservasN++; if (f > a.ultima) a.ultima = f; if (enPeriodo(f)) a.diasPeriodo.add(f) }
   let sumaTickets = 0, nTickets = 0
   const desde90 = sumarDias(hoy, -89)
   for (const p of pedHist) {
@@ -128,6 +132,11 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
   const conPedidos = dormidos.filter(([, a]) => a.pedidosDias.size >= VISITAS_HABITUAL)
   // Dinero: solo de quienes piden (cada uno con SU ticket promedio: lo que gastó dividido sus pedidos); a quienes solo reservan no se les inventa un monto
   const potencial = mod.pedidos && conPedidos.length ? Math.round(conPedidos.reduce((s, [, a]) => s + a.gasto / a.pedidosDias.size, 0)) : null
+  // Los que reservaban (y no piden): monto ESTIMADO con el ticket cargado — por persona usa el promedio de comensales de sus reservas
+  const soloReservas = dormidos.filter(([, a]) => a.pedidosDias.size < VISITAS_HABITUAL && a.reservasN > 0)
+  const potencialReservas = ticket && soloReservas.length
+    ? Math.round(soloReservas.reduce((s2, [, a]) => s2 + estimarConTicket(ticket, 1, a.reservasN ? a.personas / a.reservasN : 0), 0))
+    : null
   const topDormidos = [...dormidos].sort((x, y) => y[1].dias.size - x[1].dias.size || y[1].gasto - x[1].gasto).slice(0, 5)
   const topMes = [...por.entries()].filter(([, a]) => a.diasPeriodo.size > 0).sort((x, y) => y[1].diasPeriodo.size - x[1].diasPeriodo.size || y[1].gastoPeriodo - x[1].gastoPeriodo).slice(0, 5)
 
@@ -143,7 +152,8 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
   return {
     dias: opt.dias, inactivoDias: opt.inactivoDias, hoy, desde, hasta,
     logros: { clientesNuevos: { valor: cNuevos, antes: cNuevosAnt }, reservas, pedidos, resenas5 },
-    riesgo: { habituales: dormidos.length, conPedidos: conPedidos.length, potencial, ticketPromedio, lista: topDormidos.map(([id, a]) => armar(id, a, false)) },
+    riesgo: { habituales: dormidos.length, conPedidos: conPedidos.length, potencial, ticketPromedio, conReservas: soloReservas.length, potencialReservas, lista: topDormidos.map(([id, a]) => armar(id, a, false)) },
+    ticketReservas: ticket,
     mejores: topMes.map(([id, a]) => armar(id, a, true)),
   }
 }

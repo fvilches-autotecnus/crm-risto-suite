@@ -297,6 +297,7 @@ export const MANUAL: SeccionManual[] = [
     bloques: [
       { t: 'p', x: 'Pantalla para **dueños y administradores**. Muestra los últimos 30 días comparados con los 30 anteriores: **clientes nuevos**, **reservas y pedidos que tomó el asistente** (sin carga manual), **reseñas de 5★ validadas** (las que generaron voucher) y quejas recibidas en privado.' },
       { t: 'p', x: '**Oportunidad detectada:** clientes habituales (2 o más visitas) que llevan más de 35, 60 o 90 días sin venir. El monto en pesos solo se calcula para quienes piden (cada pedido trae su total); a quienes solo reservan no se les inventa un monto. Es un potencial, no plata perdida.' },
+      { t: 'p', x: '**Ticket promedio de las reservas:** como no hay un monto real por mesa, cargá uno **estimado** (por persona o por reserva) en **Configuración → Ticket promedio**. Con eso el Resumen estima la facturación de las reservas y el dinero de los clientes que dejaron de venir, siempre rotulado «estimado».' },
       { t: 'p', x: '**Radar de 48 horas:** lo reservado para hoy y mañana contra el aforo, con la demanda esperada. Si una franja viene tranquila, sugiere difundir una promo o un voucher.' },
       { t: 'p', x: '**Top 5 del mes:** los clientes con más visitas (días con reserva confirmada o pedido). El botón **Escribirle** abre WhatsApp con un mensaje armado.' },
     ],

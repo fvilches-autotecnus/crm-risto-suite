@@ -22,7 +22,7 @@ const nombreDispositivo = () => {
 }
 
 /**
- * App instalable + avisos push (solo superadmin): instalar el CRM como aplicación, activar los avisos en este dispositivo
+ * App instalable + avisos push (superadmin, dueños y administradores): instalar el CRM como aplicación, activar los avisos en este dispositivo
  * (reservas y pedidos nuevos, aunque el CRM esté cerrado) y elegir de qué negocios se reciben.
  */
 export default function AvisosPush({ negocios, apagadosInicial, clavePublica, listo }: { negocios: { id: string; nombre: string }[]; apagadosInicial: string[]; clavePublica: string; listo: boolean }) {

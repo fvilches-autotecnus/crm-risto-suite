@@ -9,16 +9,19 @@ import { UUID } from '@/lib/validar'
 export interface ResultadoPush { ok: boolean; error?: string; enviados?: number }
 const fail = (error: string): ResultadoPush => ({ ok: false, error })
 
-/** Por ahora las notificaciones push son solo para superadmin (se vuelve a comprobar acá, en el servidor). */
-async function superadmin() {
+/**
+ * Pueden recibir avisos el superadmin y los dueños y administradores (se vuelve a comprobar acá, en el servidor). Las políticas de la base de estas
+ * tablas son solo de superadmin, así que todo se hace con la clave de servicio, siempre acotado al usuario con sesión.
+ */
+async function puedeRecibir() {
   const ctx = await getContexto()
-  return ctx.esSuperadmin ? ctx : null
+  return ctx.esSuperadmin || ctx.puedeAdministrar ? ctx : null
 }
 
 /** Guarda (o actualiza) este dispositivo. Un mismo navegador puede pasar de un usuario a otro: el endpoint es único y queda con el último. */
 export async function guardarSuscripcion(s: { endpoint: string; p256dh: string; auth: string; dispositivo?: string }): Promise<ResultadoPush> {
-  const ctx = await superadmin()
-  if (!ctx) return fail('Solo un superadmin puede activar los avisos')
+  const ctx = await puedeRecibir()
+  if (!ctx) return fail('Solo los dueños y administradores pueden activar los avisos')
   const endpoint = String(s?.endpoint ?? ''), p256dh = String(s?.p256dh ?? ''), auth = String(s?.auth ?? '')
   if (!/^https:\/\//.test(endpoint) || endpoint.length < 20 || endpoint.length > 1000 || p256dh.length < 10 || p256dh.length > 200 || auth.length < 10 || auth.length > 100) return fail('Los datos del dispositivo no son válidos')
   const dispositivo = String(s?.dispositivo ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || null
@@ -29,20 +32,25 @@ export async function guardarSuscripcion(s: { endpoint: string; p256dh: string; 
 
 /** Da de baja este dispositivo (solo si es del usuario con sesión). */
 export async function quitarSuscripcion(endpoint: string): Promise<ResultadoPush> {
-  const ctx = await superadmin()
-  if (!ctx) return fail('Solo un superadmin puede cambiar los avisos')
-  const { error } = await ctx.supabase.from('push_suscripciones').delete().eq('endpoint', String(endpoint ?? '')).eq('usuario_id', ctx.userId)
+  const ctx = await puedeRecibir()
+  if (!ctx) return fail('Solo los dueños y administradores pueden cambiar los avisos')
+  const { error } = await createAdminClient().from('push_suscripciones').delete().eq('endpoint', String(endpoint ?? '')).eq('usuario_id', ctx.userId)
   return error ? fail('No se pudo quitar el dispositivo') : { ok: true }
 }
 
 /** Enciende o apaga los avisos de un negocio para este superadmin (en todos sus dispositivos). Sin fila = encendido. */
 export async function cambiarAvisosNegocio(negocioId: string, encendido: boolean): Promise<ResultadoPush> {
-  const ctx = await superadmin()
-  if (!ctx) return fail('Solo un superadmin puede cambiar los avisos')
+  const ctx = await puedeRecibir()
+  if (!ctx) return fail('Solo los dueños y administradores pueden cambiar los avisos')
   if (!UUID.test(negocioId) || !ctx.negocios.some((n) => n.id === negocioId)) return fail('Negocio no válido')
+  const admin = createAdminClient()
+  if (!ctx.esSuperadmin) {   // un dueño o administrador solo maneja los avisos de los negocios donde lo es
+    const { data: m } = await admin.from('membresias').select('id').eq('user_id', ctx.userId).eq('negocio_id', negocioId).eq('activo', true).in('rol', ['owner', 'admin']).maybeSingle()
+    if (!m) return fail('Negocio no válido')
+  }
   const { error } = encendido
-    ? await ctx.supabase.from('push_negocios_apagados').delete().eq('usuario_id', ctx.userId).eq('negocio_id', negocioId)
-    : await ctx.supabase.from('push_negocios_apagados').upsert({ usuario_id: ctx.userId, negocio_id: negocioId }, { onConflict: 'usuario_id,negocio_id', ignoreDuplicates: true })
+    ? await admin.from('push_negocios_apagados').delete().eq('usuario_id', ctx.userId).eq('negocio_id', negocioId)
+    : await admin.from('push_negocios_apagados').upsert({ usuario_id: ctx.userId, negocio_id: negocioId }, { onConflict: 'usuario_id,negocio_id', ignoreDuplicates: true })
   if (error) return fail('No se pudo guardar el cambio')
   revalidatePath('/', 'layout')
   return { ok: true }
@@ -50,10 +58,10 @@ export async function cambiarAvisosNegocio(negocioId: string, encendido: boolean
 
 /** Manda una notificación de prueba a los dispositivos de este usuario (siempre se muestra, aunque el CRM esté abierto). */
 export async function enviarPrueba(): Promise<ResultadoPush> {
-  const ctx = await superadmin()
-  if (!ctx) return fail('Solo un superadmin puede probar los avisos')
+  const ctx = await puedeRecibir()
+  if (!ctx) return fail('Solo los dueños y administradores pueden probar los avisos')
   if (!configurarVapid()) return fail('Faltan las claves de notificaciones en el servidor')
-  const { data } = await ctx.supabase.from('push_suscripciones').select('id, usuario_id, endpoint, p256dh, auth').eq('usuario_id', ctx.userId)
+  const { data } = await createAdminClient().from('push_suscripciones').select('id, usuario_id, endpoint, p256dh, auth').eq('usuario_id', ctx.userId)
   const subs = (data ?? []) as { id: string; usuario_id: string; endpoint: string; p256dh: string; auth: string }[]
   if (!subs.length) return fail('Este usuario todavía no tiene dispositivos con avisos activados')
   const enviados = await enviarAviso(subs, { titulo: 'RistoSuite · prueba', cuerpo: 'Si ves esto, los avisos de este dispositivo funcionan.', url: '/', tag: 'prueba', prueba: true })

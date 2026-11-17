@@ -6,6 +6,7 @@ import BarraProgreso from '@/components/barra-progreso'
 import BotToggle from '@/components/bot-toggle'
 import AvisosEnVivo from '@/components/avisos-en-vivo'
 import AvisosPush from '@/components/avisos-push'
+import { avisosDeUsuario } from '@/lib/push'
 import { FeedbackProvider } from '@/components/feedback'
 import Nav from '@/components/nav'
 import NegocioSelect from '@/components/negocio-select'
@@ -40,7 +41,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     ctx.puedeApagarBot ? contarPausados(ctx) : 0,   // chats que el bot dejó esperando a una persona
     cargarNotificaciones(ctx),
     ctx.modulosActivos.pedidos ? ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle() : Promise.resolve(null),   // interruptor de la impresión automática
-    ctx.esSuperadmin ? ctx.supabase.from('push_negocios_apagados').select('negocio_id').eq('usuario_id', ctx.userId) : Promise.resolve(null),   // negocios cuyos avisos push apagó este superadmin
+    avisosDeUsuario(ctx.userId, ctx.esSuperadmin, ctx.puedeAdministrar, ctx.negocios.map((n) => ({ id: n.id, nombre: n.nombre }))),   // avisos push: de qué negocios puede recibir y cuáles apagó (superadmin, dueños y administradores)
   ])
   const desdeImpresion = (cfgImpresion?.data?.comandera_desde as string | null | undefined) ?? null
 
@@ -66,7 +67,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
-              {ctx.esSuperadmin && <AvisosPush negocios={ctx.negocios.map((n) => ({ id: n.id, nombre: n.nombre }))} apagadosInicial={(apagadosPush?.data ?? []).map((f) => f.negocio_id as string)} clavePublica={clavePush} listo={!!clavePush && !apagadosPush?.error} />}
+              {apagadosPush && <AvisosPush negocios={apagadosPush.negocios} apagadosInicial={apagadosPush.apagados} clavePublica={clavePush} listo={!!clavePush} />}
               <CampanaNotificaciones key={ctx.negocio.id} inicial={notificaciones} />
               <span className="hidden text-sm font-semibold md:inline">{ctx.nombreUsuario}</span>
               <form action="/salir" method="post">

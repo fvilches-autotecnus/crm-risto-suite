@@ -10,6 +10,7 @@ import { avisarCambioDeEstado, enviarPrueba } from '@/lib/notify'
 import { enviarPruebaPedido } from '@/lib/notify-pedidos'
 import { ESTADOS_AVISO_PEDIDO } from '@/lib/pedidos'
 import { chequearReserva, type ChequeoAforo } from '@/lib/aforo'
+import { MAX_TICKET } from '@/lib/ticket'
 import { ESTADOS, ESTADOS_AVISO, ESTADOS_OCUPAN, avisaReservaManual, esEstadoAviso, firmaSena, type EstadoReserva } from '@/lib/reservas'
 
 export interface ActionResult {
@@ -105,6 +106,26 @@ function validarUrlWebhook(url: string): string | null {
   if (u.protocol !== 'https:') return 'La URL del webhook tiene que empezar con https://'
   if (URL_PRIVADA.test(u.hostname)) return 'La URL del webhook tiene que ser pública'
   return null
+}
+
+/** Ticket promedio ESTIMADO de las reservas (por persona o por reserva): lo cargan dueños y administradores; vacío = sin ticket. */
+export async function guardarTicketReservas(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await getContexto()
+  if (!ctx.puedeAdministrar) return fail('Solo un dueño o administrador puede cambiar el ticket promedio')
+  const crudo = text(fd, 'valor').replace(/\./g, '').replace(',', '.')
+  const modo = text(fd, 'modo') === 'reserva' ? 'reserva' : 'persona'
+  const valor = crudo === '' ? null : Number(crudo)
+  if (valor !== null && (!Number.isFinite(valor) || valor <= 0 || valor > MAX_TICKET)) return fail('El ticket tiene que ser un monto mayor a 0')
+  const admin = createAdminClient()
+  const { data: actual, error: e1 } = await admin.from('negocios').select('modulos').eq('id', ctx.negocio.id).single()
+  if (e1 || !actual) return fail('No se pudo leer el negocio')
+  const modulos = { ...(actual.modulos as Record<string, unknown>) }
+  if (valor === null) delete modulos.ticket_reservas
+  else modulos.ticket_reservas = { valor: Math.round(valor * 100) / 100, modo }
+  const { error } = await admin.from('negocios').update({ modulos }).eq('id', ctx.negocio.id)
+  if (error) return fail('No se pudo guardar')
+  revalidatePath('/', 'layout')
+  return { ok: true }
 }
 
 export async function guardarWebhookCliente(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {

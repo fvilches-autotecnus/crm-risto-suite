@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   try {
     const armado = await armarAviso(tabla as TablaPush, id)
     if (!armado) return NextResponse.json({ enviados: 0, motivo: 'no_corresponde' }, { headers: SIN_CACHE })
-    const subs = await destinatarios(armado.negocioId)
+    const subs = await destinatarios(armado.negocioId, armado.sucursalId)
     const enviados = await enviarAviso(subs, armado.aviso)
     return NextResponse.json({ enviados, destinatarios: subs.length }, { headers: SIN_CACHE })
   } catch {

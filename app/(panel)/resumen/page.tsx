@@ -8,6 +8,7 @@ import { dinero, linkWhatsApp } from '@/lib/pedidos'
 import { cargarPrediccion } from '@/lib/prediccion-datos'
 import FiltroPeriodo from '@/components/filtro-periodo'
 import { diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
+import { ticketTexto } from '@/lib/ticket'
 import { hoyEn } from '@/lib/fechas'
 import { cargarResumen, type ClienteResumen, type Comparado } from '@/lib/resumen-datos'
 
@@ -87,10 +88,11 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Logro valor={num(logros.clientesNuevos.valor)} etiqueta="Clientes nuevos" cambio={logros.clientesNuevos} ayuda="Fichas de clientes creadas en el período (personas que escribieron o reservaron por primera vez)." />
           {logros.reservas && <Logro valor={num(logros.reservas.valor)} etiqueta="Reservas tomadas por el asistente" nota={`${num(logros.reservas.personas)} comensales`} cambio={logros.reservas} ayuda="Reservas que entraron solas (bot o sitio web), sin carga manual y sin contar las canceladas." />}
+          {logros.reservas?.facturacion && d.ticketReservas && <Logro valor={dinero(logros.reservas.facturacion.valor)} etiqueta="Facturación estimada de reservas" nota={`Estimado: ${ticketTexto(d.ticketReservas)}`} cambio={logros.reservas.facturacion} ayuda="Reservas tomadas por el asistente multiplicadas por el ticket promedio que cargaste (el sistema no tiene un monto real por mesa)." />}
           {logros.pedidos && <Logro valor={dinero(logros.pedidos.ventas)} etiqueta="Ventas de pedidos del asistente" nota={`${num(logros.pedidos.valor)} pedidos`} cambio={{ valor: logros.pedidos.ventas, antes: logros.pedidos.ventasAntes }} ayuda="Suma del total de los pedidos que entraron por el bot o la carta web, sin contar los cancelados." />}
           {logros.resenas5 && <Logro valor={num(logros.resenas5.valor)} etiqueta={logros.resenas5.validadas ? 'Reseñas de 5★ validadas' : 'Reseñas de 5★ en Google'} nota={`${num(logros.resenas5.quejasPrivadas)} quejas recibidas en privado`} cambio={logros.resenas5} ayuda={(logros.resenas5.validadas ? 'Reseñas de 5 estrellas que generaron voucher: el sistema las validó.' : 'Reseñas de 5 estrellas con origen Google (sin validar: este negocio no usa vouchers).')} />}
         </div>
-        {!mod.pedidos && <p className="text-xs text-rs-muted">Los montos en pesos solo se muestran para pedidos: el sistema no tiene un ticket de las reservas.</p>}
+        {mod.reservas && !d.ticketReservas && <p className="text-xs text-rs-muted">Para ver una estimación en pesos de las reservas, cargá el ticket promedio en <Link href="/configuracion#ticket" className="underline">Configuración</Link>.</p>}
       </section>
 
       {/* 2. Dinero en riesgo */}
@@ -117,7 +119,10 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
               <p className="mt-1 text-sm">De ellos, <strong>{num(d.riesgo.conPedidos)}</strong> {d.riesgo.conPedidos === 1 ? 'pedía' : 'pedían'} seguido: si cada uno volviera a pedir una vez, serían ≈ <strong>{dinero(d.riesgo.potencial)}</strong> en ventas
                 <span className="text-rs-muted"> (con el ticket de cada uno{d.riesgo.ticketPromedio ? `; el ticket promedio del local es ${dinero(Math.round(d.riesgo.ticketPromedio))}` : ''}). Es un potencial, no plata perdida.</span></p>
             )}
-            {d.riesgo.potencial === null && <p className="mt-1 text-xs text-rs-muted">No se calcula un monto: el sistema no conoce cuánto gasta cada cliente en una reserva.</p>}
+            {d.riesgo.potencialReservas !== null && d.ticketReservas && (
+              <p className="mt-1 text-sm">De los que reservaban, <strong>{num(d.riesgo.conReservas)}</strong>: si cada uno volviera a reservar una vez, serían ≈ <strong>{dinero(d.riesgo.potencialReservas)}</strong> <span className="text-rs-muted">(estimado: {ticketTexto(d.ticketReservas)}).</span></p>
+            )}
+            {d.riesgo.potencial === null && d.riesgo.potencialReservas === null && <p className="mt-1 text-xs text-rs-muted">No se calcula un monto: {mod.reservas ? <>cargá el ticket promedio de las reservas en <Link href="/configuracion#ticket" className="underline">Configuración</Link> para ver una estimación.</> : 'el sistema no conoce cuánto gasta cada cliente.'}</p>}
             <ul className="mt-3 divide-y divide-rs-warn/20 rounded-md bg-rs-bg/40 px-3">
               {d.riesgo.lista.map((c) => <FilaCliente key={c.id} c={c} texto={`${c.visitas} visitas · última ${fechaCorta(c.ultima)}${c.gasto > 0 ? ` · gastó ${dinero(c.gasto)}` : ''}`} boton={`Hola${primerNombre(c.nombre) ? ' ' + primerNombre(c.nombre) : ''}! Hace tiempo que no te vemos por ${negocio.nombre} y te extrañamos. ¿Te esperamos pronto? 🙌`} />)}
             </ul>
