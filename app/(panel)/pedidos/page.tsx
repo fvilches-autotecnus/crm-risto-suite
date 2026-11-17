@@ -4,6 +4,8 @@ import { Search, ShoppingBag } from 'lucide-react'
 import { Tile } from '@/components/dashboard-ui'
 import Paginacion from '@/components/paginacion'
 import { BotonesPedidos, ListaPedidos, PedidosEnVivo, type OpcionCatalogo } from '@/components/pedidos-ui'
+import ResumenIA from '@/components/resumen-ia'
+import { resumirPedidos } from '../ia-actions'
 import { getContexto } from '@/lib/context'
 import { hoyEn, sumarDias } from '@/lib/fechas'
 import { numPagina, paginar } from '@/lib/paginacion'
@@ -71,7 +73,10 @@ export default async function PedidosPage({ searchParams }: { searchParams: Prom
           <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><ShoppingBag className="text-rs-lime" size={22} />Pedidos</h1>
           <p className="text-sm text-rs-muted">Retiro, delivery y pedidos en mesa, armados desde la carta</p>
         </div>
-        <BotonesPedidos config={config} catalogo={catalogo} slug={negocio.slug} puedeEscribir={ctx.puedeEscribir} puedeAjustes={ctx.puedeAdministrar || ctx.rol === 'encargado'} hayConfig={hayConfig} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ResumenIA key={JSON.stringify({ tab, periodo, q })} titulo="Resumen de pedidos con IA" pista="Resume los pedidos que ves con los filtros actuales y lo que escriben los clientes" generar={resumirPedidos.bind(null, { tab, periodo, q })} />
+          <BotonesPedidos config={config} catalogo={catalogo} slug={negocio.slug} puedeEscribir={ctx.puedeEscribir} puedeAjustes={ctx.puedeAdministrar || ctx.rol === 'encargado'} hayConfig={hayConfig} />
+        </div>
       </div>
 
       {!hayConfig ? (

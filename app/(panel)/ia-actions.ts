@@ -4,7 +4,8 @@ import { getContexto } from '@/lib/context'
 import { fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
 import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
 import { cargarPedidos, cargarReservas, diasEntre } from '@/lib/metricas-datos'
-import { dinero, labelEstadoPedido, labelPago, labelTipo } from '@/lib/pedidos'
+import { ESTADOS_ACTIVOS, dinero, labelEstadoPedido, labelPago, labelTipo } from '@/lib/pedidos'
+import { topProductos, type FilaItemPedido } from '@/lib/metricas-pedidos'
 import { labelEstado } from '@/lib/reservas'
 import { REGLAS, pedirResumen, type ResumenIAResult } from '@/lib/ia'
 import { ORIGENES_LISTA } from '@/lib/resenas'
@@ -93,6 +94,76 @@ ${lineas}
   if (!r.ok) return r
   return { ok: true, ...r.datos, analizadas: muestra.length, total: todas.length, generado: new Date().toISOString(), modelo: r.modelo,
     nota: `Se analizaron ${todas.length > muestra.length ? `los ${muestra.length} mensajes más recientes de ${todas.length}` : `${muestra.length} mensajes`}.` }
+}
+
+/**
+ * Resumen y conclusiones de los pedidos que se ven con los filtros actuales de la pantalla de Pedidos (pestaña, período, búsqueda).
+ * A la IA van cifras agregadas, los productos más pedidos y lo que escriben los clientes en las observaciones; nunca nombres, teléfonos ni direcciones de entrega.
+ */
+export async function resumirPedidos(f: { tab?: string; periodo?: string; q?: string }): Promise<ResumenIAResult> {
+  const ctx = await getContexto()
+  if (!ctx.modulosActivos.pedidos) return { ok: false, error: 'Los pedidos no están habilitados en este negocio.' }
+  const { supabase, negocio } = ctx
+  const tab = ['activos', 'entregados', 'cancelados', 'todos'].includes(f.tab ?? '') ? f.tab! : 'activos'
+  const periodo = ['hoy', '7', '30', 'todos'].includes(f.periodo ?? '') ? f.periodo! : 'hoy'
+  const q = (f.q ?? '').trim().replace(/[,()%*]/g, ' ')
+  const hoy = hoyEn(negocio.zona_horaria)
+  const desde = periodo === 'todos' ? null : `${periodo === 'hoy' ? hoy : sumarDias(hoy, -Number(periodo))}T00:00:00-03:00`
+
+  let consulta = supabase.from('pedidos').select('id, numero, tipo, entrega_nombre, medio_pago, medio_pago_nombre, estado, total, observaciones, motivo_cancelacion, creado_en').eq('negocio_id', negocio.id)
+  if (tab === 'activos') consulta = consulta.in('estado', ESTADOS_ACTIVOS)
+  else if (tab === 'entregados') consulta = consulta.eq('estado', 'entregado')
+  else if (tab === 'cancelados') consulta = consulta.eq('estado', 'cancelado')
+  if (tab !== 'activos' && desde) consulta = consulta.gte('creado_en', desde)
+  if (q) { const n = Number(q.replace('#', '')); consulta = Number.isInteger(n) && n > 0 ? consulta.or(`numero.eq.${n},nombre.ilike.%${q}%,telefono.ilike.%${q}%`) : consulta.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%`) }
+  const { data, error } = await consulta.order('creado_en', { ascending: false }).limit(3000)
+  if (error) return { ok: false, error: 'No se pudieron leer los pedidos.' }
+  const filas = data ?? []
+  if (!filas.length) return { ok: false, error: 'No hay pedidos con estos filtros para resumir.' }
+
+  const validos = filas.filter((p) => p.estado !== 'cancelado')
+  const ventas = validos.reduce((a, p) => a + Number(p.total), 0)
+  const cuenta = (arr: typeof filas, clave: (p: (typeof filas)[number]) => string) => {
+    const m = new Map<string, number>(); for (const p of arr) m.set(clave(p), (m.get(clave(p)) ?? 0) + 1)
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k}: ${n}`).join(' · ') || '—'
+  }
+  const horaDe = (iso: string) => Number(new Intl.DateTimeFormat('es-AR', { timeZone: negocio.zona_horaria, hour: '2-digit', hourCycle: 'h23' }).format(new Date(iso)))
+  const porHora = new Map<number, number>(); for (const p of filas) porHora.set(horaDe(p.creado_en), (porHora.get(horaDe(p.creado_en)) ?? 0) + 1)
+  const horas = [...porHora.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([h, n]) => `${String(h).padStart(2, '0')} h: ${n}`).join(' · ')
+
+  const items: FilaItemPedido[] = []
+  const ids = validos.map((p) => p.id)
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data: it } = await supabase.from('pedido_items').select('nombre, variante, cantidad, subtotal').eq('negocio_id', negocio.id).in('pedido_id', ids.slice(i, i + 150)).limit(10000)
+    items.push(...((it ?? []) as FilaItemPedido[]))
+  }
+  const top = topProductos(items, 12).map((x) => `${x.etiqueta}: ${x.valor} u.`).join(' · ') || '—'
+
+  // Lo que escriben los clientes (observaciones) y los motivos de cancelación; sin números largos (teléfonos) ni etiquetas que rompan el bloque de datos
+  const sinNumeros = (t: string) => t.replace(/\d[\d\s().-]{5,}\d/g, '[nº]')
+  const textos = filas.flatMap((p) => [
+    p.observaciones ? { t: `[${labelTipo(p.tipo)} · ${labelEstadoPedido(p.estado)}] ${sinTags(sinNumeros(limpio(p.observaciones)))}`, crudo: limpio(p.observaciones) } : null,
+    p.motivo_cancelacion ? { t: `[motivo de cancelación] ${sinTags(sinNumeros(limpio(p.motivo_cancelacion)))}`, crudo: limpio(p.motivo_cancelacion) } : null,
+  ]).filter((x): x is { t: string; crudo: string } => !!x && x.crudo.length >= 3)
+  const muestra = textos.slice(0, MAX_TEXTOS)
+
+  const sistema = `Sos analista de ventas y operación de un restaurante con pedidos de retiro, delivery y mesa. Recibís cifras de los pedidos que el dueño está viendo y lo que los clientes escribieron en las observaciones, y sacás conclusiones útiles.\n${REGLAS}\nNo repitas direcciones de entrega ni datos que identifiquen a un cliente. Secciones a devolver (en este orden): "Qué se pidió y cómo", "Lo que dicen los clientes" (patrones en las observaciones: problemas de entrega, pedidos especiales, aclaraciones; si no hay observaciones, decilo en un ítem), "Para mejorar". En "temas" devolvé lo que más se repite en las observaciones con su cantidad aproximada (lista vacía si no hay observaciones). Con pocos pedidos, advertilo.`
+  const usuario = `Negocio: ${negocio.nombre}.
+Filtros: ${tab === 'activos' ? 'pedidos en curso' : tab === 'todos' ? 'todos los estados' : tab} · ${tab === 'activos' ? 'sin límite de fecha' : periodo === 'todos' ? 'todo el historial' : periodo === 'hoy' ? 'hoy' : `últimos ${periodo} días`}${q ? ' · con búsqueda' : ''}.
+Pedidos: ${filas.length} (${filas.length - validos.length} cancelados). Ventas sin cancelados: ${dinero(ventas)}${validos.length ? ` · ticket promedio ${dinero(ventas / validos.length)}` : ''}.
+Por estado: ${cuenta(filas, (p) => labelEstadoPedido(p.estado))}.
+Por forma de entrega: ${cuenta(filas, (p) => p.entrega_nombre || labelTipo(p.tipo))}.
+Por medio de pago: ${cuenta(validos, (p) => labelPago(p.medio_pago, p.medio_pago_nombre))}.
+Horas con más pedidos: ${horas}.
+Productos más pedidos (sin cancelados): ${top}.
+Observaciones de los clientes${textos.length > muestra.length ? ` (las ${muestra.length} más recientes de ${textos.length})` : ` (${textos.length})`}:
+<datos>
+${muestra.map((x) => x.t).join('\n') || '(ninguna)'}
+</datos>`
+  const r = await pedirResumen(sistema, usuario, muestra.map((x) => x.crudo))
+  if (!r.ok) return r
+  return { ok: true, ...r.datos, analizadas: muestra.length || filas.length, total: filas.length, generado: new Date().toISOString(), modelo: r.modelo,
+    nota: `Se resumieron ${filas.length} pedido${filas.length === 1 ? '' : 's'}${textos.length ? ` y ${muestra.length} observaciones de clientes` : ' (ninguno tiene observaciones)'}.` }
 }
 
 const variacion = (ahora: number, antes: number) => (antes === 0 ? (ahora === 0 ? 'igual' : 'sin datos del período anterior') : `${ahora >= antes ? '+' : ''}${Math.round(((ahora - antes) / antes) * 100)}% vs el período anterior (${antes})`)

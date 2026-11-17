@@ -93,23 +93,22 @@ export const claveNombre = (t: string) => t.toLowerCase().normalize('NFD').repla
 
 /**
  * Productos más pedidos (por unidades), juntando las variantes bajo el nombre del producto.
- * Un producto se reconoce por su id de la carta (así sigue siendo el mismo aunque lo hayan renombrado) o, si el pedido no lo trae, por su nombre sin mayúsculas ni tildes.
- * Se muestra el nombre actual de la carta (`nombresCarta`) o, si no hay, el más usado en los pedidos. Dos grupos con el mismo nombre se unen.
+ * Se agrupa por el nombre que tenía el producto al pedirse, sin mayúsculas, tildes ni espacios de más: "PORCIÓN INDIVIDUAL" y "Porción Individual" son uno solo.
+ * A propósito NO se agrupa por id: si el negocio edita un producto en el lugar (ej. la "especial del mes" cambia de nombre y de receta), los pedidos de antes
+ * siguen contando con el nombre de entonces y no pasan al producto nuevo. Se muestra el nombre actual de la carta si es el mismo producto (`nombresCarta`: id → nombre) o, si no, el más usado.
  */
 export function topProductos(items: FilaItemPedido[], max = 8, nombresCarta?: Map<string, string>): { etiqueta: string; valor: number; ventas: number }[] {
-  const grupos = new Map<string, { valor: number; ventas: number; nombres: Map<string, number>; carta: string | null }>()
+  const grupos = new Map<string, { valor: number; ventas: number; nombres: Map<string, number> }>()
   for (const i of items) {
-    const k = i.producto_id ? `id:${i.producto_id}` : `n:${claveNombre(i.nombre)}`
-    const g = grupos.get(k) ?? { valor: 0, ventas: 0, nombres: new Map<string, number>(), carta: (i.producto_id && nombresCarta?.get(i.producto_id)) || null }
-    g.valor += Number(i.cantidad); g.ventas += Number(i.subtotal); g.nombres.set(i.nombre, (g.nombres.get(i.nombre) ?? 0) + Number(i.cantidad)); grupos.set(k, g)
+    const k = claveNombre(i.nombre)
+    const g = grupos.get(k) ?? { valor: 0, ventas: 0, nombres: new Map<string, number>() }
+    g.valor += Number(i.cantidad); g.ventas += Number(i.subtotal)
+    const actual = i.producto_id ? nombresCarta?.get(i.producto_id) : undefined
+    const crudo = (actual && claveNombre(actual) === k ? actual : i.nombre).trim()
+    g.nombres.set(crudo, (g.nombres.get(crudo) ?? 0) + Number(i.cantidad)); grupos.set(k, g)
   }
-  const unidos = new Map<string, { etiqueta: string; valor: number; ventas: number }>()
-  for (const g of grupos.values()) {
-    const etiqueta = g.carta ?? [...g.nombres.entries()].sort((a, b) => b[1] - a[1])[0][0]
-    const k = claveNombre(etiqueta), x = unidos.get(k)
-    if (x) { x.valor += g.valor; x.ventas += g.ventas } else unidos.set(k, { etiqueta: etiqueta.trim(), valor: g.valor, ventas: g.ventas })
-  }
-  return [...unidos.values()].sort((a, b) => b.valor - a.valor || b.ventas - a.ventas).slice(0, max)
+  return [...grupos.values()].map((g) => ({ etiqueta: [...g.nombres.entries()].sort((a, b) => b[1] - a[1])[0][0], valor: g.valor, ventas: g.ventas }))
+    .sort((a, b) => b.valor - a.valor || b.ventas - a.ventas).slice(0, max)
 }
 
 /** Clave con la que se reconoce a un cliente entre períodos (la misma que usa calcularMetricasPedidos). */
