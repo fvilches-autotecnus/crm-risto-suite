@@ -26,6 +26,15 @@ function generarCodigo(prefijo: string): string {
   return `${prefijo}-${[...bytes].map((b) => ALFABETO[b % ALFABETO.length]).join('')}`
 }
 
+/** Beneficio sugerido al crear un voucher de cada campaña (ej. cumpleaños: "1 Clásica Deluxe de regalo"): lo copia la sincronización desde el bot del negocio. Sin plantillas, vacío. */
+export async function plantillasVoucher(): Promise<Record<string, string>> {
+  try {
+    const ctx = await getContexto()
+    const { data } = await ctx.supabase.from('voucher_plantillas').select('campana, beneficio').eq('negocio_id', ctx.negocio.id).eq('activa', true)
+    return Object.fromEntries((data ?? []).map((r: { campana: string; beneficio: string }) => [r.campana, r.beneficio]))
+  } catch { return {} }
+}
+
 export async function crearVoucher(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')

@@ -3,7 +3,7 @@
 import { ThOrden, type OrdenTabla } from '@/components/th-orden'
 import { useState, useTransition } from 'react'
 import { Check, Copy, Gift, Plus, RotateCcw, Ticket, Trash2 } from 'lucide-react'
-import { cambiarEstadoVoucher, crearVoucher, eliminarVoucher } from '@/app/(panel)/modulos-actions'
+import { cambiarEstadoVoucher, crearVoucher, eliminarVoucher, plantillasVoucher } from '@/app/(panel)/modulos-actions'
 import { useConfirm, useToast } from '@/components/feedback'
 import { FechaInput, NombreApellidoInput, TelefonoInput } from '@/components/inputs'
 import Modal from '@/components/modal'
@@ -29,13 +29,19 @@ export interface VoucherUI {
 function VoucherForm({ prefill, onDone }: { prefill?: { cliente_id?: string; nombre?: string; telefono?: string; campana?: string }; onDone: () => void }) {
   const { state, pending, formProps } = useAccionFormulario(crearVoucher, { okTexto: 'Voucher creado' })
   const [campana, setCampana] = useState(prefill?.campana ?? 'cumpleanos')
+  // Beneficio sugerido por campaña (de la plantilla que trae la sincronización): se completa solo mientras la persona no escribió nada propio.
+  const [beneficio, setBeneficio] = useState('')
+  const [sugeridos, setSugeridos] = useState<Record<string, string>>({})
+  const [propio, setPropio] = useState(false)
+  useEffect(() => { plantillasVoucher().then((s) => setSugeridos(s)).catch(() => {}) }, [])
+  useEffect(() => { if (!propio) setBeneficio(sugeridos[campana] ?? '') }, [sugeridos, campana, propio])
   useEffect(() => { if (state?.ok) onDone() }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form {...formProps} className="grid grid-cols-2 gap-3">
       {prefill?.cliente_id && <input type="hidden" name="cliente_id" value={prefill.cliente_id} />}
       <div className="col-span-2"><NombreApellidoInput id="v_nombre" name="nombre" defaultValue={prefill?.nombre ?? ''} /></div>
       <div className="col-span-2"><TelefonoInput name="telefono" label="Teléfono" defaultValue={prefill?.telefono ?? ''} /></div>
-      <div className="col-span-2"><label className="label" htmlFor="v_ben">Beneficio *</label><input id="v_ben" name="beneficio" placeholder='Ej. "1 postre de regalo"' className="input w-full" required /></div>
+      <div className="col-span-2"><label className="label" htmlFor="v_ben">Beneficio *</label><input id="v_ben" name="beneficio" placeholder='Ej. "1 postre de regalo"' className="input w-full" required value={beneficio} onChange={(e) => { setBeneficio(e.target.value); setPropio(e.target.value !== '') }} /></div>
       <div>
         <label className="label" htmlFor="v_camp">Campaña</label>
         <select id="v_camp" name="campana" value={campana} onChange={(e) => setCampana(e.target.value)} className="input w-full">
