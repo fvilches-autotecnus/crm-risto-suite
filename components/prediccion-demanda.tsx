@@ -41,7 +41,7 @@ function resumenDia(d: DiaPred, franjas: { clave: string; etiqueta: string }[], 
   return { rotulo, texto: mejor.c.pct !== null ? `${mejor.f} ${Math.round(mejor.c.pct * 100)}% · ${labelBanda(mejor.c.banda as Banda)}` : `${mejor.f} ≈ ${mejor.c.esperado} pers.`, banda: mejor.c.banda }
 }
 
-function CeldaVista({ c }: { c: Celda | null }) {
+export function CeldaVista({ c }: { c: Celda | null }) {
   if (!c) return <span className="text-rs-muted">—</span>
   if (c.origen === 'cerrado') return <span className="text-sm text-rs-muted">Cerrado</span>
   if (c.origen === 'habitualmente_cerrado') return <span className="text-sm text-rs-muted" title="En las últimas semanas casi no hubo reservas este día">Sin movimiento habitual</span>

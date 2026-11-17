@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Armchair, BarChart3, Inbox, BookOpen, BookOpenText, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users } from 'lucide-react'
+import { Armchair, BarChart3, Inbox, BookOpen, BookOpenText, Building2, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, LayoutGrid, MessageCircleQuestion, MessagesSquare, PauseCircle, Settings, ShoppingBag, Star, Ticket, Users, Sparkles } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
+  { href: '/resumen', label: 'Resumen', icon: Sparkles, modulo: 'resumen' },
   { href: '/reservas', label: 'Reservas', icon: CalendarCheck, modulo: 'reservas' },
   { href: '/mesas', label: 'Salón', icon: Armchair, modulo: 'mesas' },
   { href: '/shows', label: 'Shows', icon: Clapperboard, modulo: 'shows' },

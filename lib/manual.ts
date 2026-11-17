@@ -293,6 +293,15 @@ export const MANUAL: SeccionManual[] = [
 
   // ───────────────────────── Análisis
   {
+    id: 'resumen', grupo: 'Análisis', titulo: 'Resumen del dueño', modulo: 'resumen', resumen: 'Lo que el asistente hizo en el mes, clientes habituales que dejaron de venir, ocupación de las próximas 48 horas y mejores clientes.',
+    bloques: [
+      { t: 'p', x: 'Pantalla para **dueños y administradores**. Muestra los últimos 30 días comparados con los 30 anteriores: **clientes nuevos**, **reservas y pedidos que tomó el asistente** (sin carga manual), **reseñas de 5★ en Google** y quejas recibidas en privado.' },
+      { t: 'p', x: '**Oportunidad detectada:** clientes habituales (2 o más visitas) que llevan más de 35, 60 o 90 días sin venir. El monto en pesos solo se calcula para quienes piden (cada pedido trae su total); a quienes solo reservan no se les inventa un monto. Es un potencial, no plata perdida.' },
+      { t: 'p', x: '**Radar de 48 horas:** lo reservado para hoy y mañana contra el aforo, con la demanda esperada. Si una franja viene tranquila, sugiere difundir una promo o un voucher.' },
+      { t: 'p', x: '**Top 5 del mes:** los clientes con más visitas (días con reserva confirmada o pedido). El botón **Escribirle** abre WhatsApp con un mensaje armado.' },
+    ],
+  },
+  {
     id: 'metricas', grupo: 'Análisis', titulo: 'Métricas', modulo: 'metricas', resumen: 'Gráficos de reservas y de pedidos, horarios fuertes y clientes recurrentes.',
     bloques: [
       { t: 'p', x: 'Elegís el período y ves los números de lo que use tu negocio: si tiene **Reservas** y **Pedidos**, aparecen dos pestañas arriba (**Reservas** y **Pedidos**); si usa solo uno, ves directamente ese. El período y la forma de agrupar la evolución valen para ambas.' },
