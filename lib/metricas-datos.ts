@@ -55,8 +55,15 @@ export async function cargarPedidos(ctx: Ctx, desde: string, hasta: string): Pro
   const idsValidos = filas.filter((r) => r.estado !== 'cancelado').map((r) => r.id)
   const items: FilaItemPedido[] = []
   for (let i = 0; i < idsValidos.length; i += 150) {
-    const { data: it } = await supabase.from('pedido_items').select('nombre, variante, cantidad, subtotal').eq('negocio_id', negocio.id).in('pedido_id', idsValidos.slice(i, i + 150)).limit(10000)
+    const { data: it } = await supabase.from('pedido_items').select('nombre, variante, cantidad, subtotal, producto_id').eq('negocio_id', negocio.id).in('pedido_id', idsValidos.slice(i, i + 150)).limit(10000)
     items.push(...((it ?? []) as FilaItemPedido[]))
   }
-  return { m, productos: topProductos(items) }
+  // Nombre actual de cada producto en la carta (los pedidos guardan el nombre que tenía al pedirse)
+  const idsProd = [...new Set(items.map((i) => i.producto_id).filter((x): x is string => !!x))]
+  const nombresCarta = new Map<string, string>()
+  for (let i = 0; i < idsProd.length; i += 150) {
+    const { data: cp } = await supabase.from('carta_productos').select('id, nombre').eq('negocio_id', negocio.id).in('id', idsProd.slice(i, i + 150))
+    for (const p of (cp ?? []) as { id: string; nombre: string }[]) nombresCarta.set(p.id, p.nombre)
+  }
+  return { m, productos: topProductos(items, 8, nombresCarta) }
 }
