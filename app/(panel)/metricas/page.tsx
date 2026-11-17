@@ -52,7 +52,7 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <SelectorPeriodo dias={dias} agrupar={agrupar} seccion={seccion} desde={rango ? desde : undefined} hasta={rango ? hoy : undefined} hoy={hoyReal} />
-          {(hayReservas || hayPedidos) && <ResumenIA key={`${desde}|${hoy}`} titulo="Resumen del período con IA" pista="Resume el período que estás viendo (con lo que usa tu negocio) y lo compara con el período anterior" generar={resumirMetricas.bind(null, { desde, hasta: hoy })} />}
+          {(hayReservas || hayPedidos) && <ResumenIA key={`${seccion}|${desde}|${hoy}`} titulo={`Resumen de ${seccion} con IA`} pista={`Resume las métricas de ${seccion} del período que estás viendo y las compara con el período anterior`} generar={resumirMetricas.bind(null, { desde, hasta: hoy, seccion: seccion as 'reservas' | 'pedidos' })} />}
         </div>
       </div>
 
