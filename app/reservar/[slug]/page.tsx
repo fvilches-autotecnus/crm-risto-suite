@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ReservarPublico from '@/components/reservar-publico'
 import { hoyEn } from '@/lib/fechas'
+import { traducir, varianteDe } from '@/lib/idioma'
 import { resolverModulos } from '@/lib/modulos'
 import { iconosMarca, origenCrm, urlAbsoluta, variablesMarca } from '@/lib/marca'
 import { cargarMarcaSitio, resolverSitio } from '@/lib/sitio-reservas'
@@ -23,13 +24,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const base = origenCrm() || undefined
   const slug = (await params).slug
   if (!s) return { title: 'Reservá tu mesa', robots: { index: false, follow: false } }
+  const tr = (t: string) => traducir(s.variante, t)
   const ico = iconosMarca(s.marca, slug) ?? { icon: `${origenCrm()}/logo.jpeg`, apple: `${origenCrm()}/logo.jpeg` }
-  const desc = s.subtitulo || `Reservá tu mesa en ${s.nombre}`
+  const desc = s.subtitulo || tr(`Reservá tu mesa en ${s.nombre}`)
   return {
     metadataBase: base ? new URL(base) : undefined,
-    title: `Reservá tu mesa · ${s.nombre}`, description: desc, robots: { index: false, follow: false },
+    title: tr(`Reservá tu mesa · ${s.nombre}`), description: desc, robots: { index: false, follow: false },
     icons: ico,
-    openGraph: { title: `Reservá tu mesa · ${s.nombre}`, description: desc, siteName: 'Risto Suite', type: 'website', locale: 'es_AR' },
+    openGraph: { title: tr(`Reservá tu mesa · ${s.nombre}`), description: desc, siteName: 'Risto Suite', type: 'website', locale: 'es_AR' },
   }
 }
 
@@ -95,7 +97,7 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
     {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
     <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}} avisos={((cal as { avisos?: Record<string, { fecha: string; desde?: string; hasta?: string; motivo: string; ubicaciones?: string[] }[]> } | null)?.avisos) ?? {}}
       cfg={cfgSitio(cfg)}
-      hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} />
+      hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} variante={varianteDe(negocio.zona_horaria as string)} />
     </>
   )
 }

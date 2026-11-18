@@ -35,7 +35,7 @@ export default async function Miniatura({ params }: { params: Promise<{ slug: st
         {/* un logo libre ya trae el nombre del local (igual que en el sitio): no se repite debajo */}
         {!(logo && marca?.logo_forma === 'libre') && <div style={{ display: 'flex', marginTop: 28, fontSize: 54, fontWeight: 300, letterSpacing: 10, textTransform: 'uppercase', color: acento, textAlign: 'center', maxWidth: 1000 }}>{nombre}</div>}
         {marca?.lema && <div style={{ display: 'flex', marginTop: 12, fontSize: 32, fontStyle: 'italic', color: texto, textAlign: 'center', maxWidth: 900 }}>{marca.lema}</div>}
-        <div style={{ display: 'flex', marginTop: 18, fontSize: 36, color: suave }}>{s?.subtitulo || 'Reservá tu mesa'}</div>
+        <div style={{ display: 'flex', marginTop: 18, fontSize: 36, color: suave }}>{s?.subtitulo || (s?.variante === 'tuteo' ? 'Reserva tu mesa' : 'Reservá tu mesa')}</div>
         {logo || (marca && tieneMarca(marca)) ? (
           <div style={{ position: 'absolute', bottom: 34, display: 'flex', alignItems: 'center', fontSize: 26, color: suave }}>
             Reservas con

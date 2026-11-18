@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import GestionarReserva, { type InfoReserva } from '@/components/gestionar-reserva'
 import { hoyEn } from '@/lib/fechas'
+import { varianteDe } from '@/lib/idioma'
 import { createAdminClient } from '@/lib/supabase/server'
 
 // Página del link de una reserva: ver, cancelar o modificar. No se guarda en caché (depende del código) y no se indexa.
@@ -22,5 +23,5 @@ export default async function ReservaPage({ params }: { params: Promise<{ slug: 
   if (!info?.ok) return noEncontrada
   const [{ data: neg }, { data: cal }] = await Promise.all([admin.from('negocios').select('zona_horaria').eq('slug', slug).maybeSingle(), admin.rpc('web_calendario', { p: { negocio: slug } })])
   const cerr = ((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}
-  return <GestionarReserva slug={slug} codigo={codigo} info={info} cerrados={cerr[info.reserva.sede_id ?? '*'] ?? cerr['*'] ?? []} hoy={hoyEn((neg?.zona_horaria as string | undefined) ?? undefined)} />
+  return <GestionarReserva slug={slug} codigo={codigo} info={info} cerrados={cerr[info.reserva.sede_id ?? '*'] ?? cerr['*'] ?? []} hoy={hoyEn((neg?.zona_horaria as string | undefined) ?? undefined)} variante={varianteDe(neg?.zona_horaria as string | undefined)} />
 }

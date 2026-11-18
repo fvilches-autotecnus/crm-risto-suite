@@ -10,6 +10,7 @@ import { fechaCorta } from '@/lib/fechas'
 import { bloqueoPorCapacidad, conBloqueos } from '@/lib/mesas'
 import { HorariosAgrupados } from '@/components/horarios-agrupados'
 import type { TurnoPublico } from '@/lib/turnos-web'
+import { traducir, type Variante } from '@/lib/idioma'
 
 export interface InfoReserva {
   negocio: string
@@ -24,7 +25,8 @@ const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó
 const ESTADO: Record<string, string> = { nueva: 'Pendiente de confirmación', confirmada: 'Confirmada', pendiente_pago: 'Pendiente de pago', revisar_pago: 'Pago en revisión', cancelada: 'Cancelada', no_show: 'No asistió' }
 
 /** Ver, cancelar o modificar una reserva desde su link. Pedirlo NO cambia nada: se arma un mensaje de WhatsApp y el cambio se aplica cuando llega desde el teléfono de la reserva. */
-export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [] }: { slug: string; codigo: string; info: InfoReserva; hoy: string; cerrados?: string[] }) {
+export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [], variante = 'voseo' }: { slug: string; codigo: string; info: InfoReserva; hoy: string; cerrados?: string[]; variante?: Variante }) {
+  const tr = (t: string) => traducir(variante, t)
   const r = info.reserva
   const [modo, setModo] = useState<'cancelar' | 'modificar' | null>(null)
   const [fecha, setFecha] = useState(r.fecha)
@@ -89,7 +91,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
     if (m.estado === 'ocupada') { setAviso(`La mesa ${m.numero} ya está reservada a esa hora.`); return }
     if (m.estado === 'no_apta') {
       const b = bloqueoPorCapacidad(m, personas, mesasSel)
-      setAviso(b?.motivo === 'suma' ? `La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y son ${personas}. Sacá una mesa si querés cambiarla.` : `La mesa ${m.numero} no es para ${personas} personas.`)
+      setAviso(b?.motivo === 'suma' ? tr(`La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y son ${personas}. Sacá una mesa si querés cambiarla.`) : `La mesa ${m.numero} no es para ${personas} personas.`)
       return
     }
     if (m.estado !== 'disponible') return
@@ -126,11 +128,11 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
       <div className="min-h-screen">{cabecera}
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><ShieldCheck size={28} /></div>
-          <h2 className="text-xl font-bold">Último paso: confirmalo por WhatsApp</h2>
-          <p className="text-sm text-rs-muted">Todavía <b className="text-rs-text">no cambiamos nada</b>. Se abre WhatsApp con tu pedido ya escrito: <b className="text-rs-text">enviálo desde el mismo número con el que reservaste</b>. Así nos aseguramos de que nadie toque tu reserva por vos.</p>
+          <h2 className="text-xl font-bold">{tr('Último paso: confirmalo por WhatsApp')}</h2>
+          <p className="text-sm text-rs-muted">Todavía <b className="text-rs-text">no cambiamos nada</b>. Se abre WhatsApp con tu pedido ya escrito: <b className="text-rs-text">{tr('enviálo desde el mismo número con el que reservaste')}</b>{tr('. Así nos aseguramos de que nadie toque tu reserva por vos.')}</p>
           <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Código del pedido">{listo.codigo}</p>
           <a href={urlWA(listo)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
-          <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. El pedido espera 48 horas.</p>
+          <p className="text-xs text-rs-muted">{tr('Si WhatsApp no se abrió, tocá el botón. El pedido espera 48 horas.')}</p>
         </main>
       </div>
     )
@@ -148,7 +150,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
           <p className="text-xs text-rs-muted">Estado: <b className="text-rs-text">{ESTADO[r.estado] ?? r.estado}</b></p>
         </section>
 
-        {!activa && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">Esta reserva ya no se puede cambiar por acá (está cancelada o ya pasó). Si necesitás algo, escribinos por WhatsApp.</p>}
+        {!activa && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{tr('Esta reserva ya no se puede cambiar por acá (está cancelada o ya pasó). Si necesitás algo, escribinos por WhatsApp.')}</p>}
 
         {activa && !modo && (
           <section className="grid gap-2 sm:grid-cols-2">
@@ -162,7 +164,7 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
           <section className="card space-y-3 p-4">
             <h2 className="font-bold">¿Cancelar tu reserva?</h2>
             <p className="text-sm text-rs-muted">Vamos a armar un mensaje de WhatsApp para que lo envíes desde tu número. Recién entonces se cancela.</p>
-            {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
+            {error && <p role="alert" className="text-sm text-rs-danger">{tr(error)}</p>}
             <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend} onClick={enviar} className="btn btn-danger flex-1">{pend ? 'Preparando…' : 'Sí, cancelar por WhatsApp'}</button></div>
           </section>
         )}
@@ -210,19 +212,19 @@ export default function GestionarReserva({ slug, codigo, info, hoy, cerrados = [
                     {plano.salones.length > 1 && <div className="flex flex-wrap gap-2">{plano.salones.map((s) => <button key={s.id} type="button" onClick={() => setSalonId(s.id)} className={'btn btn-sm ' + (salonId === s.id ? 'btn-primary' : '')}>{s.nombre}</button>)}</div>}
                     {(() => { const salon = plano.salones.find((s) => s.id === salonId); return salon ? <PlanoWeb salon={salon} mesas={mesasVisibles.filter((m) => m.salon_id === salon.id)} sel={sel} onTocar={tocarMesa} /> : null })()}
                     {(() => { const t = avisoCapacidadMinima(plano.mesas.filter((m) => m.salon_id === salonId), personas); return t ? <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{t}</p> : null })()}
-                    {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
-                    <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')}>{mesasSel.length === 0 ? 'Tocá una mesa disponible.' : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} ✓` : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran de ${totalMesas.min} a ${totalMesas.max} personas y son ${personas}.`}</p>
+                    {aviso && <p role="status" className="text-sm text-rs-warn">{tr(aviso)}</p>}
+                    <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')}>{mesasSel.length === 0 ? tr('Tocá una mesa disponible.') : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} ✓` : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran de ${totalMesas.min} a ${totalMesas.max} personas y son ${personas}.`}</p>
                   </div>
                 )}
                 {modoMesa === 'elegir' && plano && plano.salones.length === 0 && <p className="text-sm text-rs-muted">No hay un plano para esta sede: el local te asigna la mesa.</p>}
               </div>
             )}
-            {error && <p role="alert" className="text-sm text-rs-danger">{error}</p>}
+            {error && <p role="alert" className="text-sm text-rs-danger">{tr(error)}</p>}
             <div className="flex gap-2"><button type="button" onClick={() => { setModo(null); setError(null) }} className="btn flex-1">Volver</button><button type="button" disabled={pend || !hora || (modoMesa === 'elegir' && info.elegir_mesa && !seleccionValida && !!plano && plano.salones.length > 0) || (fecha === r.fecha && hora === r.hora && personas === r.personas && igualUbic && !cambiaMesa)} onClick={enviar} className="btn btn-primary flex-1">{pend ? 'Preparando…' : <><Check size={16} />Pedir el cambio</>}</button></div>
             <p className="text-xs text-rs-muted">El cambio se aplica cuando envíes el mensaje de WhatsApp desde tu número. Si el horario se completa mientras tanto, te avisamos.</p>
           </section>
         )}
-        {modo === 'modificar' && !cfg && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">Por ahora esta reserva solo se puede cancelar por acá. Para cambiarla, escribinos por WhatsApp.</p>}
+        {modo === 'modificar' && !cfg && <p className="rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{tr('Por ahora esta reserva solo se puede cancelar por acá. Para cambiarla, escribinos por WhatsApp.')}</p>}
       </main>
     </div>
   )

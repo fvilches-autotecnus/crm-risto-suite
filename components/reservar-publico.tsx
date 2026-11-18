@@ -19,6 +19,7 @@ import type { TurnoPublico } from '@/lib/turnos-web'
 import { TarjetaShow } from '@/components/tarjeta-show'
 import type { ShowWeb } from '@/lib/shows'
 import type { Marca } from '@/lib/marca'
+import { traducir, type Variante } from '@/lib/idioma'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type PromoWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
 type Cfg = Props['cfg']
@@ -26,6 +27,8 @@ interface AvisoCierre { fecha: string; desde?: string; hasta?: string; motivo: s
 interface Props {
   slug: string; nombre: string; ubicaciones: { nombre: string; sucursal_id: string | null }[]; sedes: SedeWeb[]; tipos: TipoWeb[]; shows?: ShowWeb[]; cerrados: Record<string, string[]>; /** Motivos de bloqueos que el local eligió mostrar, por sede ('*' si no hay sedes). */ avisos?: Record<string, AvisoCierre[]>; porSede?: Record<string, { cfg: Partial<Cfg>; tipos: TipoWeb[] }>; marca?: Marca; logoRisto?: string; tituloSitio?: string | null; subtituloSitio?: string | null
   cfg: CfgSitio; hoy: string; whatsapp: string
+  /** Cómo se le habla al cliente según el país del negocio (voseo por defecto). */
+  variante?: Variante
 }
 
 const sumarDias = (iso: string, d: number) => new Date(new Date(iso + 'T12:00:00Z').getTime() + d * 86400000).toISOString().slice(0, 10)
@@ -33,7 +36,8 @@ const rango = (m: Pick<MesaWeb, 'capacidad' | 'capacidad_min'>) => (m.capacidad_
 const MOTIVO: Record<string, string> = { completo: 'Completo', pasado: 'Ya pasó', bloqueado: 'Cerrado', fuera_de_rango: 'No disponible', corte: 'Cerrado' }
 
 
-export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, shows = [], cerrados, avisos = {}, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio }: Props) {
+export default function ReservarPublico({ slug, nombre, ubicaciones: ubicacionesTodas, sedes, tipos: tiposBase, shows = [], cerrados, avisos = {}, cfg: cfgBase, porSede = {}, hoy, whatsapp, marca, logoRisto, tituloSitio, subtituloSitio, variante = 'voseo' }: Props) {
+  const tr = (t: string) => traducir(variante, t)
   const [fecha, setFecha] = useState(sumarDias(hoy, 1))
   const [personas, setPersonas] = useState(Math.min(Math.max(2, cfgBase.personas_min), cfgBase.personas_max))
   // Sedes: el negocio con sedes elige primero la sede y de ahí sale todo (WhatsApp, ubicaciones, plano, horarios, aforo). Con una sola sede ofrecida se elige sola.
@@ -152,7 +156,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     if (m.estado === 'ocupada') { setAviso(`La mesa ${m.numero} ya está reservada a esa hora.`); return }
     if (m.estado === 'no_apta') {
       const b = bloqueoPorCapacidad(m, personas, mesasSel)
-      setAviso(b?.motivo === 'suma' ? `La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y tu reserva es de ${personas}. Sacá una mesa si querés cambiarla.` : `La mesa ${m.numero} es para ${rango(m)} personas (tu reserva es de ${personas}).`)
+      setAviso(b?.motivo === 'suma' ? tr(`La mesa ${m.numero} no se puede sumar: juntas piden al menos ${b.minimo} personas y tu reserva es de ${personas}. Sacá una mesa si querés cambiarla.`) : `La mesa ${m.numero} es para ${rango(m)} personas (tu reserva es de ${personas}).`)
       return
     }
     if (m.estado !== 'disponible') return
@@ -166,7 +170,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   const listoParaDatos = !!hora && (promos.length === 0 || !!promoElegida) && (cualquiera || modo === 'asesor' || (modo === 'elegir' && seleccionValida))
   const enviar = (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
-    if (!!form.cumple_dia !== !!form.cumple_mes) { setError('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.'); return }
+    if (!!form.cumple_dia !== !!form.cumple_mes) { setError(tr('Completá el día y el mes del cumpleaños, o dejá los dos vacíos.')); return }
     start(async () => {
       const r = await crearReservaPublica(slug, { sede: sedeId, fecha, hora, personas, ubicacion, tipo, opcion: promoElegida?.id ?? '', campana, ...form, cumple_anio: form.cumple_dia && form.cumple_mes ? form.cumple_anio : '', nombre: unirNombre(form.nombre, form.apellido), mesas: modo === 'elegir' ? sel : [] })
       if (r.ok) { setResultado(r); window.scrollTo({ top: 0, behavior: 'smooth' }); if (!r.directo) window.location.href = urlWA(r) } else { setError(r.error); refDatos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
@@ -190,21 +194,21 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     return (
       <div className="relative isolate min-h-screen pb-10">
         <Adorno marca={marca} />
-        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} variante={variante} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-ok/15 text-rs-ok"><Check size={28} /></div>
           <h1 className="text-xl font-bold">¡Recibimos tu reserva!</h1>
-          <p className="text-sm text-rs-muted">Quedó registrada y está <b className="text-rs-text">sujeta a confirmación</b>: el local la revisa y se comunica con vos al teléfono que dejaste para confirmarla.</p>
+          <p className="text-sm text-rs-muted">Quedó registrada y está <b className="text-rs-text">sujeta a confirmación</b>{tr(': el local la revisa y se comunica con vos al teléfono que dejaste para confirmarla.')}</p>
           {resultado.numero != null && <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Número de reserva">#{resultado.numero}</p>}
           <div className="card space-y-1 p-4 text-left text-sm">
             {resultado.sede && <p><span className="text-rs-muted">Sede:</span> <b>{resultado.sede}</b></p>}
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
             <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{ubicTexto(resultado.ubicacion)}</b></> : null}</p>
-            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>}
+            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? tr(`Mesa ${resultado.mesas} (la confirmamos con vos)`) : 'La elige un asesor'}</b></p>}
             {form.telefono.trim() && <p><span className="text-rs-muted">Teléfono:</span> <b>{form.telefono.trim()}</b></p>}
           </div>
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
-          <p className="text-xs text-rs-muted">Guardá este número de reserva por si necesitás comunicarte con el local.</p>
+          <p className="text-xs text-rs-muted">{tr('Guardá este número de reserva por si necesitás comunicarte con el local.')}</p>
           <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
           <PieRisto logo={logoRisto} />
         </main>
@@ -216,21 +220,21 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
     return (
       <div className="relative isolate min-h-screen pb-10">
         <Adorno marca={marca} />
-        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+        <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} variante={variante} />
         <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rs-warn/15 text-rs-warn"><MessageCircle size={28} /></div>
-          <h1 className="text-xl font-bold">¡Último paso: mandá el mensaje por WhatsApp!</h1>
-          <p className="text-sm text-rs-muted">Tu reserva <b className="text-rs-text">todavía no está registrada</b>: queda en espera hasta que nos escribas. Se abre WhatsApp con tu solicitud ya escrita: <b className="text-rs-text">enviála sin cambiarla</b> (lleva tu código).</p>
+          <h1 className="text-xl font-bold">{tr('¡Último paso: mandá el mensaje por WhatsApp!')}</h1>
+          <p className="text-sm text-rs-muted">Tu reserva <b className="text-rs-text">todavía no está registrada</b>: queda en espera hasta que nos escribas. Se abre WhatsApp con tu solicitud ya escrita: <b className="text-rs-text">{tr('enviála sin cambiarla')}</b> (lleva tu código).</p>
           <p className="text-3xl font-bold tracking-widest text-rs-lime" aria-label="Tu código">{resultado.codigo}</p>
           <div className="card space-y-1 p-4 text-left text-sm">
             {resultado.sede && <p><span className="text-rs-muted">Sede:</span> <b>{resultado.sede}</b></p>}
             <p><span className="text-rs-muted">Día:</span> <b className="capitalize">{fechaTxt(resultado.fecha)}</b> · {resultado.hora}</p>
             <p><span className="text-rs-muted">Personas:</span> <b>{resultado.personas}</b>{resultado.ubicacion || cualquiera ? <> · <span className="text-rs-muted">Ubicación:</span> <b>{resultado.ubicacion ?? etiquetaCualquiera}</b></> : null}</p>
-            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? `Mesa ${resultado.mesas} (la confirmamos con vos)` : 'La elige un asesor'}</b></p>}
+            {(resultado.mesas || puedeElegir) && <p><span className="text-rs-muted">Mesa:</span> <b>{resultado.mesas ? tr(`Mesa ${resultado.mesas} (la confirmamos con vos)`) : 'La elige un asesor'}</b></p>}
           </div>
           {resultado.mensaje && <p className="whitespace-pre-line text-sm text-rs-muted">{resultado.mensaje}</p>}
           <a href={urlWA(resultado)} className="btn btn-primary h-12 w-full text-base"><MessageCircle size={18} />Enviar por WhatsApp</a>
-          <p className="text-xs text-rs-muted">Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.</p>
+          <p className="text-xs text-rs-muted">{tr('Si WhatsApp no se abrió, tocá el botón. La solicitud espera 48 horas. Después de que escribas, un asesor te confirma la reserva.')}</p>
           <button type="button" onClick={() => { setResultado(null); setHora(''); setSel([]); setForm({ nombre: '', apellido: '', telefono: '', cumple_dia: '', cumple_mes: '', cumple_anio: '', observaciones: '', web: '' }); setModo(puedeElegir ? null : 'asesor') }} className="btn w-full">Hacer otra reserva</button>
           <PieRisto logo={logoRisto} />
         </main>
@@ -242,7 +246,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
   return (
     <div className="relative isolate min-h-screen pb-10">
       <Adorno marca={marca} />
-      <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} />
+      <Banner nombre={tituloSitio || cfg.titulo || nombre} subtitulo={subtituloSitio || cfg.subtitulo} prueba={cfg.modo_prueba} marca={marca} variante={variante} />
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
         {cfg.mensaje && !sede?.mensaje && <p className="whitespace-pre-line rounded-md bg-rs-raised/60 px-3 py-2 text-sm text-rs-muted">{cfg.mensaje}</p>}
 
@@ -256,7 +260,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                   className={'rounded-rs-lg border p-3 text-left transition ' + (sedeId === s.id ? 'border-rs-lime/70 bg-rs-lime/10' : 'border-rs-control hover:border-rs-lime/40')}>
                   <span className="block font-semibold">{s.nombre}</span>
                   {s.direccion && <span className="mt-0.5 flex items-start gap-1 text-xs text-rs-muted"><MapPin size={12} className="mt-0.5 shrink-0" />{s.direccion}</span>}
-                  {s.elegir_mesa && s.tiene_plano && <span className="mt-1 block text-[11px] font-semibold text-rs-ok">Podés elegir tu mesa en el plano</span>}
+                  {s.elegir_mesa && s.tiene_plano && <span className="mt-1 block text-[11px] font-semibold text-rs-ok">{tr('Podés elegir tu mesa en el plano')}</span>}
                 </button>
               ))}
             </div>
@@ -290,14 +294,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           )}
           {showsDelDia.map((s) => <TarjetaShow key={s.id} show={s} aviso="Ese día hay show" />)}
           {ubicaciones.length > 0 && <div><span className="label">Ubicación</span><div className="flex flex-wrap gap-2">{ubicaciones.map((u) => <button key={u} type="button" onClick={() => { setUbicacion(u); setSel([]); setModo(puedeElegir ? null : 'asesor') }} aria-pressed={ubicacion === u} className={chip(ubicacion === u)}>{u}</button>)}{ofreceCualquiera && <button type="button" onClick={() => { setUbicacion('*'); setSel([]); setModo('asesor') }} aria-pressed={cualquiera} className={chip(cualquiera)}>{etiquetaCualquiera}</button>}</div></div>}
-          {tipos.length === 0 && <p role="status" className="rounded-md bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">Ese día no hay reservas disponibles por acá. Probá con otro día.</p>}
+          {tipos.length === 0 && <p role="status" className="rounded-md bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{tr('Ese día no hay reservas disponibles por acá. Probá con otro día.')}</p>}
           {tipos.length > 1 && <div><span className="label">Tipo de reserva</span><div className="flex flex-wrap gap-2">{tipos.map((t) => <button key={t.value} type="button" onClick={() => setTipo(t.value)} aria-pressed={tipo === t.value} className={chip(tipo === t.value)}>{t.label}</button>)}</div></div>}
           {(tipoSel?.descripcion || promos.length > 0) && (
             <div className="space-y-2" data-promos>
               {tipoSel?.descripcion && <p className="whitespace-pre-line rounded-md bg-rs-raised/50 px-3 py-2 text-sm text-rs-muted">{tipoSel.descripcion}</p>}
               {promos.length > 0 && (
                 <div>
-                  <span className="label">Elegí tu promo</span>
+                  <span className="label">{tr('Elegí tu promo')}</span>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {promos.map((p) => (
                       <button key={p.id} type="button" onClick={() => setOpcion(p.id)} aria-pressed={opcion === p.id} data-promo={p.nombre}
@@ -308,7 +312,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                       </button>
                     ))}
                   </div>
-                  {!promoElegida && <p role="status" className="mt-1.5 text-xs text-rs-warn">Elegí una promo para seguir con la reserva.</p>}
+                  {!promoElegida && <p role="status" className="mt-1.5 text-xs text-rs-warn">{tr('Elegí una promo para seguir con la reserva.')}</p>}
                 </div>
               )}
             </div>
@@ -324,7 +328,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                   </button>
                 )} />
                 {cfg.tolerancia_min && slots && slots.length > 0 && <p data-tolerancia className="mt-2 flex items-center gap-1.5 text-xs text-rs-muted"><Clock size={13} className="shrink-0" />Tolerancia: {cfg.tolerancia_min} minutos. Pasado ese tiempo desde el horario reservado, la mesa puede liberarse.</p>}
-                {slots && slots.length === 0 && <p className="text-sm text-rs-muted">{tipos.length > 1 && tipoSel ? `No hay horarios de “${tipoSel.label}” para este día. Probá con otro día o con otro tipo de reserva.` : 'No hay horarios para este día.'}</p>}
+                {slots && slots.length === 0 && <p className="text-sm text-rs-muted">{tipos.length > 1 && tipoSel ? tr(`No hay horarios de “${tipoSel.label}” para este día. Probá con otro día o con otro tipo de reserva.`) : 'No hay horarios para este día.'}</p>}
               </>
             )}
           </div>
@@ -350,12 +354,12 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                     <Leyenda clase="border-rs-ok/70 bg-rs-ok/15" t="Disponible" /><Leyenda clase="border-rs-lime bg-rs-lime/30" t="Tu elección" /><Leyenda clase="border-rs-muted/40 bg-rs-raised/40 opacity-60" t="No disponible" /><Leyenda clase="border-dashed border-rs-ok/70 bg-rs-ok/15" t="Móvil (se puede juntar)" />
                   </div>
                   {salon && (() => { const t = avisoCapacidadMinima(plano.mesas.filter((m) => m.salon_id === salon.id), personas); return t ? <p role="status" className="rounded-md border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm text-rs-warn">{t}</p> : null })()}
-                  {aviso && <p role="status" className="text-sm text-rs-warn">{aviso}</p>}
+                  {aviso && <p role="status" className="text-sm text-rs-warn">{tr(aviso)}</p>}
                   <p className={'rounded-md px-3 py-2 text-sm ' + (mesasSel.length === 0 ? 'bg-rs-raised/50 text-rs-muted' : seleccionValida ? 'bg-rs-ok/10 text-rs-ok' : 'bg-rs-warn/10 text-rs-warn')} role="status">
-                    {mesasSel.length === 0 ? `Tocá una mesa disponible. Para ${personas} personas se muestran las que entran; las punteadas se pueden juntar para grupos grandes.`
+                    {mesasSel.length === 0 ? tr(`Tocá una mesa disponible. Para ${personas} personas se muestran las que entran; las punteadas se pueden juntar para grupos grandes.`)
                       : seleccionValida ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')} · entran de ${total.min} a ${total.max} personas ✓`
-                      : personas > total.max ? `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran hasta ${total.max} y son ${personas}. ${mesasSel.every((m) => m.movil) ? 'Sumá otra mesa móvil.' : 'Elegí otra mesa.'}`
-                      : `Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: piden al menos ${total.min} personas y son ${personas}. Sacá una mesa o elegí otra.`}
+                      : personas > total.max ? tr(`Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: entran hasta ${total.max} y son ${personas}. ${mesasSel.every((m) => m.movil) ? 'Sumá otra mesa móvil.' : 'Elegí otra mesa.'}`)
+                      : tr(`Mesa ${mesasSel.map((m) => m.numero).join(' + ')}: piden al menos ${total.min} personas y son ${personas}. Sacá una mesa o elegí otra.`)}
                   </p>
                 </div>
               )
@@ -369,7 +373,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
           <section ref={refDatos} className="card p-4">
             <h2 className="mb-3 font-bold">{(cualquiera ? 2 : 3) + (conSedes && sedes.length > 1 ? 1 : 0)} · Tus datos</h2>
             <form onSubmit={enviar} className="space-y-3">
-              {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{error}</p>}
+              {error && <p role="alert" className="rounded-md border border-rs-danger/40 bg-rs-danger/10 px-3 py-2 text-sm text-rs-danger">{tr(error)}</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label" htmlFor="rw_nombre">Nombre *</label><input id="rw_nombre" value={form.nombre} onChange={campo('nombre')} maxLength={60} autoComplete="given-name" className="input w-full" required /></div>
                 <div><label className="label" htmlFor="rw_apellido">Apellido *</label><input id="rw_apellido" value={form.apellido} onChange={campo('apellido')} maxLength={60} autoComplete="family-name" className="input w-full" required /></div>
@@ -377,8 +381,8 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
               {sinWA && (
                 <div>
                   <label className="label" htmlFor="rw_telefono">Teléfono *</label>
-                  <input id="rw_telefono" type="tel" inputMode="tel" autoComplete="tel" value={form.telefono} onChange={campo('telefono')} maxLength={30} placeholder="341 5551234" className="input w-full" required />
-                  <p className="mt-1 text-xs text-rs-muted">Con el código de área, sin 0 ni 15. Te llamamos o escribimos a este número para confirmar la reserva.</p>
+                  <input id="rw_telefono" type="tel" inputMode="tel" autoComplete="tel" value={form.telefono} onChange={campo('telefono')} maxLength={30} placeholder={tr("341 5551234")} className="input w-full" required />
+                  <p className="mt-1 text-xs text-rs-muted">{tr('Con el código de área, sin 0 ni 15. Te llamamos o escribimos a este número para confirmar la reserva.')}</p>
                 </div>
               )}
               {cfg.pedir_cumple && (
@@ -389,14 +393,14 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                     <select aria-label="Mes de cumpleaños" value={form.cumple_mes} onChange={(e) => setForm((f) => ({ ...f, cumple_mes: e.target.value }))} className="input w-full"><option value="">Mes</option>{['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'].map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}</select>
                     <select id="rw_cumple_anio" aria-label="Año de nacimiento" value={form.cumple_anio} onChange={(e) => setForm((f) => ({ ...f, cumple_anio: e.target.value }))} className="input w-full"><option value="">Año</option>{Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={String(y)}>{y}</option>)}</select>
                   </div>
-                  <p className="mt-1 text-xs text-rs-muted">Recibí un regalo en ese día 🎁</p>
+                  <p className="mt-1 text-xs text-rs-muted">{tr('Recibí un regalo en ese día 🎁')}</p>
                 </div>
               )}
               <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
               <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{sede && sedes.length > 1 ? ` · ${sede.nombre}` : ''}{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{promoElegida ? ` · ${promoElegida.nombre}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
               <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : sinWA ? 'Reservar' : 'Reservar y enviar por WhatsApp'}</button>
-              <p className="text-center text-xs text-rs-muted">{sinWA ? 'Tu reserva queda registrada y sujeta a confirmación del local.' : 'No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.'}</p>
+              <p className="text-center text-xs text-rs-muted">{sinWA ? 'Tu reserva queda registrada y sujeta a confirmación del local.' : tr('No te pedimos el teléfono: usamos el de tu WhatsApp. La reserva se registra cuando nos mandás el mensaje.')}</p>
             </form>
           </section>
         )}
@@ -425,7 +429,8 @@ function PieRisto({ logo }: { logo?: string }) {
   )
 }
 
-function Banner({ nombre, subtitulo, prueba, marca }: { nombre: string; subtitulo: string | null; prueba: boolean; marca?: Marca }) {
+function Banner({ nombre, subtitulo, prueba, marca, variante }: { nombre: string; subtitulo: string | null; prueba: boolean; marca?: Marca; variante: Variante }) {
+  const tr = (t: string) => traducir(variante, t)
   const logo = marca?.logo_url
   return (
     <header className={'relative isolate overflow-hidden border-b border-rs-raised bg-rs-header px-4 text-center ' + (logo ? 'pb-6 pt-8' : 'pb-4 pt-6')}>
@@ -440,7 +445,7 @@ function Banner({ nombre, subtitulo, prueba, marca }: { nombre: string; subtitul
         : <img src={logo} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />)}
       <h1 className={logo && marca?.logo_forma === 'libre' ? 'sr-only' : logo ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>   {/* un logo libre ya trae el nombre: se lee igual, pero no se repite a la vista */}{nombre}</h1>
       {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
-      <p className="mt-1 text-sm text-rs-muted">{subtitulo || 'Reservá tu mesa'}</p>
+      <p className="mt-1 text-sm text-rs-muted">{subtitulo || tr('Reservá tu mesa')}</p>
       {prueba && <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>}
     </header>
   )

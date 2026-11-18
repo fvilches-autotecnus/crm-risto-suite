@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { nombreSitio, normalizarMarca, tieneMarca, type Marca } from '@/lib/marca'
+import { varianteDe, type Variante } from '@/lib/idioma'
 
 export interface NegocioSitio { id: string; slug: string; nombre: string; whatsapp_nro: string | null; zona_horaria: string; modulos: Record<string, unknown> | null }
 export interface SitioResuelto {
@@ -52,10 +53,10 @@ export async function resolverSitio(slug: string): Promise<SitioResuelto | null>
 }
 
 /** Lo mínimo para la ficha del sitio (título de la pestaña, ícono y miniatura al compartir el link). Null si la dirección no existe o el sitio está apagado. */
-export async function cargarMarcaSitio(slug: string): Promise<{ nombre: string; subtitulo: string | null; marca: Marca } | null> {
+export async function cargarMarcaSitio(slug: string): Promise<{ nombre: string; subtitulo: string | null; marca: Marca; variante: Variante } | null> {
   const r = await resolverSitio(slug)
   if (!r) return null
   const { data: cfg } = await createAdminClient().from('reservas_web_config').select('activo, titulo, subtitulo').eq('negocio_id', r.negocio.id).maybeSingle()
   if (!cfg?.activo) return null
-  return { nombre: r.titulo || (cfg.titulo as string | null) || r.nombre, subtitulo: r.subtitulo || (cfg.subtitulo as string | null) || null, marca: r.marca }
+  return { nombre: r.titulo || (cfg.titulo as string | null) || r.nombre, subtitulo: r.subtitulo || (cfg.subtitulo as string | null) || null, marca: r.marca, variante: varianteDe(r.negocio.zona_horaria) }
 }

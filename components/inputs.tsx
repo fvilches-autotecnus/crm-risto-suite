@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { SEP_FECHA, hoyEn } from '@/lib/fechas'
+import { paisTelefonoDe } from '@/lib/idioma'
 import { useZona } from '@/components/zona'
 import { separarNombre, unirNombre } from '@/lib/nombres'
 
@@ -195,8 +196,8 @@ export function HoraInput({ name, id, value, defaultValue = '', onChange, requir
 // ---------------------------------------------------------------------------
 // Teléfono: código de país + código de área + número
 // ---------------------------------------------------------------------------
-function partirTelefono(d: string): { pais: string; area: string; num: string } {
-  if (!d) return { pais: '549', area: '', num: '' }
+function partirTelefono(d: string, paisDef = '549'): { pais: string; area: string; num: string } {
+  if (!d) return { pais: paisDef, area: '', num: '' }
   if (d.startsWith('549') && d.length >= 12) {
     const resto = d.slice(3)
     const n = resto.startsWith('11') ? 2 : 3 // Buenos Aires: 11 + 8 dígitos; resto del país: 3 dígitos de área
@@ -207,19 +208,21 @@ function partirTelefono(d: string): { pais: string; area: string; num: string } 
 }
 
 export function TelefonoInput({ name, defaultValue = '', required, label, ayuda = true, onChange }: { name: string; defaultValue?: string; required?: boolean; label?: string; ayuda?: boolean; onChange?: (digitos: string) => void }) {
-  const inicial = useMemo(() => partirTelefono(defaultValue.replace(/\D/g, '')), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const paisDef = paisTelefonoDe(useZona())   // el código de país que se propone sale del país del negocio
+  const inicial = useMemo(() => partirTelefono(defaultValue.replace(/\D/g, ''), paisDef), []) // eslint-disable-line react-hooks/exhaustive-deps
   const [pais, setPais] = useState(inicial.pais)
   const [area, setArea] = useState(inicial.area)
   const [num, setNum] = useState(inicial.num)
   const numRef = useRef<HTMLInputElement>(null)
   const solo = (s: string, n: number) => s.replace(/\D/g, '').slice(0, n)
-  const completo = area && num ? `${pais}${area}${num}` : ''
+  const sinArea = !pais.startsWith('54')   // fuera de Argentina el código de área no es obligatorio (Perú, por ejemplo, no lo usa)
+  const completo = num && (area || sinArea) ? `${pais}${area}${num}` : ''
   const total = (completo || '').length
 
   useEffect(() => { onChange?.(completo) }, [completo]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = numRef.current; if (!el) return
-    el.setCustomValidity(!required && !area && !num ? '' : (!area || !num) ? 'Completá el código de área y el número' : total < 8 || total > 15 ? 'El teléfono no es válido' : '')
+    el.setCustomValidity(!required && !area && !num ? '' : (!num || (!area && !sinArea)) ? (sinArea ? 'Completá el número' : 'Completá el código de área y el número') : total < 8 || total > 15 ? 'El teléfono no es válido' : '')
   }, [area, num, total, required])
 
   return (
@@ -233,7 +236,7 @@ export function TelefonoInput({ name, defaultValue = '', required, label, ayuda 
         <input aria-label="Código de área" inputMode="numeric" placeholder="341" value={area} onChange={(e) => setArea(solo(e.target.value, 4))} className="input w-full text-center tabular-nums" required={required} />
         <input ref={numRef} aria-label="Número" inputMode="numeric" placeholder="5551234" value={num} onChange={(e) => setNum(solo(e.target.value, 10))} className="input w-full tabular-nums" required={required} />
       </div>
-      {ayuda && <p className="mt-1 text-[11px] text-rs-muted">País (549 = Argentina móvil), área sin 0 y número sin 15{completo ? <span className="text-rs-text"> · se guarda +{completo}</span> : null}</p>}
+      {ayuda && <p className="mt-1 text-[11px] text-rs-muted">{sinArea ? `País (${pais}) y número, sin 0 inicial` : 'País (549 = Argentina móvil), área sin 0 y número sin 15'}{completo ? <span className="text-rs-text"> · se guarda +{completo}</span> : null}</p>}
     </div>
   )
 }
