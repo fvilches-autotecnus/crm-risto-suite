@@ -13,6 +13,7 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { ESTADOS_CAMPANA, MODOS_CAMPANA, TIPOS_CAMPANA, labelEstadoCampana, labelModoCampana, labelTipoCampana, pct, type Campana, type Envio, type Interaccion, type ResumenCampana, type ResumenInteracciones } from '@/lib/campanas'
 import { fechaHoraLarga } from '@/lib/fechas'
+import { useZona } from '@/components/zona'
 
 // ---------------------------------------------------------------------------
 // Insignias
@@ -162,6 +163,7 @@ export function RegistrarEnviosBtn({ campanaId, chico = false }: { campanaId: st
 // Lista de campañas (con sus totales del período)
 // ---------------------------------------------------------------------------
 export function ListaCampanas({ campanas, resumen, interacciones, editable, puedeEliminar, dias, orden }: { orden?: OrdenTabla; campanas: Campana[]; resumen: Record<string, ResumenCampana>; interacciones: Record<string, ResumenInteracciones>; editable: boolean; puedeEliminar: boolean; dias: number }) {
+  const zona = useZona()
   const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
     ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
     : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
@@ -196,7 +198,7 @@ export function ListaCampanas({ campanas, resumen, interacciones, editable, pued
                   <td className="td text-right tabular-nums">{medida(c, (i) => i.entregados)}</td>
                   <td className="td text-right tabular-nums">{medida(c, (i) => i.leidos)}</td>
                   <td className="td text-right tabular-nums">{medida(c, (i) => i.respondieron)}</td>
-                  <td className="td whitespace-nowrap text-xs text-rs-muted">{x.ultimo_envio ? fechaHoraLarga(x.ultimo_envio) : 'Sin envíos'}</td>
+                  <td className="td whitespace-nowrap text-xs text-rs-muted">{x.ultimo_envio ? fechaHoraLarga(x.ultimo_envio, zona) : 'Sin envíos'}</td>
                   {editable && <td className="td">{acciones(c)}</td>}
                 </tr>
               )
@@ -213,7 +215,7 @@ export function ListaCampanas({ campanas, resumen, interacciones, editable, pued
                 <Link href={`/campanas/${c.id}`} className="font-semibold text-rs-lime">{c.nombre}</Link>
                 <BadgeCampana estado={c.estado} />
               </div>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rs-muted"><BadgeModo modo={c.modo} />{labelTipoCampana(c.tipo)} · {x.ultimo_envio ? `último envío ${fechaHoraLarga(x.ultimo_envio)}` : 'sin envíos'}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rs-muted"><BadgeModo modo={c.modo} />{labelTipoCampana(c.tipo)} · {x.ultimo_envio ? `último envío ${fechaHoraLarga(x.ultimo_envio, zona)}` : 'sin envíos'}</p>
               <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
                 {[['Enviados', x.enviados], ['Clientes', x.clientes], ['Entregados', medida(c, (i) => i.entregados)], ['Leídos', medida(c, (i) => i.leidos)], ['Respondieron', medida(c, (i) => i.respondieron)]].map(([l, n]) => <div key={l as string}><dd className="text-lg font-bold tabular-nums">{n}</dd><dt className="text-[10px] uppercase tracking-wide text-rs-muted">{l}</dt></div>)}
               </dl>
@@ -230,6 +232,7 @@ export function ListaCampanas({ campanas, resumen, interacciones, editable, pued
 // Lista de envíos de una campaña: a qué clientes se les mandó y cuándo
 // ---------------------------------------------------------------------------
 export function ListaEnvios({ envios, interacciones, editable, puedeEliminar }: { envios: Envio[]; interacciones: Record<string, Interaccion>; editable: boolean; puedeEliminar: boolean }) {
+  const zona = useZona()
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
@@ -260,7 +263,7 @@ export function ListaEnvios({ envios, interacciones, editable, puedeEliminar }: 
           <tbody>
             {envios.map((e, i) => (
               <tr key={e.id} className="reveal border-b border-rs-border/60 last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en)}</td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en, zona)}</td>
                 <td className="td">{cliente(e)}</td>
                 <td className="td text-rs-muted">{e.telefono ?? '—'}</td>
                 <td className="td">{entrega(e)}</td>
@@ -274,7 +277,7 @@ export function ListaEnvios({ envios, interacciones, editable, puedeEliminar }: 
       <ul className="space-y-3 md:hidden">
         {envios.map((e, i) => (
           <li key={e.id} className="reveal card p-4" style={{ ['--i' as string]: Math.min(i, 8) }}>
-            <div className="flex items-start justify-between gap-3">{cliente(e)}<span className="text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en)}</span></div>
+            <div className="flex items-start justify-between gap-3">{cliente(e)}<span className="text-xs text-rs-muted">{fechaHoraLarga(e.enviado_en, zona)}</span></div>
             <p className="mt-1 text-sm text-rs-muted">{e.telefono ?? 'Sin teléfono'}</p>
             <div className="mt-2">{entrega(e)}</div>
             {e.detalle && <p className="mt-1 text-xs text-rs-muted">{e.detalle}</p>}

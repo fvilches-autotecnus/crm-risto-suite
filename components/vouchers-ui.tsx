@@ -12,6 +12,7 @@ import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga } from '@/lib/fechas'
 import { labelCampana } from '@/lib/vouchers'
 import { useEffect } from 'react'
+import { useZona } from '@/components/zona'
 
 export interface VoucherUI {
   id: string
@@ -76,6 +77,7 @@ export function BadgeVoucher({ estado, vencido }: { estado: string; vencido: boo
 }
 
 export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar, orden }: { vouchers: VoucherUI[]; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; orden?: OrdenTabla }) {
+  const zona = useZona()
   const [pending, start] = useTransition()
   const confirmar = useConfirm()
   const toast = useToast()
@@ -119,7 +121,7 @@ export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar, ord
                 <td className="td text-rs-muted">{labelCampana(v.campana)}</td>
                 <td className="td text-rs-muted">{v.vence_el ? fechaCorta(v.vence_el) : 'Sin vencimiento'}</td>
                 <td className="td"><BadgeVoucher estado={v.estado} vencido={vencido(v)} /></td>
-                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(v.creado_en)}</td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(v.creado_en, zona)}</td>
                 {puedeEscribir && <td className="td">{acciones(v)}</td>}
               </tr>
             ))}

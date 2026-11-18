@@ -138,7 +138,7 @@ export default async function FidelizacionPage({ searchParams }: { searchParams:
                   <span className="text-rs-muted"> · {p.regla?.nombre ?? '—'} · visita {p.hito} · </span>
                   <span className="font-mono font-semibold text-rs-lime">{p.voucher?.codigo ?? '—'}</span>
                 </span>
-                <span className="flex items-center gap-2 text-xs text-rs-muted">{fechaHoraLarga(p.creado_en)}{p.avisado_en ? <span className="badge bg-rs-ok/15 text-rs-ok">Avisado</span> : <span className="badge bg-rs-warn/15 text-rs-warn">Sin avisar</span>}</span>
+                <span className="flex items-center gap-2 text-xs text-rs-muted">{fechaHoraLarga(p.creado_en, ctx.negocio.zona_horaria)}{p.avisado_en ? <span className="badge bg-rs-ok/15 text-rs-ok">Avisado</span> : <span className="badge bg-rs-warn/15 text-rs-warn">Sin avisar</span>}</span>
               </li>
             ))}
           </ul>

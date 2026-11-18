@@ -3,7 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
-import { SEP_FECHA, TZ_AR, hoyEn } from '@/lib/fechas'
+import { SEP_FECHA, hoyEn } from '@/lib/fechas'
+import { useZona } from '@/components/zona'
 import { separarNombre, unirNombre } from '@/lib/nombres'
 
 // Entradas "estilo LATAM": fecha dd-mm-aaaa con calendario que empieza el lunes, hora de 24 h y teléfono
@@ -53,7 +54,7 @@ export function FechaInput({ name, id, value, defaultValue = '', onChange, requi
   const oculto = useRef<HTMLInputElement>(null)
   // avisa al formulario (que guarda solo) que cambió el valor: el campo oculto no dispara eventos por sí mismo
   const emitir = (nuevo: string) => { if (!controlado) setInterno(nuevo); onChange?.(nuevo); setTimeout(() => oculto.current?.dispatchEvent(new Event('input', { bubbles: true })), 0) }
-  const hoy = hoyEn(TZ_AR)
+  const hoy = hoyEn(useZona())
   const base = iso || hoy
   const [vista, setVista] = useState({ y: +base.slice(0, 4), m: +base.slice(5, 7) })
   useEffect(() => { if (abierto) setVista({ y: +(iso || hoy).slice(0, 4), m: +(iso || hoy).slice(5, 7) }) }, [abierto]) // eslint-disable-line react-hooks/exhaustive-deps

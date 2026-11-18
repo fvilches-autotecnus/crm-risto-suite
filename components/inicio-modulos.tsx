@@ -2,21 +2,22 @@ import Link from 'next/link'
 import { Armchair, BookOpen, Cake, CalendarCheck, Clapperboard, CornerUpRight, Gift, Megaphone, MessageCircleQuestion, MessagesSquare, ShoppingBag, Star, Ticket, Users, BarChart3, Sparkles } from 'lucide-react'
 import { MODULOS, type ModulosActivos } from '@/lib/modulos'
 
+import { TZ_AR, zonaOk } from '@/lib/fechas'
 const ICONOS = { reservas: CalendarCheck, mesas: Armchair, shows: Clapperboard, carta: BookOpen, pedidos: ShoppingBag, clientes: Users, consultas: MessageCircleQuestion, cumpleanos: Cake, vouchers: Ticket, resenas: Star, fidelizacion: Gift, campanas: Megaphone, metricas: BarChart3, resumen: Sparkles, derivadas: CornerUpRight, conversaciones: MessagesSquare }
 const RUTAS: Record<string, string> = { reservas: '/reservas', mesas: '/mesas', shows: '/shows', carta: '/carta', pedidos: '/pedidos', clientes: '/clientes', consultas: '/consultas', cumpleanos: '/cumpleanos', vouchers: '/vouchers', resenas: '/resenas', fidelizacion: '/fidelizacion', campanas: '/campanas', metricas: '/metricas', resumen: '/resumen', derivadas: '/derivadas', conversaciones: '/conversaciones' }
 
-function saludo(): string {
-  const h = Number(new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false }).format(new Date()))
+function saludo(zona: string): string {
+  const h = Number(new Intl.DateTimeFormat('es-AR', { timeZone: zonaOk(zona), hour: 'numeric', hour12: false }).format(new Date())) % 24
   return h < 6 ? 'Buenas noches' : h < 13 ? 'Buen día' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
 }
 
 /** Inicio de un negocio que no usa reservas (el dashboard clásico es de reservas): accesos directos a los módulos que tiene habilitados. */
-export default function InicioModulos({ nombre, negocio, activos }: { nombre: string; negocio: string; activos: ModulosActivos }) {
+export default function InicioModulos({ nombre, negocio, activos, zona = TZ_AR }: { nombre: string; negocio: string; activos: ModulosActivos; zona?: string }) {
   const lista = MODULOS.filter((m) => activos[m.clave] && RUTAS[m.clave])   // los módulos sin pantalla propia (como las promos de reservas) no tienen acceso directo
   return (
     <div className="space-y-5">
       <div className="animate-fade-up">
-        <p className="text-xl font-bold sm:text-2xl">{saludo()}, <span className="text-rs-lime">{nombre}</span></p>
+        <p className="text-xl font-bold sm:text-2xl">{saludo(zona)}, <span className="text-rs-lime">{nombre}</span></p>
         <p className="text-sm text-rs-muted">{negocio} · estos son los módulos habilitados</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

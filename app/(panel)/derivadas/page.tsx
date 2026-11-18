@@ -102,7 +102,7 @@ export default async function DerivadasPage({ searchParams }: { searchParams: Pr
             <tbody>
               {pg.items.map((d, i) => (
                 <tr key={d.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(d.creado_en)}</td>
+                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(d.creado_en, ctx.negocio.zona_horaria)}</td>
                   <td className="td">{d.cliente_id ? <Link href={`/clientes/${d.cliente_id}`} className="font-medium transition-colors hover:text-rs-lime">{d.cliente_nombre ?? d.nombre_whatsapp ?? '—'}</Link> : <span className="font-medium">{d.cliente_nombre ?? d.nombre_whatsapp ?? '—'}</span>}<div className="text-xs text-rs-muted">{d.telefono ?? ''}</div></td>
                   <td className="td whitespace-nowrap">{d.fecha ? fechaCorta(d.fecha) : <span className="text-rs-muted">A coordinar</span>}</td>
                   <td className="td whitespace-nowrap text-rs-muted">{d.hora ? horaCorta(d.hora) : '—'}</td>

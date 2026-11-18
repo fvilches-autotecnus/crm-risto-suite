@@ -1,7 +1,7 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
 import type { HerramientaIA } from '@/lib/ia'
-import { fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
+import { fechaCorta, finDiaEn, hoyEn, inicioDiaEn, sumarDias, zonaOk } from '@/lib/fechas'
 import { claveNombre } from '@/lib/metricas-pedidos'
 import { dinero } from '@/lib/pedidos'
 
@@ -21,7 +21,12 @@ const MAX_DIAS = 800
 
 const diaSemana = (fecha: string) => { const [y, m, d] = fecha.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
 /** Un instante (UTC) visto en hora argentina: { fecha, hora, dow }. */
-const enAR = (iso: string) => { const t = new Date(Date.parse(iso) - 3 * 3600_000); const f = t.toISOString(); return { fecha: f.slice(0, 10), hora: f.slice(11, 13), dow: t.getUTCDay() } }
+/** Un instante visto en la zona del negocio: { fecha, hora, dow }. */
+const enZona = (iso: string, tz: string) => {
+  const q = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zonaOk(tz), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
+  const fecha = `${q.year}-${q.month}-${q.day}`
+  return { fecha, hora: q.hour === '24' ? '00' : q.hour, dow: diaSemana(fecha) }
+}
 const periodoTxt = (d: string, h: string) => `del ${fechaCorta(d)} al ${fechaCorta(h)}`
 
 /** Lee todas las filas de una consulta paginando de a 1000 (el servidor devuelve como máximo 1000 por vez). */
@@ -111,6 +116,8 @@ export function herramientasDisponibles(ctx: Contexto): HerramientaIA[] {
 export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Record<string, unknown>): Promise<Resultado> {
   const { supabase, negocio, sede } = ctx
   const hoy = hoyEn(negocio.zona_horaria)
+  const tz = negocio.zona_horaria
+  const ini0 = (d: string) => inicioDiaEn(d, tz), fin0 = (d: string) => finDiaEn(d, tz)
   const dias = Array.isArray(a.dia_semana) ? (a.dia_semana as unknown[]).map(Number).filter((n) => n >= 0 && n <= 6) : null
   const entero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : null)
 
@@ -138,7 +145,7 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Reco
 
   if (nombre === 'pedidos' || nombre === 'productos_mas_pedidos') {
     const p = periodo(a, hoy); if ('error' in p) return { modelo: { error: p.error } }
-    const ini = `${p.desde}T00:00:00-03:00`, fin = `${p.hasta}T23:59:59-03:00`
+    const ini = ini0(p.desde), fin = fin0(p.hasta)
     if (nombre === 'pedidos') {
       const { filas, truncado } = await leerTodo<{ creado_en: string; tipo: string; estado: string; total: number | string; medio_pago_nombre: string | null; medio_pago: string | null }>((i, j) => {
         let q = supabase.from('pedidos').select('creado_en, tipo, estado, total, medio_pago_nombre, medio_pago').eq('negocio_id', negocio.id).gte('creado_en', ini).lte('creado_en', fin).order('creado_en').order('id').range(i, j)
@@ -146,10 +153,10 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Reco
         if (a.incluir_cancelados !== true) q = q.neq('estado', 'cancelado')
         return q
       })
-      const f = filas.filter((r) => !dias?.length || dias.includes(enAR(r.creado_en).dow))
+      const f = filas.filter((r) => !dias?.length || dias.includes(enZona(r.creado_en, tz).dow))
       const valores = (r: (typeof f)[number]) => ({ pedidos: 1, ventas: Math.round(Number(r.total) || 0) })
       const por = String(a.agrupar_por ?? 'ninguno')
-      const claves: Record<string, (r: (typeof f)[number]) => string | null> = { dia_semana: (r) => DIAS[enAR(r.creado_en).dow], hora: (r) => enAR(r.creado_en).hora + ':00', mes: (r) => enAR(r.creado_en).fecha.slice(0, 7), tipo: (r) => r.tipo, medio_pago: (r) => r.medio_pago_nombre ?? r.medio_pago ?? 'sin dato', estado: (r) => r.estado }
+      const claves: Record<string, (r: (typeof f)[number]) => string | null> = { dia_semana: (r) => DIAS[enZona(r.creado_en, tz).dow], hora: (r) => enZona(r.creado_en, tz).hora + ':00', mes: (r) => enZona(r.creado_en, tz).fecha.slice(0, 7), tipo: (r) => r.tipo, medio_pago: (r) => r.medio_pago_nombre ?? r.medio_pago ?? 'sin dato', estado: (r) => r.estado }
       const grupos = claves[por] ? agrupar(f, claves[por], valores, por === 'mes' || por === 'hora' ? 'clave' : 'valor') : undefined
       const ventas = f.reduce((s, r) => s + (Number(r.total) || 0), 0)
       return { modelo: { periodo: periodoTxt(p.desde, p.hasta), pedidos: f.length, ventas_pesos: Math.round(ventas), ventas_texto: dinero(ventas), ticket_promedio_pesos: f.length ? Math.round(ventas / f.length) : null, ...(grupos ? { agrupado_por: por, grupos } : {}), ...(truncado ? { aviso: 'Se leyó solo una parte de los pedidos: los totales pueden ser mayores.' } : {}) }, fuente: `Pedidos ${periodoTxt(p.desde, p.hasta)}: ${f.length} pedidos` }
@@ -158,7 +165,7 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Reco
       supabase.from('pedidos').select('creado_en, items:pedido_items(nombre, cantidad, subtotal)').eq('negocio_id', negocio.id).neq('estado', 'cancelado').gte('creado_en', ini).lte('creado_en', fin).order('creado_en').order('id').range(i, j))
     const g = new Map<string, { nombre: string; unidades: number; ventas: number; usos: Map<string, number> }>()
     for (const pd of filas) {
-      if (dias?.length && !dias.includes(enAR(pd.creado_en).dow)) continue
+      if (dias?.length && !dias.includes(enZona(pd.creado_en, tz).dow)) continue
       for (const it of pd.items ?? []) {
         const k = claveNombre(it.nombre); if (!k) continue
         const x = g.get(k) ?? { nombre: it.nombre, unidades: 0, ventas: 0, usos: new Map() }
@@ -175,8 +182,8 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Reco
     const minRes = Math.max(1, entero(a.min_reservas) ?? 2)
     if (tipo === 'nuevos') {
       const p = periodo(a, hoy); if ('error' in p) return { modelo: { error: p.error } }
-      const { count } = await supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).gte('creado_en', `${p.desde}T00:00:00-03:00`).lte('creado_en', `${p.hasta}T23:59:59-03:00`)
-      const { data } = await supabase.from('clientes').select('nombre, telefono, creado_en').eq('negocio_id', negocio.id).gte('creado_en', `${p.desde}T00:00:00-03:00`).lte('creado_en', `${p.hasta}T23:59:59-03:00`).order('creado_en', { ascending: false }).limit(25)
+      const { count } = await supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).gte('creado_en', ini0(p.desde)).lte('creado_en', fin0(p.hasta))
+      const { data } = await supabase.from('clientes').select('nombre, telefono, creado_en').eq('negocio_id', negocio.id).gte('creado_en', ini0(p.desde)).lte('creado_en', fin0(p.hasta)).order('creado_en', { ascending: false }).limit(25)
       return { modelo: { periodo: periodoTxt(p.desde, p.hasta), clientes_nuevos: count ?? 0, lista_en_pantalla: (data ?? []).length > 0 }, fuente: `Clientes nuevos ${periodoTxt(p.desde, p.hasta)}: ${count ?? 0}`,
         tabla: { titulo: `Clientes nuevos ${periodoTxt(p.desde, p.hasta)}${(count ?? 0) > 25 ? ' (los 25 más recientes)' : ''}`, columnas: ['Cliente', 'Teléfono', 'Alta'], filas: (data ?? []).map((c) => [c.nombre as string, (c.telefono as string) ?? '—', fechaCorta((c.creado_en as string).slice(0, 10))]) } }
     }
@@ -228,7 +235,7 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, a: Reco
   if (nombre === 'consultas_y_reclamos') {
     const p = periodo(a, hoy); if ('error' in p) return { modelo: { error: p.error } }
     const { filas } = await leerTodo<{ tipo: string; estado: string }>((i, j) => {
-      let q = supabase.from('consultas_reclamos').select('tipo, estado').eq('negocio_id', negocio.id).gte('creado_en', `${p.desde}T00:00:00-03:00`).lte('creado_en', `${p.hasta}T23:59:59-03:00`).order('id').range(i, j)
+      let q = supabase.from('consultas_reclamos').select('tipo, estado').eq('negocio_id', negocio.id).gte('creado_en', ini0(p.desde)).lte('creado_en', fin0(p.hasta)).order('id').range(i, j)
       if (sede) q = q.eq('sucursal_id', sede.id)
       return q
     })

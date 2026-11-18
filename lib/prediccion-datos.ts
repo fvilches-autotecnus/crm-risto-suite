@@ -1,13 +1,13 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
 import { cargarReglas } from '@/lib/aforo'
-import { TZ_AR, hoyEn, sumarDias } from '@/lib/fechas'
+import { hoyEn, sumarDias, zonaOk } from '@/lib/fechas'
 import { calcularPrediccion, type Especial, type Prediccion, type ReservaMin } from '@/lib/prediccion'
 import { ESTADOS_OCUPAN } from '@/lib/reservas'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export const DIAS_PREDICCION = 14
-const fechaAR = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ_AR }).format(new Date(iso))
+const fechaEn = (iso: string, zona: string) => new Intl.DateTimeFormat('en-CA', { timeZone: zonaOk(zona) }).format(new Date(iso))
 const PAGINA = 1000
 
 export interface DatosPrediccion { pred: Prediccion; hoy: string; marcasDisponibles: boolean }
@@ -28,13 +28,13 @@ export async function cargarPrediccion(ctx: Contexto): Promise<DatosPrediccion> 
     let q = admin.from('reservas').select('fecha, hora, ubicacion, sucursal_id, cantidad_personas, creado_en').eq('negocio_id', negocio.id).is('eliminado_en', null).in('estado', ESTADOS_OCUPAN).gte('fecha', desde).lte('fecha', hasta).order('fecha').order('id').range(i * PAGINA, (i + 1) * PAGINA - 1)
     if (sede) q = q.eq('sucursal_id', sede.id)
     const { data } = await q
-    for (const r of data ?? []) reservas.push({ fecha: r.fecha as string, hora: r.hora as string | null, ubicacion: r.ubicacion as string | null, sucursal_id: r.sucursal_id as string | null, personas: Number(r.cantidad_personas ?? 0), creado: fechaAR(r.creado_en as string) })
+    for (const r of data ?? []) reservas.push({ fecha: r.fecha as string, hora: r.hora as string | null, ubicacion: r.ubicacion as string | null, sucursal_id: r.sucursal_id as string | null, personas: Number(r.cantidad_personas ?? 0), creado: fechaEn(r.creado_en as string, negocio.zona_horaria) })
     if ((data?.length ?? 0) < PAGINA) break
   }
   let ultimaQ = admin.from('reservas').select('creado_en').eq('negocio_id', negocio.id).is('eliminado_en', null).order('creado_en', { ascending: false }).limit(1)
   if (sede) ultimaQ = ultimaQ.eq('sucursal_id', sede.id)
   const { data: ult } = await ultimaQ
-  const ultimaCreada = ult?.[0]?.creado_en ? fechaAR(ult[0].creado_en as string) : null
+  const ultimaCreada = ult?.[0]?.creado_en ? fechaEn(ult[0].creado_en as string, negocio.zona_horaria) : null
 
   // Aforo: las reglas con horario que corresponden a lo que se está viendo (los topes "total del día" no sirven para armar franjas)
   const reglas = (await cargarReglas(ctx)).filter((g) => g.hora_desde && g.hora_hasta && (!sede || !g.sucursal_id || g.sucursal_id === sede.id))

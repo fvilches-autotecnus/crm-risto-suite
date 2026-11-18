@@ -10,6 +10,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { dentroDe, hace, labelMotivoPausa, motivoValido } from '@/lib/pausas'
+import { useZona } from '@/components/zona'
 
 export interface PausadoUI {
   id: string
@@ -29,6 +30,7 @@ function BadgeMotivo({ motivo }: { motivo: string | null }) {
 
 /** Lista de chats que el bot dejó pausados, con el botón para devolverle el chat al bot. */
 export function ListaPausados({ chats, ahora, hayVarias, orden }: { chats: PausadoUI[]; ahora: number; hayVarias: boolean; orden?: OrdenTabla }) {
+  const zona = useZona()
   const Th = ({ campo, primero, className, children }: { campo: string; primero?: 'asc' | 'desc'; className?: string; children: React.ReactNode }) => orden
     ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero} className={className}>{children}</ThOrden>
     : <th className={('th ' + (className ?? '')).trim()}>{children}</th>
@@ -65,8 +67,8 @@ export function ListaPausados({ chats, ahora, hayVarias, orden }: { chats: Pausa
                 <td className="td text-rs-muted">{c.telefono}</td>
                 {hayVarias && <td className="td text-rs-muted">{c.sede ?? '—'}</td>}
                 <td className="td"><BadgeMotivo motivo={c.motivo_pausa} /></td>
-                <td className="td whitespace-nowrap text-sm"><span title={c.pausado_en ? fechaHoraLarga(c.pausado_en) : ''}>{hace(c.pausado_en, ahora)}</span>{c.pausado_en && <span className="ml-2 text-xs text-rs-muted">{fechaHoraLarga(c.pausado_en)}</span>}</td>
-                <td className="td whitespace-nowrap text-sm">{c.reactivar_en ? <span className="text-rs-ok" title={fechaHoraLarga(c.reactivar_en)}>{dentroDe(c.reactivar_en, ahora)}</span> : <span className="text-rs-muted">A mano</span>}</td>
+                <td className="td whitespace-nowrap text-sm"><span title={c.pausado_en ? fechaHoraLarga(c.pausado_en, zona) : ''}>{hace(c.pausado_en, ahora)}</span>{c.pausado_en && <span className="ml-2 text-xs text-rs-muted">{fechaHoraLarga(c.pausado_en, zona)}</span>}</td>
+                <td className="td whitespace-nowrap text-sm">{c.reactivar_en ? <span className="text-rs-ok" title={fechaHoraLarga(c.reactivar_en, zona)}>{dentroDe(c.reactivar_en, ahora)}</span> : <span className="text-rs-muted">A mano</span>}</td>
                 <td className="td text-right">{boton(c)}</td>
               </tr>
             ))}
@@ -78,7 +80,7 @@ export function ListaPausados({ chats, ahora, hayVarias, orden }: { chats: Pausa
           <li key={c.id} className="reveal card p-4" style={{ ['--i' as string]: Math.min(i, 8) }}>
             <div className="flex items-start justify-between gap-3"><span className="font-medium">{c.nombre ?? 'Sin nombre'}</span><BadgeMotivo motivo={c.motivo_pausa} /></div>
             <p className="mt-1 text-sm text-rs-muted">{c.telefono}{hayVarias && c.sede ? ` · ${c.sede}` : ''}</p>
-            <p className="mt-1 text-xs text-rs-muted">Pausado {hace(c.pausado_en, ahora)}{c.pausado_en ? ` · ${fechaHoraLarga(c.pausado_en)}` : ''}</p>
+            <p className="mt-1 text-xs text-rs-muted">Pausado {hace(c.pausado_en, ahora)}{c.pausado_en ? ` · ${fechaHoraLarga(c.pausado_en, zona)}` : ''}</p>
             <p className="mt-0.5 text-xs">{c.reactivar_en ? <span className="text-rs-ok">Se reactiva {dentroDe(c.reactivar_en, ahora)}</span> : <span className="text-rs-muted">Se reactiva a mano</span>}</p>
             <div className="mt-3 border-t border-rs-border/60 pt-3 text-right">{boton(c)}</div>
           </li>

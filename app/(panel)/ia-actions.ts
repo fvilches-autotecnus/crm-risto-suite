@@ -1,7 +1,7 @@
 'use server'
 
 import { getContexto } from '@/lib/context'
-import { fechaCorta, hoyEn, sumarDias } from '@/lib/fechas'
+import { fechaCorta, finDiaEn, hoyEn, inicioDiaEn, sumarDias } from '@/lib/fechas'
 import { agrupacionAuto, serieEvolucion } from '@/lib/metricas'
 import { cargarPedidos, cargarReservas, diasEntre } from '@/lib/metricas-datos'
 import { dinero, labelEstadoPedido, labelPago, labelTipo } from '@/lib/pedidos'
@@ -156,7 +156,7 @@ export async function resumirMetricas(f: { desde: string; hasta: string; seccion
       if (solo === 'pedidos') {
         // Lo que escriben los clientes en los pedidos del período (observaciones y motivos de cancelación), sin números largos (teléfonos)
         const { data: ob } = await supabase.from('pedidos').select('tipo, estado, observaciones, motivo_cancelacion, creado_en').eq('negocio_id', negocio.id)
-          .gte('creado_en', `${f.desde}T00:00:00-03:00`).lte('creado_en', `${f.hasta}T23:59:59-03:00`).or('observaciones.not.is.null,motivo_cancelacion.not.is.null').order('creado_en', { ascending: false }).limit(3000)
+          .gte('creado_en', inicioDiaEn(f.desde, negocio.zona_horaria)).lte('creado_en', finDiaEn(f.hasta, negocio.zona_horaria)).or('observaciones.not.is.null,motivo_cancelacion.not.is.null').order('creado_en', { ascending: false }).limit(3000)
         const sinNumeros = (t: string) => t.replace(/\d[\d\s().-]{5,}\d/g, '[nº]')
         const textos = (ob ?? []).flatMap((p) => [
           p.observaciones ? { t: `[${labelTipo(p.tipo)} · ${labelEstadoPedido(p.estado)}] ${sinNumeros(limpio(p.observaciones))}`, crudo: limpio(p.observaciones) } : null,
@@ -187,7 +187,7 @@ export async function resumirMetricas(f: { desde: string; hasta: string; seccion
 
   if (mod.consultas && !solo) {
     const leer = async (d: string, h: string) => {
-      let q = supabase.from('consultas_reclamos').select('tipo, estado').eq('negocio_id', negocio.id).gte('creado_en', `${d}T00:00:00-03:00`).lte('creado_en', `${h}T23:59:59-03:00`)
+      let q = supabase.from('consultas_reclamos').select('tipo, estado').eq('negocio_id', negocio.id).gte('creado_en', inicioDiaEn(d, negocio.zona_horaria)).lte('creado_en', finDiaEn(h, negocio.zona_horaria))
       if (sede) q = q.eq('sucursal_id', sede.id)
       return ((await q.limit(5000)).data ?? []) as { tipo: string; estado: string }[]
     }

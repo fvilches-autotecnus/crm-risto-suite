@@ -215,7 +215,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                   {conPedidos && <td className="td">{pe?.total ?? 0}</td>}
                   {conPedidos && <td className="td text-rs-muted">{pe?.ultima ? fechaCorta(pe.ultima) : '—'}</td>}
                   <td className="td text-rs-muted">{labelOrigen(c.canal_origen)}</td>
-                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en)}</td>
+                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en, ctx.negocio.zona_horaria)}</td>
                 </tr>
               )
             })}

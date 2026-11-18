@@ -1,6 +1,6 @@
 import 'server-only'
 import type { Contexto } from '@/lib/context'
-import { hoyEn, sumarDias } from '@/lib/fechas'
+import { finDiaEn, hoyEn, inicioDiaEn, sumarDias } from '@/lib/fechas'
 import { estimarConTicket, leerTicketReservas, type TicketReservas } from '@/lib/ticket'
 
 /**
@@ -34,8 +34,6 @@ export interface DatosResumen {
 const VISITAS_HABITUAL = 2     // un cliente "habitual" tiene al menos 2 visitas (días distintos con reserva confirmada o pedido)
 const HISTORIAL_DIAS = 540     // cuánto historial se mira para saber quién es habitual y cuándo vino por última vez
 const MAX_FILAS = 50000
-const inicio = (f: string) => `${f}T00:00:00-03:00`
-const fin = (f: string) => `${f}T23:59:59-03:00`
 
 type Fila = Record<string, unknown>
 const dia = (iso: string, zona: string) => hoyEn(zona, new Date(iso))
@@ -44,6 +42,8 @@ export async function cargarResumen(ctx: Contexto, opt: { dias: number; hasta?: 
   const { supabase, negocio, sede } = ctx
   const mod = ctx.modulosActivos
   const hoy = hoyEn(negocio.zona_horaria)
+  const inicio = (f: string) => inicioDiaEn(f, negocio.zona_horaria)
+  const fin = (f: string) => finDiaEn(f, negocio.zona_horaria)
   const hasta = opt.hasta && opt.hasta <= hoy ? opt.hasta : hoy   // último día del período (hoy, o el final de un rango elegido)
   const desde = sumarDias(hasta, -(opt.dias - 1))
   const antDesde = sumarDias(desde, -opt.dias)

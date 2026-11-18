@@ -6,12 +6,14 @@ import { Spinner } from '@/components/ui'
 import { fechaHoraCorta } from '@/lib/fechas'
 import { fichaDeCliente, type FichaResultado } from '@/app/(panel)/ia-ficha-actions'
 import type { FichaIA } from '@/lib/ia-ficha'
+import { useZona } from '@/components/zona'
 
 /**
  * Ficha del cliente con IA: un resumen corto y qué tener en cuenta para recibirlo. Arranca con la última guardada (no cuesta);
  * "Actualizar" la rearma solo si los datos del cliente cambiaron (y gasta un lugar del tope diario del negocio).
  */
 export default function FichaClienteIA({ clienteId, inicial }: { clienteId: string; inicial: { ficha: FichaIA; generado: string } | null }) {
+  const zona = useZona()
   const [ficha, setFicha] = useState<{ ficha: FichaIA; generado: string } | null>(inicial)
   const [aviso, setAviso] = useState('')
   const [error, setError] = useState('')
@@ -47,7 +49,7 @@ export default function FichaClienteIA({ clienteId, inicial }: { clienteId: stri
             </div>
           )}
           {aviso && <p className="text-xs text-rs-muted" role="status">{aviso}</p>}
-          <p className="border-t border-rs-border/60 pt-3 text-xs text-rs-muted">Generado con IA · {fechaHoraCorta(ficha.generado)}. Puede equivocarse: ante una duda, confirmá con el cliente.</p>
+          <p className="border-t border-rs-border/60 pt-3 text-xs text-rs-muted">Generado con IA · {fechaHoraCorta(ficha.generado, zona)}. Puede equivocarse: ante una duda, confirmá con el cliente.</p>
         </div>
       )}
     </section>

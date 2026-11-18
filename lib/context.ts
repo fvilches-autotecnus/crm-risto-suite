@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { TZ_AR } from '@/lib/fechas'
+import { zonaOk } from '@/lib/fechas'
 import { aplicarSede, resolverModulos, unionModulos, type ModuloClave, type ModulosActivos } from '@/lib/modulos'
 import { CONFIG_SEDE_VACIA, type ConfigSede } from '@/lib/config-sedes'
 
@@ -88,8 +88,8 @@ export const getContexto = cache(async (): Promise<Contexto> => {
 
   const cookieStore = await cookies()
   const elegido = cookieStore.get(NEGOCIO_COOKIE)?.value
-  // Horario de Argentina para todo, sin importar lo que diga la columna zona_horaria.
-  const lista = (negocios as Negocio[]).map((n) => ({ ...n, zona_horaria: TZ_AR }))
+  // Cada negocio en su zona horaria (Argentina si no tiene o está mal escrita).
+  const lista = (negocios as Negocio[]).map((n) => ({ ...n, zona_horaria: zonaOk(n.zona_horaria) }))
   const negocio = lista.find((n) => n.id === elegido) ?? lista[0]
   const tieneApagadoBot = negocio.modulos?.apagado_bot === true
 

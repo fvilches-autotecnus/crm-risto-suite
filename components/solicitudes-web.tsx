@@ -7,12 +7,14 @@ import { useToast } from '@/components/feedback'
 import { Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga, horaCorta } from '@/lib/fechas'
 import { labelTipo } from '@/lib/reservas'
+import { useZona } from '@/components/zona'
 
 export interface SolicitudWebUI { id: string; codigo: string; nombre: string; fecha: string; hora: string; personas: number; ubicacion: string | null; cualquier_ubicacion?: boolean; sucursal_id?: string | null; cumple_dia?: number | null; cumple_mes?: number | null; tipo_reserva: string; observaciones: string | null; mesas: string | null; creado_en: string }
 
 /** Solicitudes del sitio de reservas que todavía NO son reservas: el cliente las armó pero no mandó el mensaje de WhatsApp.
  *  No ocupan mesa ni aforo. Si el bot no las registró solo, se registran a mano con el teléfono de quien escribió. */
 export default function SolicitudesWeb({ solicitudes, puedeEscribir, etiquetasTipo = {}, sedes = {} }: { solicitudes: SolicitudWebUI[]; puedeEscribir: boolean; etiquetasTipo?: Record<string, string>; sedes?: Record<string, string> }) {
+  const zona = useZona()
   const toast = useToast()
   const [abierta, setAbierta] = useState<string | null>(null)
   const [tel, setTel] = useState('')
@@ -47,7 +49,7 @@ export default function SolicitudesWeb({ solicitudes, puedeEscribir, etiquetasTi
                 <p className="text-rs-muted">{fechaCorta(s.fecha)} · {horaCorta(s.hora)} · {s.personas} personas{s.sucursal_id && sedes[s.sucursal_id] ? ` · ${sedes[s.sucursal_id]}` : ''}{s.ubicacion ? ` · ${s.ubicacion}` : s.cualquier_ubicacion ? ' · cualquier ubicación' : ''} · {labelTipo(s.tipo_reserva, etiquetasTipo)}{s.mesas ? ` · pidió mesa ${s.mesas}` : ' · mesa a elección del local'}</p>
                 {s.cumple_dia && s.cumple_mes && <p className="text-rs-muted/90">Cumpleaños: {String(s.cumple_dia).padStart(2, '0')}-{String(s.cumple_mes).padStart(2, '0')}</p>}
                 {s.observaciones && <p className="text-rs-muted/90">{s.observaciones}</p>}
-                <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-rs-muted/70"><Clock size={11} />Armada {fechaHoraLarga(s.creado_en)}</p>
+                <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-rs-muted/70"><Clock size={11} />Armada {fechaHoraLarga(s.creado_en, zona)}</p>
               </div>
               {puedeEscribir && abierta !== s.id && (
                 <div className="flex gap-1.5">

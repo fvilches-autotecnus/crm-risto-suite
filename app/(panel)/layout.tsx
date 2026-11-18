@@ -16,6 +16,7 @@ import CampanaNotificaciones from '@/components/campana-notificaciones'
 import { cargarNotificaciones } from '@/lib/notificaciones'
 import { contarPausados } from '@/lib/pausados'
 import { AvisoComandera, ComanderaProvider } from '@/components/comandera-auto'
+import { ZonaProvider } from '@/components/zona'
 
 /** App instalable (manifest, ícono de iPhone): por ahora solo para superadmin; el resto del panel no ofrece instalarla. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -47,6 +48,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   return (
     <FeedbackProvider>
+      <ZonaProvider zona={ctx.negocio.zona_horaria}>
       <Suspense fallback={null}><BarraProgreso /></Suspense>
       <AvisosEnVivo negocioId={ctx.negocio.id} pedidos={ctx.modulosActivos.pedidos} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
       <ConImpresion activa={!!ctx.modulosActivos.pedidos} desde={desdeImpresion} negocio={ctx.negocio.nombre} negocioId={ctx.negocio.id} puedeEscribir={ctx.puedeEscribir}>
@@ -85,6 +87,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         <main className="mx-auto max-w-[1280px] px-4 py-6">{children}</main>
       </div>
       </ConImpresion>
+      </ZonaProvider>
     </FeedbackProvider>
   )
 }

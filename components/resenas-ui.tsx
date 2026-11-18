@@ -12,6 +12,7 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { EstadoVacio, Spinner } from '@/components/ui'
 import { fechaCorta, fechaHoraLarga } from '@/lib/fechas'
 import { labelOrigen } from '@/lib/resenas'
+import { useZona } from '@/components/zona'
 
 export interface ResenaUI {
   id: string
@@ -107,6 +108,7 @@ export function NuevaResenaBtn({ sedes, hoy, prefill, chico = false }: { sedes: 
 }
 
 export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, puedeEliminar, mostrarCliente = true, orden }: { resenas: ResenaUI[]; sedes: { id: string; nombre: string }[]; nombresSede: Record<string, string>; hoy: string; puedeEscribir: boolean; puedeEliminar: boolean; mostrarCliente?: boolean ; orden?: OrdenTabla }) {
+  const zona = useZona()
   const Th = ({ campo, primero, children }: { campo: string; primero?: 'asc' | 'desc'; children: React.ReactNode }) => orden
     ? <ThOrden ruta={orden.ruta} params={orden.params} campo={campo} orden={orden.actual} primero={primero}>{children}</ThOrden>
     : <th className="th">{children}</th>
@@ -137,7 +139,7 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
           <tbody>
             {resenas.map((r, i) => (
               <tr key={r.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en)}</td>
+                <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(r.creado_en, zona)}</td>
                 <td className="td whitespace-nowrap">{fechaCorta(r.fecha)}</td>
                 <td className="td">{nombre(r)}<div className="text-xs text-rs-muted">{r.telefono}</div></td>
                 {mostrarSede && <td className="td text-rs-muted">{r.sucursal_id ? nombresSede[r.sucursal_id] ?? '—' : '—'}</td>}
@@ -157,7 +159,7 @@ export function ListaResenas({ resenas, sedes, nombresSede, hoy, puedeEscribir, 
             <div className="flex items-start justify-between gap-3"><div>{nombre(r)}<div className="text-xs text-rs-muted">{fechaCorta(r.fecha)} · {labelOrigen(r.origen)}{mostrarSede && r.sucursal_id ? ` · ${nombresSede[r.sucursal_id] ?? ''}` : ''}</div></div><Estrellas n={r.puntaje} /></div>
             {r.comentario && <p className="mt-2 whitespace-pre-wrap text-sm text-rs-muted">{r.comentario}</p>}
             {mostrarVoucher && r.voucher && <div className="mt-2"><BadgeVoucher v={r.voucher} /></div>}
-            <p className="mt-2 text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en)}</p>
+            <p className="mt-2 text-[11px] text-rs-muted/70">Alta {fechaHoraLarga(r.creado_en, zona)}</p>
             {puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3">{acciones(r)}</div>}
           </li>
         ))}

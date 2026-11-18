@@ -2,12 +2,12 @@
 import { fechaHoraCorta } from '@/lib/fechas'
 
 import { useState, useTransition } from 'react'
+import { useZona } from '@/components/zona'
 import { Check, Copy, RefreshCw, Sparkles } from 'lucide-react'
 import Modal from '@/components/modal'
 import { Spinner } from '@/components/ui'
 import type { ResumenIAResult } from '@/lib/ia'
 
-const hora = (iso: string) => fechaHoraCorta(iso)
 
 function comoTexto(titulo: string, r: Extract<ResumenIAResult, { ok: true }>) {
   return [titulo, '', r.resumen, '', ...r.secciones.flatMap((s) => [s.titulo, ...s.items.map((i) => '• ' + i), '']),
@@ -20,6 +20,7 @@ function comoTexto(titulo: string, r: Extract<ResumenIAResult, { ok: true }>) {
  * `generar` es una acción del servidor ya con los filtros aplicados; la clave de OpenAI nunca llega al navegador.
  */
 export default function ResumenIA({ titulo, generar, pista }: { titulo: string; generar: () => Promise<ResumenIAResult>; pista: string }) {
+  const zona = useZona()
   const [abierto, setAbierto] = useState(false)
   const [res, setRes] = useState<ResumenIAResult | null>(null)
   const [pend, ir] = useTransition()
@@ -54,7 +55,7 @@ export default function ResumenIA({ titulo, generar, pista }: { titulo: string; 
               {res.acciones.length > 0 && (
                 <section><h3 className="card-title mb-2">Qué hacer</h3><ol className="list-decimal space-y-1.5 pl-5 marker:font-semibold marker:text-rs-lime">{res.acciones.map((a, k) => <li key={k}>{a}</li>)}</ol></section>
               )}
-              <p className="border-t border-rs-border/60 pt-3 text-xs text-rs-muted">Generado con IA · {hora(res.generado)}. {res.nota ?? ''} Puede equivocarse: revisalo antes de tomar decisiones.</p>
+              <p className="border-t border-rs-border/60 pt-3 text-xs text-rs-muted">Generado con IA · {fechaHoraCorta(res.generado, zona)}. {res.nota ?? ''} Puede equivocarse: revisalo antes de tomar decisiones.</p>
               <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" onClick={copiar} className="btn">{copiado ? <Check size={14} /> : <Copy size={14} />}{copiado ? 'Copiado' : 'Copiar'}</button>
                 <button type="button" onClick={pedir} className="btn"><RefreshCw size={14} />Volver a generar</button>

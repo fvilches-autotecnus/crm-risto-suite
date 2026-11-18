@@ -6,6 +6,8 @@ import { getContexto, type Contexto, type Rol } from '@/lib/context'
 import { createAdminClient } from '@/lib/supabase/server'
 import { ROLES, ROLES_BAJOS, SLUG_RE, USUARIO_RE, emailInterno } from '@/lib/roles'
 import type { ActionResult } from './actions'
+import { TZ_AR } from '@/lib/fechas'
+import { esZonaNegocio } from '@/lib/zonas'
 
 // Todo lo de acá escribe con service_role (RLS no deja crear usuarios de Auth ni negocios), así que
 // los permisos se validan explícitamente en cada acción:
@@ -63,12 +65,14 @@ export async function crearNegocio(_prev: ActionResult | null, fd: FormData): Pr
   const whatsapp = text(fd, 'whatsapp_nro').replace(/\D/g, '')
   const aforoRaw = text(fd, 'aforo')
   const aforo = aforoRaw ? Number(aforoRaw) : null
+  const zona = text(fd, 'zona_horaria') || TZ_AR
+  if (!esZonaNegocio(zona)) return fail('La zona horaria no es válida')
   if (!nombre) return fail('Falta el nombre')
   if (!SLUG_RE.test(slug)) return fail('El identificador debe tener 2 a 49 letras minúsculas, números o guiones (ej. mi-restaurante)')
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un entero mayor a 0')
 
   const { error } = await createAdminClient().from('negocios').insert({
-    nombre, slug, whatsapp_nro: whatsapp || null, aforo_maximo_reservas: aforo,
+    nombre, slug, whatsapp_nro: whatsapp || null, aforo_maximo_reservas: aforo, zona_horaria: zona,
     modulos: { crm: true, ...(fd.get('__modulos') ? leerModulosForm(fd) : resolverModulos(null)), apagado_bot: fd.get('apagado_bot') === 'on' },
   })
   if (error) return fail(error.code === '23505' ? 'Ya existe un negocio con ese identificador' : 'No se pudo crear el negocio')
@@ -84,6 +88,8 @@ export async function actualizarNegocio(_prev: ActionResult | null, fd: FormData
   const nombre = text(fd, 'nombre')
   const aforoRaw = text(fd, 'aforo')
   const aforo = aforoRaw ? Number(aforoRaw) : null
+  const zona = text(fd, 'zona_horaria')
+  if (zona && !esZonaNegocio(zona)) return fail('La zona horaria no es válida')
   if (!id || !nombre) return fail('Falta el nombre')
   if (aforo !== null && (!Number.isInteger(aforo) || aforo <= 0)) return fail('El aforo debe ser un entero mayor a 0')
 
@@ -94,6 +100,7 @@ export async function actualizarNegocio(_prev: ActionResult | null, fd: FormData
     nombre,
     whatsapp_nro: text(fd, 'whatsapp_nro').replace(/\D/g, '') || null,
     aforo_maximo_reservas: aforo,
+    ...(zona ? { zona_horaria: zona } : {}),
     activo: fd.get('activo') === 'on',
     modulos: { ...(actual.modulos as Record<string, unknown>), ...(fd.get('__modulos') ? leerModulosForm(fd) : {}), apagado_bot: fd.get('apagado_bot') === 'on' },
   }).eq('id', id)

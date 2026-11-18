@@ -14,6 +14,8 @@ import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { Spinner } from '@/components/ui'
 import type { ActionResult } from '@/app/(panel)/actions'
 import { actualizarNegocio, crearNegocio } from '@/app/(panel)/admin-actions'
+import { TZ_AR } from '@/lib/fechas'
+import { ZONAS_NEGOCIO } from '@/lib/zonas'
 import { cambiarNegocio } from '@/app/(panel)/actions'
 
 export interface NegocioAdmin {
@@ -22,6 +24,7 @@ export interface NegocioAdmin {
   slug: string
   whatsapp_nro: string | null
   aforo_maximo_reservas: number | null
+  zona_horaria: string
   activo: boolean
   apagado_bot: boolean
   modulos: ModulosActivos
@@ -52,6 +55,10 @@ function Form({ n, onDone }: { n?: NegocioAdmin; onDone: () => void }) {
       </div>
       <div className="col-span-2">
         <TelefonoInput name="whatsapp_nro" label="WhatsApp del negocio" defaultValue={n?.whatsapp_nro ?? ''} />
+      </div>
+      <div className="col-span-2 sm:col-span-1">
+        <label className="label" htmlFor="n_zona">Zona horaria</label>
+        <select id="n_zona" name="zona_horaria" defaultValue={n?.zona_horaria ?? TZ_AR} className="input w-full">{ZONAS_NEGOCIO.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}</select>
       </div>
       <div className="col-span-2 sm:col-span-1">
         <label className="label" htmlFor="n_aforo">Aforo máximo por día</label>

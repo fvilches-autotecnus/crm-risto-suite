@@ -35,7 +35,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
 
   // Superadmin: RLS devuelve todo (incluye negocios inactivos). Solo se leen columnas permitidas.
   const [{ data: negocios }, { data: perfiles }, { data: membresias }, { data: sedes }] = await Promise.all([
-    ctx.supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, aforo_maximo_reservas, activo, modulos, creado_en').order('creado_en', { ascending: false }),
+    ctx.supabase.from('negocios').select('id, nombre, slug, whatsapp_nro, aforo_maximo_reservas, zona_horaria, activo, modulos, creado_en').order('creado_en', { ascending: false }),
     ctx.supabase.from('perfiles').select('id, usuario, nombre, activo, es_superadmin, creado_en').order('creado_en', { ascending: false }),
     ctx.supabase.from('membresias').select('user_id, negocio_id, rol, activo, sucursal_ids'),
     ctx.supabase.from('sucursales').select('id, negocio_id, nombre').eq('activa', true).order('orden').order('nombre'),
@@ -49,7 +49,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
   for (const m of membresias ?? []) conteo.set(m.negocio_id, (conteo.get(m.negocio_id) ?? 0) + 1)
 
   const listaNegocios: NegocioAdmin[] = (negocios ?? []).map((n) => ({
-    id: n.id, nombre: n.nombre, slug: n.slug, whatsapp_nro: n.whatsapp_nro, aforo_maximo_reservas: n.aforo_maximo_reservas,
+    id: n.id, nombre: n.nombre, slug: n.slug, whatsapp_nro: n.whatsapp_nro, aforo_maximo_reservas: n.aforo_maximo_reservas, zona_horaria: n.zona_horaria as string,
     activo: n.activo, creado_en: n.creado_en, apagado_bot: (n.modulos as { apagado_bot?: boolean } | null)?.apagado_bot === true, modulos: resolverModulos(n.modulos as Record<string, unknown> | null), usuarios: conteo.get(n.id) ?? 0, sedes: (sedesPorNegocio[n.id] ?? []).length,
   }))
   const usuarios: UsuarioUI[] = (perfiles ?? []).map((p) => ({

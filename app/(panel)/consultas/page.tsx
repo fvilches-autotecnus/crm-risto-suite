@@ -98,7 +98,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
               <tbody>
                 {lista.map((c, i) => (
                   <tr key={c.id} className="reveal border-b border-rs-border/60 align-top transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                    <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en)}</td>
+                    <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en, ctx.negocio.zona_horaria)}</td>
                     <td className="td">{badge(c.tipo)}</td>
                     <td className="td whitespace-nowrap">{telefono(c.telefono)}</td>
                     <td className="td max-w-[360px] whitespace-pre-wrap">{c.mensaje}</td>
@@ -112,7 +112,7 @@ export default async function ConsultasYReclamosPage({ searchParams }: { searchP
           <ul className="space-y-3 md:hidden">
             {lista.map((c, i) => (
               <li key={c.id} className="reveal card p-4" style={{ ['--i' as string]: Math.min(i, 8) }}>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="flex items-center gap-2">{badge(c.tipo)}{estadoBadge(c.estado)}</span><span className="text-rs-muted">{fechaHoraLarga(c.creado_en)}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="flex items-center gap-2">{badge(c.tipo)}{estadoBadge(c.estado)}</span><span className="text-rs-muted">{fechaHoraLarga(c.creado_en, ctx.negocio.zona_horaria)}</span></div>
                 <p className="mt-2 text-sm">{telefono(c.telefono)}</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm">{c.mensaje}</p>
                 {ctx.puedeEscribir && <div className="mt-3 border-t border-rs-border/60 pt-3"><ConsultaAcciones id={c.id} estado={c.estado} tipo={c.tipo} /></div>}

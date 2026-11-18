@@ -10,6 +10,7 @@ import TicketPedido from '@/components/ticket-pedido'
 import { Spinner } from '@/components/ui'
 import type { DatosTicket } from '@/lib/comandera'
 import { fechaHoraCorta } from '@/lib/fechas'
+import { useZona } from '@/components/zona'
 
 // Impresión automática de la comandera en CUALQUIER pantalla del panel (el proveedor vive en el layout): mientras el CRM está abierto en la PC del local, cada pedido nuevo imprime su ticket solo
 // (sin cuadro de impresión si Chrome corre con --kiosk-printing y la térmica es la impresora predeterminada).
@@ -182,6 +183,7 @@ export function AvisoComandera() {
 
 /** Franja de la pantalla de Pedidos: estado de la impresión automática, interruptor, prueba y alertas si algún ticket no se confirmó. */
 export function BarraComandera({ puedeAjustes }: { puedeAjustes: boolean }) {
+  const zona = useZona()
   const c = useImpresora()
   if (!c) return null
   const { desde } = c
@@ -194,7 +196,7 @@ export function BarraComandera({ puedeAjustes }: { puedeAjustes: boolean }) {
             {desde ? 'Impresión automática activada' : 'Impresión automática apagada'}
             {c.sinConexion && <span className="text-xs font-normal text-rs-danger">· sin conexión, reintentando…</span>}
           </p>
-          <p className="text-xs text-rs-muted">{desde ? `Imprime cada pedido que entra, desde el ${fechaHoraCorta(desde)}, en el equipo que tenga marcado “Este equipo imprime”, desde cualquier pantalla del CRM (con el CRM abierto).` : 'Al activarla, imprime solo los pedidos que entren desde ese momento.'}</p>
+          <p className="text-xs text-rs-muted">{desde ? `Imprime cada pedido que entra, desde el ${fechaHoraCorta(desde, zona)}, en el equipo que tenga marcado “Este equipo imprime”, desde cualquier pantalla del CRM (con el CRM abierto).` : 'Al activarla, imprime solo los pedidos que entren desde ese momento.'}</p>
           <label className="mt-1 flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={c.esteEquipo} onChange={(e) => c.usarEsteEquipo(e.target.checked)} className="h-3.5 w-3.5 accent-[#c8e62b]" />Este equipo imprime solo (marcalo únicamente en la PC con la impresora)</label>
         </div>
         <div className="flex flex-wrap items-center gap-2">

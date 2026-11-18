@@ -1,17 +1,21 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/server'
-import { TZ_AR, hoyEn } from '@/lib/fechas'
+import { hoyEn, inicioDiaEn } from '@/lib/fechas'
 
 /** Tope diario de usos de la IA por negocio. Cada pedido que cuesta (OpenAI) se anota en `ia_usos`. */
 export const CUPOS = { pregunta: 10, ficha_cliente: 30 } as const
 export type TipoUsoIA = keyof typeof CUPOS
 
-/** Inicio del día de hoy en Argentina (el tope se reinicia a las 00:00 hora argentina). */
-const inicioDelDia = () => `${hoyEn(TZ_AR)}T00:00:00-03:00`
+/** Inicio del día de hoy en la zona del negocio (el tope se reinicia a las 00:00 de su hora). */
+const inicioDelDia = async (negocioId: string) => {
+  const { data } = await createAdminClient().from('negocios').select('zona_horaria').eq('id', negocioId).maybeSingle()
+  const zona = (data?.zona_horaria as string | undefined) ?? ''
+  return inicioDiaEn(hoyEn(zona), zona)
+}
 
 export async function usosHoy(negocioId: string, tipo: TipoUsoIA): Promise<number> {
   const { count } = await createAdminClient().from('ia_usos').select('id', { count: 'exact', head: true })
-    .eq('negocio_id', negocioId).eq('tipo', tipo).gte('creado_en', inicioDelDia())
+    .eq('negocio_id', negocioId).eq('tipo', tipo).gte('creado_en', await inicioDelDia(negocioId))
   return count ?? 0
 }
 

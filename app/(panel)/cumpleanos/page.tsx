@@ -109,7 +109,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
                   <td className="td text-rs-muted">{c.telefono ?? '—'}</td>
                   <td className="td"><span className="font-semibold">{textoCumple(c.cumple_dia!, c.cumple_mes!)}</span> <span className={'text-xs ' + (c.prox.dias <= 1 ? 'font-semibold text-rs-lime' : 'text-rs-muted')}>· {textoFaltan(c.prox.dias)}</span></td>
                   <td className="td whitespace-nowrap">{c.fecha_nacimiento ? <span title="Edad que cumple"><span className="font-semibold">{edadQueCumple(c.fecha_nacimiento, c.prox.fecha)}</span> <span className="text-xs text-rs-muted">años</span></span> : <span className="text-rs-muted">—</span>}</td>
-                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en)}</td>
+                  <td className="td whitespace-nowrap text-xs text-rs-muted">{fechaHoraLarga(c.creado_en, ctx.negocio.zona_horaria)}</td>
                   {ctx.puedeEscribir && <td className="td"><div className="flex justify-end gap-1.5"><EditarCumple cliente={{ id: c.id, nombre: c.nombre, dia: c.cumple_dia, mes: c.cumple_mes, anio: c.fecha_nacimiento ? Number(c.fecha_nacimiento.slice(0, 4)) : null }} /></div></td>}
                 </tr>
               ))}

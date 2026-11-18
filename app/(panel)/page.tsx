@@ -7,7 +7,7 @@ import { AforoLista, Tile } from '@/components/dashboard-ui'
 import { NuevaReservaBtn, ReservasTabla } from '@/components/reservas-ui'
 import { cargarReglas, etiquetaRegla, turnoRegla, usoPorRegla } from '@/lib/aforo'
 import { getContexto } from '@/lib/context'
-import { fechaLarga, hoyEn, inicioSemana, sumarDias } from '@/lib/fechas'
+import { fechaLarga, hoyEn, inicioSemana, sumarDias, zonaOk } from '@/lib/fechas'
 import { ESTADOS_OCUPAN, RESERVA_COLS, ocupaLugar, type EstadoReserva, type Reserva } from '@/lib/reservas'
 import { cargarOpciones } from '@/lib/sedes'
 import { usaAsistencia } from '@/lib/fidelidad-servidor'
@@ -16,14 +16,14 @@ import { cargarConfigReservas } from '@/lib/config-reservas-servidor'
 
 const delta = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
-function saludo(): string {
-  const h = Number(new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false }).format(new Date()))
+function saludo(zona: string): string {
+  const h = Number(new Intl.DateTimeFormat('es-AR', { timeZone: zonaOk(zona), hour: 'numeric', hour12: false }).format(new Date())) % 24
   return h < 6 ? 'Buenas noches' : h < 13 ? 'Buen día' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
 }
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
   const ctx = await getContexto()
-  if (!ctx.modulosActivos.reservas) return <InicioModulos nombre={ctx.nombreUsuario.split(' ')[0]} negocio={ctx.negocio.nombre} activos={ctx.modulosActivos} />
+  if (!ctx.modulosActivos.reservas) return <InicioModulos nombre={ctx.nombreUsuario.split(' ')[0]} negocio={ctx.negocio.nombre} activos={ctx.modulosActivos} zona={ctx.negocio.zona_horaria} />
   const { supabase, negocio, sede } = ctx
   const op = await cargarOpciones(ctx)
   const sp = await searchParams
@@ -93,7 +93,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="animate-fade-up">
-          <p className="text-xl font-bold sm:text-2xl">{saludo()}, <span className="text-rs-lime">{primerNombre}</span></p>
+          <p className="text-xl font-bold sm:text-2xl">{saludo(negocio.zona_horaria)}, <span className="text-rs-lime">{primerNombre}</span></p>
           <p className="text-sm text-rs-muted">{ctx.negocio.nombre}{sede ? ` · ${sede.nombre}` : ''}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

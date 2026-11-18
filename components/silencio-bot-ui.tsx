@@ -8,13 +8,15 @@ import { Spinner } from '@/components/ui'
 import { useAccionFormulario } from '@/components/use-accion-formulario'
 import { fechaHoraLarga } from '@/lib/fechas'
 import { CLAVES_FLUJO, OPCIONES_SILENCIO, TITULO_FLUJO, type ClaveFlujo, type EstadoSilencio, type FlujosSilencio } from '@/lib/silencio'
+import { useZona } from '@/components/zona'
 
 /** Una cuenta de BotConversa con la que se puede silenciar al cliente: la de una sede (sucursalId) o la del negocio (null). */
 export interface CuentaSilencio { sucursalId: string | null; nombre: string; estado: EstadoSilencio; flujos: FlujosSilencio }
 
 function Estado({ estado }: { estado: EstadoSilencio }) {
+  const zona = useZona()
   return estado.silenciado
-    ? <span className="badge bg-rs-warn/15 text-rs-warn"><BellOff size={11} className="mr-1 inline" />Silenciado {estado.hasta ? `hasta el ${fechaHoraLarga(estado.hasta)}` : 'indefinidamente'}</span>
+    ? <span className="badge bg-rs-warn/15 text-rs-warn"><BellOff size={11} className="mr-1 inline" />Silenciado {estado.hasta ? `hasta el ${fechaHoraLarga(estado.hasta, zona)}` : 'indefinidamente'}</span>
     : <span className="badge bg-rs-ok/15 text-rs-ok">Atendiendo</span>
 }
 
