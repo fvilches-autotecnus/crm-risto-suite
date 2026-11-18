@@ -8,6 +8,8 @@ import { labelTipo } from '@/lib/reservas'
 import { cargarTiposReserva } from '@/lib/config-reservas-servidor'
 import { EstadoBadge } from '@/components/reservas-ui'
 import NotasCliente from './notas'
+import FichaClienteIA from '@/components/ficha-cliente-ia'
+import { fichaGuardada } from '@/lib/ia-ficha'
 import EditarNombreCliente from '@/components/editar-nombre-cliente'
 import { labelOrigen } from '@/lib/origen'
 import { EtiquetasCliente, type EtiquetaUI } from '@/components/etiquetas-ui'
@@ -86,6 +88,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   }
   const catalogo = (catalogoDb ?? []) as EtiquetaUI[]
   const aplicadas = ((aplicadasDb ?? []) as unknown as { etiquetas: EtiquetaUI | null }[]).map((x) => x.etiquetas).filter((x): x is EtiquetaUI => !!x).sort((a, b) => a.nombre.localeCompare(b.nombre))
+  const fichaIA = await fichaGuardada(cliente.id, negocio.id).catch(() => null)
   const prox = cliente.cumple_dia && cliente.cumple_mes ? proximoCumple(cliente.cumple_dia, cliente.cumple_mes, hoy) : null
 
   return (
@@ -103,6 +106,8 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           <Link href={`/conversaciones?tel=${cliente.telefono}`} className="btn btn-sm mt-4 inline-flex">Ver conversación</Link>
         )}
       </div>
+
+      <FichaClienteIA clienteId={cliente.id} inicial={fichaIA} />
 
       <EtiquetasCliente clienteId={cliente.id} aplicadas={aplicadas} catalogo={catalogo} puedeEscribir={ctx.puedeEscribir} esBotconversa={bc.activo} />
 

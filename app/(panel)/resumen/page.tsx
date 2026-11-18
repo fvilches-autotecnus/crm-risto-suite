@@ -10,6 +10,8 @@ import FiltroPeriodo from '@/components/filtro-periodo'
 import { diasEnRango, leerRango, rotuloRango } from '@/lib/periodo'
 import { ticketTexto } from '@/lib/ticket'
 import { hoyEn } from '@/lib/fechas'
+import PreguntaIA from '@/components/pregunta-ia'
+import { CUPOS, restantesHoy } from '@/lib/ia-cupo'
 import { cargarResumen, type ClienteResumen, type Comparado } from '@/lib/resumen-datos'
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
@@ -81,6 +83,8 @@ export default async function ResumenPage({ searchParams }: { searchParams: Prom
           <FiltroPeriodo ruta="/resumen" param="dias" variante="select" opciones={PERIODOS.map((n) => ({ v: String(n), l: `Últimos ${n} días` }))} actual={String(dias)} desde={rango?.desde} hasta={rango?.hasta} hoy={hoyReal} extra={{ inactivo: sp.inactivo ? String(inactivoDias) : undefined }} />
         </label>
       </div>
+
+      <PreguntaIA restantesIniciales={await restantesHoy(negocio.id, 'pregunta')} tope={CUPOS.pregunta} />
 
       {/* 1. Lo que el sistema ya hizo por vos */}
       <section aria-labelledby="h-logros" className="space-y-3">

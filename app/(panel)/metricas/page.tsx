@@ -5,6 +5,8 @@ import { BarraApilada, BarrasHorizontales, GraficoColumnas, GraficoLinea, Tarjet
 import { Tile } from '@/components/dashboard-ui'
 import PrediccionDemanda from '@/components/prediccion-demanda'
 import ResumenIA from '@/components/resumen-ia'
+import PreguntaIA from '@/components/pregunta-ia'
+import { CUPOS, restantesHoy } from '@/lib/ia-cupo'
 import SelectorPeriodo from '@/components/selector-periodo'
 import { resumirMetricas } from '../ia-actions'
 import { getContexto } from '@/lib/context'
@@ -55,6 +57,8 @@ export default async function MetricasPage({ searchParams }: { searchParams: Pro
           {(hayReservas || hayPedidos) && <ResumenIA key={`${seccion}|${desde}|${hoy}`} titulo={`Resumen de ${seccion} con IA`} pista={`Resume las métricas de ${seccion} del período que estás viendo y las compara con el período anterior`} generar={resumirMetricas.bind(null, { desde, hasta: hoy, seccion: seccion as 'reservas' | 'pedidos' })} />}
         </div>
       </div>
+
+      {ctx.puedeAdministrar && <PreguntaIA restantesIniciales={await restantesHoy(negocio.id, 'pregunta')} tope={CUPOS.pregunta} />}
 
       {hayReservas && hayPedidos && (
         <nav aria-label="Qué métricas ver" className="flex gap-2">
