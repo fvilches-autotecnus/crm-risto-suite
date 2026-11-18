@@ -470,6 +470,12 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
   if (sedeBloq && !ctx.sedes.some((x) => x.id === sedeBloq)) return fail('La sede no es válida')
   if (!sedeBloq && ctx.sedes.length > 0 && !ctx.sinRestriccionSede) return fail('Elegí una sede: no tenés alcance sobre todo el negocio')
   if (!FECHA_RE.test(fecha)) return fail('Elegí una fecha')
+  // período: un solo día (sin "hasta"), hasta otra fecha, o sin fecha de fin (rige hasta que se desbloquee)
+  const sinFin = fd.get('sin_fin') === 'on'
+  const fechaHasta = sinFin ? '' : text(fd, 'fecha_hasta')
+  if (fechaHasta && !FECHA_RE.test(fechaHasta)) return fail('La fecha final no es válida')
+  if (fechaHasta && fechaHasta < fecha) return fail('La fecha final no puede ser anterior a la inicial')
+  if (fechaHasta && fechaHasta > new Date(Date.parse(fecha + 'T12:00:00Z') + 3 * 366 * 86400000).toISOString().slice(0, 10)) return fail('El período es demasiado largo: usá “Sin fecha de fin”')
   if ((desde && !HORA_RE.test(desde)) || (hasta && !HORA_RE.test(hasta))) return fail('El horario no es válido')
   if (!!desde !== !!hasta) return fail('Completá el horario desde y hasta, o dejá ambos vacíos para bloquear todo el día')
   // ubicaciones a cerrar (opcional): solo las que existen en esa sede; sin ninguna tildada se bloquea todo
@@ -486,6 +492,8 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
     sucursal_id: sedeBloq,
     ubicaciones,
     fecha,
+    fecha_hasta: fechaHasta && fechaHasta !== fecha ? fechaHasta : null,
+    sin_fin: sinFin,
     hora_desde: desde || null,
     hora_hasta: hasta || null,
     motivo: text(fd, 'motivo').slice(0, 120) || null,
@@ -493,7 +501,15 @@ export async function agregarFechaBloqueada(_prev: ActionResult | null, fd: Form
   })
   if (error) return fail('No se pudo bloquear la fecha')
   revalidatePath('/', 'layout')
-  return { ok: true }
+  // el bloqueo frena reservas NUEVAS: las que ya existen en ese período siguen en pie, así que se avisa cuántas hay
+  let q = createAdminClient().from('reservas').select('id', { count: 'exact', head: true })
+    .eq('negocio_id', ctx.negocio.id).is('eliminado_en', null).in('estado', ESTADOS_OCUPAN).gte('fecha', fecha)
+  if (!sinFin) q = q.lte('fecha', fechaHasta || fecha)
+  if (sedeBloq) q = q.eq('sucursal_id', sedeBloq)
+  if (ubicaciones) q = q.in('ubicacion', ubicaciones)
+  if (desde && hasta) q = q.gte('hora', desde).lt('hora', hasta)
+  const { count } = await q
+  return count ? { ok: true, cantidad: count, nota: `Ya hay ${count} reserva${count === 1 ? '' : 's'} en ese período: no se cancelan solas, revisalas y avisá a los clientes si hace falta.` } : { ok: true }
 }
 
 export async function borrarFechaBloqueada(id: string): Promise<ActionResult> {

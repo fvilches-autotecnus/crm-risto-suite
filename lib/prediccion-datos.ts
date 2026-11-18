@@ -45,8 +45,15 @@ export async function cargarPrediccion(ctx: Contexto): Promise<DatosPrediccion> 
   const delSitio = (s: string | null) => !s || !sede || s === sede.id
   const { data: shows } = await admin.from('shows').select('fecha, titulo').eq('negocio_id', negocio.id).eq('visible', true).gte('fecha', desde).lte('fecha', hasta)
   for (const s of shows ?? []) poner({ id: null, fecha: s.fecha as string, tipo: 'evento', motivo: (s.titulo as string | null)?.slice(0, 120) ?? null, origen: 'show' }, false)
-  const { data: bloqueos } = await admin.from('fechas_bloqueadas_reservas').select('fecha, motivo, hora_desde, ubicaciones, sucursal_id').eq('negocio_id', negocio.id).gte('fecha', desde).lte('fecha', hasta)
-  for (const b of bloqueos ?? []) if (!b.hora_desde && !(b.ubicaciones as string[] | null)?.length && delSitio(b.sucursal_id as string | null)) poner({ id: null, fecha: b.fecha as string, tipo: 'cerrado', motivo: (b.motivo as string | null)?.slice(0, 120) ?? null, origen: 'bloqueo' }, true)
+  const { data: bloqueos } = await admin.from('fechas_bloqueadas_reservas').select('fecha, fecha_hasta, sin_fin, motivo, hora_desde, ubicaciones, sucursal_id').eq('negocio_id', negocio.id).lte('fecha', hasta)
+    .or(`sin_fin.eq.true,fecha_hasta.gte.${desde},and(fecha_hasta.is.null,fecha.gte.${desde})`)
+  for (const b of bloqueos ?? []) {
+    if (b.hora_desde || (b.ubicaciones as string[] | null)?.length || !delSitio(b.sucursal_id as string | null)) continue
+    // un bloqueo con rango o sin fin cierra cada día del período que se está mirando
+    const ini = (b.fecha as string) > desde ? (b.fecha as string) : desde
+    const fin = b.sin_fin ? hasta : ((b.fecha_hasta as string | null) ?? (b.fecha as string)) < hasta ? ((b.fecha_hasta as string | null) ?? (b.fecha as string)) : hasta
+    for (let f = ini; f <= fin; f = sumarDias(f, 1)) poner({ id: null, fecha: f, tipo: 'cerrado', motivo: (b.motivo as string | null)?.slice(0, 120) ?? null, origen: 'bloqueo' }, true)
+  }
   const { data: marcas, error } = await admin.from('dias_especiales').select('id, fecha, tipo, motivo, sucursal_id').eq('negocio_id', negocio.id).gte('fecha', desde).lte('fecha', hasta).order('sucursal_id', { nullsFirst: true })
   const marcasDisponibles = !error
   for (const m of marcas ?? []) if (delSitio(m.sucursal_id as string | null)) poner({ id: m.id as string, fecha: m.fecha as string, tipo: m.tipo as 'evento' | 'cerrado', motivo: m.motivo as string | null, origen: 'manual' }, true)

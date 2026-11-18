@@ -83,7 +83,9 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   const hoy = hoyEn(negocio.zona_horaria)
   const conSedes = ctx.sedesGestion.length > 0
 
-  let bq = supabase.from('fechas_bloqueadas_reservas').select('id, fecha, hora_desde, hora_hasta, motivo, mostrar_motivo, sucursal_id, ubicaciones').eq('negocio_id', negocio.id).gte('fecha', hoy)
+  let bq = supabase.from('fechas_bloqueadas_reservas').select('id, fecha, fecha_hasta, sin_fin, hora_desde, hora_hasta, motivo, mostrar_motivo, sucursal_id, ubicaciones').eq('negocio_id', negocio.id)
+    // vigentes: los de un día de hoy en adelante, los que todavía no terminaron y los que no tienen fin
+    .or(`fecha.gte.${hoy},sin_fin.eq.true,fecha_hasta.gte.${hoy}`)
   const sedeVista = sedeAmb ?? sede
   if (sedeVista) bq = bq.or(`sucursal_id.is.null,sucursal_id.eq.${sedeVista.id}`)
   const nombresSede = Object.fromEntries(ctx.sedesGestion.map((x) => [x.id, x.nombre]))
@@ -285,14 +287,15 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
           )}
         </Seccion>}
 
-        {hay.bloqueos && <Seccion id="bloqueos" i={n++} titulo="Fechas bloqueadas" texto="Días (o franjas horarias) en los que no se aceptan reservas.">
+        {hay.bloqueos && <Seccion id="bloqueos" i={n++} titulo="Fechas bloqueadas" texto="Días, períodos o franjas horarias en los que no se aceptan reservas: todo el local o solo algunas ubicaciones. Un bloqueo puede no tener fecha de fin (por ejemplo, un sector en refacción) y se desbloquea cuando quieras.">
           {puedeBloquear && <BloqueoForm sedes={sedeAmb ? [{ id: sedeAmb.id, nombre: sedeAmb.nombre }] : sedesAsignables} puedeTodas={ctx.sinRestriccionSede && !sedeAmb} ubicaciones={(ubicaciones ?? []).filter((u) => !sedeAmb || !u.sucursal_id || u.sucursal_id === sedeAmb.id).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} />}
           <ul className="mt-4 divide-y divide-rs-border/60">
             {(bloqueos ?? []).length === 0 && <li className="py-3 text-sm text-rs-muted">No hay fechas bloqueadas próximas.</li>}
             {(bloqueos ?? []).map((b) => (
               <li key={b.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <span>
-                  <span className="font-medium">{fechaCorta(b.fecha)}</span>
+                  <span className="font-medium">{b.sin_fin ? `Desde ${fechaCorta(b.fecha)}, sin fecha de fin` : b.fecha_hasta ? `${fechaCorta(b.fecha)} al ${fechaCorta(b.fecha_hasta)}` : fechaCorta(b.fecha)}</span>
+                  {(b.sin_fin || b.fecha_hasta) && b.fecha <= hoy && <span className="ml-2 rounded-full bg-rs-warn/15 px-2 py-0.5 text-[11px] font-semibold text-rs-warn">en curso</span>}
                   <span className="text-rs-muted">{b.hora_desde ? ` · ${b.hora_desde.slice(0, 5)}–${b.hora_hasta?.slice(0, 5)}` : ' · todo el día'}{conSedes ? ` · ${b.sucursal_id ? nombresSede[b.sucursal_id] ?? '' : restringido ? 'todo el negocio' : 'todas las sedes'}` : ''}{b.ubicaciones?.length ? ` · solo ${b.ubicaciones.join(', ')}` : ''}{b.motivo ? ` · ${b.motivo}` : ''}</span>
                   {b.motivo && b.mostrar_motivo && <span className="ml-2 rounded-full bg-rs-raised px-2 py-0.5 text-[11px] text-rs-lime" title="Los clientes ven este motivo en el sitio de reservas">visible en el sitio</span>}
                 </span>

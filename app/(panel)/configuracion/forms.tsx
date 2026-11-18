@@ -169,10 +169,11 @@ export function BloqueoForm({ sedes = [], puedeTodas = true, ubicaciones = [] }:
   const { state, pending, formProps } = useAccionFormulario(agregarFechaBloqueada, { reiniciar: true })
   useResultado(state, 'Fecha bloqueada')
   const [sedeId, setSedeId] = useState(puedeTodas ? '' : sedes[0]?.id ?? '')
+  const [sinFin, setSinFin] = useState(false)
   // las ubicaciones que se pueden cerrar: las de la sede elegida (o todas, si el bloqueo es de todas las sedes); "cualquier ubicación" no es una zona real
   const zonas = [...new Set(ubicaciones.filter((u) => !sedeId || !u.sucursal_id || u.sucursal_id === sedeId).map((u) => u.nombre).filter((n) => !n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().startsWith('cualquier')))]
   return (
-    <form {...formProps} onReset={() => setSedeId(puedeTodas ? '' : sedes[0]?.id ?? '')} className="mt-3 flex flex-wrap items-end gap-3">
+    <form {...formProps} onReset={() => { setSedeId(puedeTodas ? '' : sedes[0]?.id ?? ''); setSinFin(false) }} className="mt-3 flex flex-wrap items-end gap-3">
       {sedes.length > 0 && (
         <div><label className="label" htmlFor="b_sede">Sede</label>
           <select id="b_sede" name="sucursal_id" className="input" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
@@ -180,9 +181,12 @@ export function BloqueoForm({ sedes = [], puedeTodas = true, ubicaciones = [] }:
             {sedes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
           </select></div>
       )}
-      <div><label className="label" htmlFor="b_fecha">Fecha</label><FechaInput id="b_fecha" name="fecha" required className="w-40" /></div>
-      <div><label className="label" htmlFor="b_desde">Desde</label><HoraInput id="b_desde" name="hora_desde" className="w-28" /></div>
-      <div><label className="label" htmlFor="b_hasta">Hasta</label><HoraInput id="b_hasta" name="hora_hasta" className="w-28" /></div>
+      <div><label className="label" htmlFor="b_fecha">Desde el día</label><FechaInput id="b_fecha" name="fecha" required className="w-40" /></div>
+      {/* sin fecha final = ese solo día; con "Sin fecha de fin" rige hasta que alguien lo desbloquee */}
+      {!sinFin && <div><label className="label" htmlFor="b_fecha_hasta">Hasta el día</label><FechaInput id="b_fecha_hasta" name="fecha_hasta" className="w-40" placeholder="Opcional" /></div>}
+      <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" name="sin_fin" checked={sinFin} onChange={(e) => setSinFin(e.target.checked)} className="h-4 w-4 accent-[#c8e62b]" /><span className="font-medium">Sin fecha de fin</span></label>
+      <div><label className="label" htmlFor="b_desde">Desde la hora</label><HoraInput id="b_desde" name="hora_desde" className="w-28" /></div>
+      <div><label className="label" htmlFor="b_hasta">Hasta la hora</label><HoraInput id="b_hasta" name="hora_hasta" className="w-28" /></div>
       <div className="min-w-[160px] flex-1"><label className="label" htmlFor="b_motivo">Motivo</label><input id="b_motivo" name="motivo" maxLength={120} placeholder="Opcional" className="input w-full" /></div>
       {zonas.length > 0 && (
         <fieldset className="basis-full">
@@ -194,7 +198,9 @@ export function BloqueoForm({ sedes = [], puedeTodas = true, ubicaciones = [] }:
         </fieldset>
       )}
       <label className="flex basis-full items-start gap-2 text-sm"><input type="checkbox" name="mostrar_motivo" className="mt-0.5 h-4 w-4 accent-[#c8e62b]" /><span><span className="font-medium">Mostrar este motivo en el sitio de reservas</span><span className="block text-xs text-rs-muted">Lo van a ver tus clientes. Si no lo marcás, el motivo queda solo para el equipo.</span></span></label>
+      <p className="basis-full text-xs text-rs-muted">Dejá “Hasta el día” vacío para bloquear un solo día. Con <b>Sin fecha de fin</b> el bloqueo sigue hasta que lo desbloquees con el tacho de la lista (por ejemplo, un sector en refacción). Las horas son opcionales: sin horas se bloquea todo el día.</p>
       <Guardar pending={pending}>Bloquear</Guardar>
+      {state?.ok && state.nota && <p className="basis-full rounded-rs border border-rs-warn/40 bg-rs-warn/10 px-3 py-2 text-sm" role="status">{state.nota}</p>}
     </form>
   )
 }
@@ -207,10 +213,10 @@ export function BorrarBloqueo({ id }: { id: string }) {
     <button
       disabled={pending}
       onClick={async () => {
-        if (!(await confirmar({ titulo: '¿Desbloquear esta fecha?', texto: 'Vuelve a aceptar reservas ese día.', confirmar: 'Desbloquear', peligro: true }))) return
+        if (!(await confirmar({ titulo: '¿Desbloquear?', texto: 'Se borra el bloqueo y vuelve a aceptar reservas en ese período.', confirmar: 'Desbloquear', peligro: true }))) return
         start(async () => { const r = await borrarFechaBloqueada(id); toast(r.ok ? { texto: 'Fecha desbloqueada' } : { tipo: 'error', texto: r.error ?? 'No se pudo desbloquear' }) })
       }}
-      aria-label="Desbloquear fecha" className="btn btn-sm btn-danger"
+      aria-label="Desbloquear" title="Desbloquear" className="btn btn-sm btn-danger"
     >
       <Trash2 size={14} />
     </button>

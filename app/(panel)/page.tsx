@@ -41,7 +41,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     porSede(supabase.from('reservas').select('fecha, estado, cantidad_personas').eq('negocio_id', negocio.id).is('eliminado_en', null).gte('fecha', semanaAnt).lte('fecha', finSemana)),
     porSede(supabase.from('reservas').select(RESERVA_COLS).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('fecha', dia).order('hora')),
     porSede(supabase.from('reservas').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).is('eliminado_en', null).eq('estado', 'nueva').or(`fecha.gte.${hoy},fecha.is.null`)),
-    (sede ? supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo, ubicaciones').eq('negocio_id', negocio.id).eq('fecha', dia).or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo, ubicaciones').eq('negocio_id', negocio.id).eq('fecha', dia)),
+    (() => {
+      // los bloqueos que rigen ese día: de un solo día, con rango o sin fin
+      const q = supabase.from('fechas_bloqueadas_reservas').select('id, hora_desde, hora_hasta, motivo, ubicaciones').eq('negocio_id', negocio.id).lte('fecha', dia).or(`sin_fin.eq.true,fecha_hasta.gte.${dia},and(fecha_hasta.is.null,fecha.eq.${dia})`)
+      return sede ? q.or(`sucursal_id.is.null,sucursal_id.eq.${sede.id}`) : q
+    })(),
     porSede(supabase.from('consultas_reclamos').select('id', { count: 'exact', head: true }).eq('negocio_id', negocio.id).eq('estado', 'pendiente')),
     cargarReglas(ctx),
     ctx.modulosActivos.cumpleanos
