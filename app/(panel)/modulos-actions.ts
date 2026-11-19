@@ -72,10 +72,10 @@ export async function crearVoucher(_prev: ActionResult | null, fd: FormData): Pr
   return fail('No se pudo generar un código libre, probá de nuevo')
 }
 
-export async function cambiarEstadoVoucher(id: string, estado: 'vigente' | 'usado' | 'anulado'): Promise<ActionResult> {
+export async function cambiarEstadoVoucher(id: string, estado: 'vigente' | 'usado' | 'anulado' | 'vencido'): Promise<ActionResult> {
   const ctx = await getContexto()
   if (!ctx.puedeEscribir) return fail('Tu usuario es de solo lectura')
-  if (!['vigente', 'usado', 'anulado'].includes(estado)) return fail('Estado no válido')
+  if (!['vigente', 'usado', 'anulado', 'vencido'].includes(estado)) return fail('Estado no válido')   // 'vencido' solo llega desde "Deshacer" de un voucher que ya estaba vencido
   const { error } = await ctx.supabase.from('vouchers').update({ estado, usado_en: estado === 'usado' ? new Date().toISOString() : null }).eq('id', id).eq('negocio_id', ctx.negocio.id)
   if (error) return fail('No se pudo actualizar el voucher')
   refrescar()

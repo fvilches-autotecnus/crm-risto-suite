@@ -38,7 +38,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const { data } = await ordenarPor(consulta, orden, COLUMNAS_ORDEN).limit(20000)
   const todos = (data ?? []) as VoucherUI[]
 
-  const vencido = (v: VoucherUI) => v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy
+  const vencido = (v: VoucherUI) => v.estado === 'vencido' || (v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy)
   const conteo = { vigentes: todos.filter((v) => v.estado === 'vigente' && !vencido(v)).length, usados: todos.filter((v) => v.estado === 'usado').length, vencidos: todos.filter(vencido).length }
   const filtrados = todos.filter((v) => filtro === 'todos' ? true : filtro === 'vigentes' ? v.estado === 'vigente' && !vencido(v) : filtro === 'usados' ? v.estado === 'usado' : vencido(v))
 

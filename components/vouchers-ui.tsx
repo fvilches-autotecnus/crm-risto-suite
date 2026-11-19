@@ -21,7 +21,7 @@ export interface VoucherUI {
   telefono: string | null
   beneficio: string | null
   campana: string | null
-  estado: 'vigente' | 'usado' | 'anulado'
+  estado: 'vigente' | 'usado' | 'anulado' | 'vencido'
   vence_el: string | null
   creado_en: string
 }
@@ -98,13 +98,13 @@ export function ListaVouchers({ vouchers, hoy, puedeEscribir, puedeEliminar, ord
 
   const acciones = (v: VoucherUI) => puedeEscribir && (
     <div className="flex justify-end gap-1.5">
-      {v.estado === 'vigente' && <button disabled={pending} onClick={() => cambiar(v, 'usado')} className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={13} /> Usado</button>}
-      {v.estado !== 'vigente' && <button disabled={pending} onClick={() => cambiar(v, 'vigente')} className="btn btn-sm"><RotateCcw size={13} /> Reactivar</button>}
-      {v.estado === 'vigente' && <button disabled={pending} onClick={() => cambiar(v, 'anulado')} className="btn btn-sm btn-danger">Anular</button>}
+      {(v.estado === 'vigente' || v.estado === 'vencido') && <button disabled={pending} onClick={() => cambiar(v, 'usado')} className="btn btn-sm text-rs-ok hover:bg-rs-ok/10"><Check size={13} /> Usado</button>}
+      {v.estado !== 'vigente' && v.estado !== 'vencido' && <button disabled={pending} onClick={() => cambiar(v, 'vigente')} className="btn btn-sm"><RotateCcw size={13} /> Reactivar</button>}
+      {(v.estado === 'vigente' || v.estado === 'vencido') && <button disabled={pending} onClick={() => cambiar(v, 'anulado')} className="btn btn-sm btn-danger">Anular</button>}
       {puedeEliminar && <button disabled={pending} onClick={() => borrar(v)} aria-label="Eliminar voucher" className="btn btn-sm btn-danger"><Trash2 size={13} /></button>}
     </div>
   )
-  const vencido = (v: VoucherUI) => v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy
+  const vencido = (v: VoucherUI) => v.estado === 'vencido' || (v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy)
 
   return (
     <>

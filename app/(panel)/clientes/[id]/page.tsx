@@ -66,7 +66,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
     : null
   const { data: vouchersCliente } = ctx.modulosActivos.vouchers
     ? await supabase.from('vouchers').select('id, codigo, beneficio, campana, estado, vence_el').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(20)
-    : { data: [] as { id: string; codigo: string; beneficio: string | null; campana: string | null; estado: 'vigente' | 'usado' | 'anulado'; vence_el: string | null }[] }
+    : { data: [] as { id: string; codigo: string; beneficio: string | null; campana: string | null; estado: 'vigente' | 'usado' | 'anulado' | 'vencido'; vence_el: string | null }[] }
   const { data: resenasCliente } = ctx.modulosActivos.resenas
     ? await supabase.from('resenas').select('id, nombre, telefono, puntaje, comentario, origen, fecha, creado_en, cliente_id, sucursal_id').eq('negocio_id', negocio.id).eq('cliente_id', id).order('creado_en', { ascending: false }).limit(50)
     : { data: [] as ResenaUI[] }
@@ -160,7 +160,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
             {(vouchersCliente ?? []).map((v) => (
               <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                 <span><span className="font-mono font-semibold text-rs-lime">{v.codigo}</span> <span className="text-rs-muted">· {v.beneficio ?? '—'} · {labelCampana(v.campana)}</span></span>
-                <BadgeVoucher estado={v.estado} vencido={v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy} />
+                <BadgeVoucher estado={v.estado} vencido={v.estado === 'vencido' || (v.estado === 'vigente' && !!v.vence_el && v.vence_el < hoy)} />
               </li>
             ))}
           </ul>
