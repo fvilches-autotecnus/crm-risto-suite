@@ -1,8 +1,11 @@
 /** Marca propia del sitio de reservas de un local. Todo es opcional: sin datos, el sitio usa la identidad de Risto Suite. */
 /** `logo_forma`: 'redondo' (por defecto) recorta el logo en círculo; 'libre' lo muestra entero, con su propia forma (para logos anchos o con fondo transparente). */
 /** `videos` (hasta 3, sin sonido) y `video_poster`: portada en movimiento detrás del logo, en el encabezado del sitio de reservas; si hay varios, se pasan uno tras otro. */
-export interface Marca { logo_url: string | null; ornamento_url: string | null; color_fondo: string | null; color_acento: string | null; lema: string | null; logo_forma: 'redondo' | 'libre' | null; videos: string[] | null; video_poster: string | null }
-export const MARCA_VACIA: Marca = { logo_url: null, ornamento_url: null, color_fondo: null, color_acento: null, lema: null, logo_forma: null, videos: null, video_poster: null }
+export interface Marca { logo_url: string | null; ornamento_url: string | null; color_fondo: string | null; color_acento: string | null; lema: string | null; logo_forma: 'redondo' | 'libre' | null; videos: string[] | null; video_poster: string | null; fuente: Fuente | null }
+/** Letras propias que puede tener un sitio (se cargan en la página del sitio de reservas); sin elegir, se usa la del sistema. */
+export const FUENTES = ['rubik'] as const
+export type Fuente = (typeof FUENTES)[number]
+export const MARCA_VACIA: Marca = { logo_url: null, ornamento_url: null, color_fondo: null, color_acento: null, lema: null, logo_forma: null, videos: null, video_poster: null, fuente: null }
 export const MAX_VIDEOS_PORTADA = 3
 
 const DOMINIO = process.env.CRM_ORIGEN ?? 'https://crm.ristosuite.app'
@@ -27,6 +30,7 @@ export function normalizarMarca(raw: unknown): Marca {
     logo_forma: o.logo_forma === 'libre' || o.logo_forma === 'redondo' ? o.logo_forma : null,
     videos: videos.length ? videos : null,
     video_poster: urlValida(o.video_poster) ? o.video_poster : null,
+    fuente: FUENTES.find((f) => f === o.fuente) ?? null,
   }
 }
 export const tieneMarca = (m: Marca) => Object.values(m).some(Boolean)
@@ -107,9 +111,10 @@ export const nombreSitio = (negocio: string, sede?: string) => {
 /** Lee los campos de marca de un formulario (marca_logo_url, marca_ornamento_url, marca_color_fondo, marca_color_acento, marca_lema, marca_video_1..3, marca_video_poster). */
 export function leerMarca(fd: FormData): { ok: true; marca: Partial<Marca> } | { ok: false; error: string } {
   const g = (k: string) => String(fd.get(k) ?? '').trim()
-  const m = { logo_url: g('marca_logo_url'), ornamento_url: g('marca_ornamento_url'), color_fondo: g('marca_color_fondo'), color_acento: g('marca_color_acento'), lema: g('marca_lema'), logo_forma: g('marca_logo_forma'), video_poster: g('marca_video_poster') }
+  const m = { logo_url: g('marca_logo_url'), ornamento_url: g('marca_ornamento_url'), color_fondo: g('marca_color_fondo'), color_acento: g('marca_color_acento'), lema: g('marca_lema'), logo_forma: g('marca_logo_forma'), video_poster: g('marca_video_poster'), fuente: g('marca_fuente') }
   const videos = Array.from({ length: MAX_VIDEOS_PORTADA }, (_, i) => g(`marca_video_${i + 1}`)).filter(Boolean)
   for (const [k, n] of [['logo_url', 'El logo'], ['ornamento_url', 'El adorno'], ['video_poster', 'La imagen del video']] as const) if (m[k] && !urlValida(m[k])) return { ok: false, error: `${n} tiene que ser una dirección https://… o una ruta que empiece con / (sin espacios ni comillas)` }
+  if (m.fuente && !FUENTES.some((f) => f === m.fuente)) return { ok: false, error: 'La letra elegida no es válida' }
   if (videos.some((v) => !urlValida(v))) return { ok: false, error: 'Cada video tiene que ser una dirección https://… o una ruta que empiece con / (sin espacios ni comillas)' }
   for (const [k, n] of [['color_fondo', 'El color de fondo'], ['color_acento', 'El color de acento']] as const) if (m[k] && !colorValido(m[k])) return { ok: false, error: `${n} va como #RRGGBB (por ejemplo #3a442c)` }
   if (m.logo_forma && m.logo_forma !== 'redondo' && m.logo_forma !== 'libre') return { ok: false, error: 'La forma del logo no es válida' }

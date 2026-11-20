@@ -10,8 +10,12 @@ import { cargarMarcaSitio, resolverSitio } from '@/lib/sitio-reservas'
 import { labelTipo } from '@/lib/reservas'
 import { urlImagen } from '@/lib/carta'
 import type { ShowWeb } from '@/lib/shows'
+import { Rubik } from 'next/font/google'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { PromoWeb, SedeWeb, TipoWeb } from './actions'
+
+/** Rubik: la letra de la marca de Corner (manual de marca). Se carga desde el propio sitio (sin pedir nada a Google) y solo se usa si la marca del local la pide. */
+const rubik = Rubik({ subsets: ['latin'], weight: ['400', '500', '600', '700'], display: 'swap' })
 
 const esComodin = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().startsWith('cualquier')
 
@@ -93,11 +97,11 @@ export default async function ReservarPage({ params }: { params: Promise<{ slug:
   const marca = sitio.marca
   const vars = variablesMarca(marca)
   return (
-    <>
+    <div style={marca.fuente === 'rubik' ? { fontFamily: rubik.style.fontFamily } : undefined}>
     {vars && <style>{`:root{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`}</style>}
     <ReservarPublico slug={slugNegocio} marca={{ ...marca, logo_url: urlAbsoluta(marca.logo_url), ornamento_url: urlAbsoluta(marca.ornamento_url), videos: marca.videos?.map((v) => urlAbsoluta(v) as string) ?? null, video_poster: urlAbsoluta(marca.video_poster) }} logoRisto={`${origenCrm()}/logo.jpeg`} nombre={sitio.nombre} tituloSitio={sitio.titulo} subtituloSitio={sitio.subtitulo} ubicaciones={(ubs ?? []).filter((u) => !esComodin(u.nombre as string)).map((u) => ({ nombre: u.nombre as string, sucursal_id: (u.sucursal_id as string | null) ?? null }))} sedes={tieneSedes ? sedes : []} tipos={tipos} shows={showsWeb} porSede={porSede} cerrados={((cal as { cerrados?: Record<string, string[]> } | null)?.cerrados) ?? {}} avisos={((cal as { avisos?: Record<string, { fecha: string; desde?: string; hasta?: string; motivo: string; ubicaciones?: string[] }[]> } | null)?.avisos) ?? {}}
       cfg={cfgSitio(cfg)}
       hoy={hoyEn(negocio.zona_horaria as string)} whatsapp={String(negocio.whatsapp_nro ?? '')} variante={varianteDe(negocio.zona_horaria as string)} />
-    </>
+    </div>
   )
 }
