@@ -15,7 +15,7 @@ const csp = () => [
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data: ${DOMINIO}`,
   `connect-src 'self' ${DOMINIO} https://*.supabase.co wss://*.supabase.co${dev ? ' ws:' : ''}`,
-  "media-src 'self' data: blob:",
+  `media-src 'self' data: blob: ${DOMINIO}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -19,6 +19,7 @@ import type { TurnoPublico } from '@/lib/turnos-web'
 import { TarjetaShow } from '@/components/tarjeta-show'
 import type { ShowWeb } from '@/lib/shows'
 import type { Marca } from '@/lib/marca'
+import PortadaVideo from '@/components/portada-video'
 import { traducir, type Variante } from '@/lib/idioma'
 import { consultarHorarios, consultarPlano, crearReservaPublica, type MesaWeb, type PromoWeb, type ResultadoReserva, type SalonWeb, type SedeWeb, type SlotWeb, type TipoWeb } from '@/app/reservar/[slug]/actions'
 
@@ -432,8 +433,10 @@ function PieRisto({ logo }: { logo?: string }) {
 function Banner({ nombre, subtitulo, prueba, marca, variante }: { nombre: string; subtitulo: string | null; prueba: boolean; marca?: Marca; variante: Variante }) {
   const tr = (t: string) => traducir(variante, t)
   const logo = marca?.logo_url
+  const videos = marca?.videos?.length ? marca.videos : null   // portada en movimiento detrás del logo
   return (
-    <header className={'relative isolate overflow-hidden border-b border-rs-raised bg-rs-header px-4 text-center ' + (logo ? 'pb-6 pt-8' : 'pb-4 pt-6')}>
+    <header className={'relative isolate overflow-hidden border-b border-rs-raised bg-rs-header px-4 text-center ' + (videos ? 'flex min-h-[min(55svh,24rem)] flex-col items-center justify-center pb-8 pt-10' : logo ? 'pb-6 pt-8' : 'pb-4 pt-6')}>
+      {videos && <PortadaVideo videos={videos} poster={marca?.video_poster ?? null} />}
       {marca?.ornamento_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={marca.ornamento_url} alt="" aria-hidden className="pointer-events-none absolute -right-8 -top-4 -z-10 w-48 select-none opacity-25 sm:-right-4 sm:w-64" />
@@ -445,7 +448,7 @@ function Banner({ nombre, subtitulo, prueba, marca, variante }: { nombre: string
         : <img src={logo} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 rounded-full object-cover shadow-[0_10px_30px_-8px_rgba(0,0,0,.6)] ring-1 ring-rs-lime/30" />)}
       <h1 className={logo && marca?.logo_forma === 'libre' ? 'sr-only' : logo ? 'text-lg font-light uppercase tracking-[.28em] text-rs-lime' : 'text-2xl font-bold text-rs-lime'}>   {/* un logo libre ya trae el nombre: se lee igual, pero no se repite a la vista */}{nombre}</h1>
       {marca?.lema && <p className="mt-1.5 font-serif text-base italic text-rs-text/90">{marca.lema}</p>}
-      <p className="mt-1 text-sm text-rs-muted">{subtitulo || tr('Reservá tu mesa')}</p>
+      <p className={'mt-1 text-sm ' + (videos ? 'text-rs-text/85 [text-shadow:0_1px_8px_rgba(0,0,0,.6)]' : 'text-rs-muted')}>{subtitulo || tr('Reservá tu mesa')}</p>
       {prueba && <p className="mx-auto mt-2 max-w-md text-xs text-rs-muted">Las reservas que se hagan en este sitio llegan al CRM marcadas como “[Sitio de prueba]”.</p>}
     </header>
   )
