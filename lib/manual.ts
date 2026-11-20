@@ -43,14 +43,15 @@ export const MANUAL: SeccionManual[] = [
     ],
   },
   {
-    id: 'roles', grupo: 'Primeros pasos', titulo: 'Roles: qué puede hacer cada usuario', resumen: 'Dueño, administrador, encargado, staff y solo lectura.',
+    id: 'roles', grupo: 'Primeros pasos', titulo: 'Roles: qué puede hacer cada usuario', resumen: 'Dueño, administrador, encargado, staff, solo lectura y marketing.',
     bloques: [
       { t: 'tabla', cab: ['Rol', 'Qué puede hacer'], filas: [
         ['Dueño', 'Todo en su negocio, incluida la gestión de usuarios y de otros dueños.'],
-        ['Administrador', 'Configura el negocio y gestiona encargados, staff y usuarios de solo lectura.'],
+        ['Administrador', 'Configura el negocio y gestiona encargados, staff, usuarios de solo lectura y de marketing.'],
         ['Encargado', 'Opera las reservas y puede apagar o encender el bot. También arma el plano del salón.'],
         ['Staff', 'Carga y edita reservas, pedidos y el trabajo del día a día.'],
         ['Solo lectura', 'Mira todo, no cambia nada (los botones de acción no aparecen).'],
+        ['Marketing', 'Solo ve las métricas y estadísticas (Métricas, Resumen y Cumpleaños), sin poder cambiar nada. No ve ni cambia nada de lo operativo: reservas, pedidos, clientes, campañas, chats ni configuración.'],
       ] },
       { t: 'p', x: 'Un usuario puede tener un rol distinto en cada negocio, y puede estar limitado a algunas sedes.' },
     ],
@@ -336,7 +337,7 @@ export const MANUAL: SeccionManual[] = [
         '**Ubicaciones:** las zonas del local (SALÓN, PLANTA ALTA, TERRAZA…). Se eligen al cargar una reserva, sirven para el aforo y para el sitio de reservas y el plano.',
         '**Pedidos** (si tu negocio los usa): recepción, formas de entrega, horarios de pedidos y medios de pago. Ver la sección “Pedidos”.',
         '**Etiquetas de clientes** para clasificarlos y hacer seguimiento.',
-        '**Usuarios:** el dueño o el administrador dan de alta a su gente, eligen el rol (el administrador solo puede asignar encargado, staff o solo lectura), las sedes a las que accede cada uno, y pueden desactivarlos.',
+        '**Usuarios:** el dueño o el administrador dan de alta a su gente, eligen el rol (el administrador solo puede asignar encargado, staff, solo lectura o marketing), las sedes a las que accede cada uno, y pueden desactivarlos.',
       ] },
     ],
   },

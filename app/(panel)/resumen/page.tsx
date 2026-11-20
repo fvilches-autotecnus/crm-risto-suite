@@ -55,7 +55,7 @@ function FilaCliente({ c, texto, boton }: { c: ClienteResumen; texto: string; bo
 
 export default async function ResumenPage({ searchParams }: { searchParams: Promise<{ inactivo?: string; dias?: string; desde?: string; hasta?: string }> }) {
   const ctx = await getContexto()
-  if (!ctx.modulosActivos.resumen || !ctx.puedeAdministrar) redirect('/')
+  if (!ctx.modulosActivos.resumen || !(ctx.puedeAdministrar || ctx.esMarketing)) redirect('/')
   const { negocio, sede } = ctx
   const mod = ctx.modulosActivos
   const sp = await searchParams

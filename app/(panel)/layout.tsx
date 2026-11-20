@@ -40,8 +40,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const clavePush = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
   const [pausados, notificaciones, cfgImpresion, apagadosPush] = await Promise.all([
     ctx.puedeApagarBot ? contarPausados(ctx) : 0,   // chats que el bot dejó esperando a una persona
-    cargarNotificaciones(ctx),
-    ctx.modulosActivos.pedidos ? ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle() : Promise.resolve(null),   // interruptor de la impresión automática
+    ctx.esMarketing ? null : cargarNotificaciones(ctx),   // marketing no recibe avisos operativos
+    ctx.modulosActivos.pedidos && !ctx.esMarketing ? ctx.supabase.from('pedidos_config').select('comandera_desde').eq('negocio_id', ctx.negocio.id).maybeSingle() : Promise.resolve(null),   // interruptor de la impresión automática
     avisosDeUsuario(ctx.userId, ctx.esSuperadmin, ctx.puedeAdministrar, ctx.negocios.map((n) => ({ id: n.id, nombre: n.nombre }))),   // avisos push: de qué negocios puede recibir y cuáles apagó (superadmin, dueños y administradores)
   ])
   const desdeImpresion = (cfgImpresion?.data?.comandera_desde as string | null | undefined) ?? null
@@ -50,8 +50,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <FeedbackProvider>
       <ZonaProvider zona={ctx.negocio.zona_horaria}>
       <Suspense fallback={null}><BarraProgreso /></Suspense>
-      <AvisosEnVivo negocioId={ctx.negocio.id} pedidos={ctx.modulosActivos.pedidos} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />
-      <ConImpresion activa={!!ctx.modulosActivos.pedidos} desde={desdeImpresion} negocio={ctx.negocio.nombre} negocioId={ctx.negocio.id} puedeEscribir={ctx.puedeEscribir}>
+      {!ctx.esMarketing && <AvisosEnVivo negocioId={ctx.negocio.id} pedidos={ctx.modulosActivos.pedidos} sedes={Object.fromEntries(ctx.sedesTodas.map((s) => [s.id, s.nombre]))} />}
+      <ConImpresion activa={!!ctx.modulosActivos.pedidos && !ctx.esMarketing} desde={desdeImpresion} negocio={ctx.negocio.nombre} negocioId={ctx.negocio.id} puedeEscribir={ctx.puedeEscribir}>
       <div className="min-h-screen">
         <header className="no-print sticky top-0 z-40 border-b border-rs-raised bg-rs-header/90 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
@@ -68,18 +68,18 @@ export default async function PanelLayout({ children }: { children: React.ReactN
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {ctx.tieneApagadoBot && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
+              {ctx.tieneApagadoBot && !ctx.esMarketing && <BotToggle activo={ctx.negocio.bot_activo} puedeCambiar={ctx.puedeApagarBot} />}
               {apagadosPush && <AvisosPush negocios={apagadosPush.negocios} apagadosInicial={apagadosPush.apagados} clavePublica={clavePush} listo={!!clavePush} />}
-              <CampanaNotificaciones key={ctx.negocio.id} inicial={notificaciones} />
+              {notificaciones && <CampanaNotificaciones key={ctx.negocio.id} inicial={notificaciones} />}
               <span className="hidden text-sm font-semibold md:inline">{ctx.nombreUsuario}</span>
               <form action="/salir" method="post">
                 <button className="btn btn-sm h-8 px-3"><LogOut size={14} /> Salir</button>
               </form>
             </div>
           </div>
-          <Nav esSuperadmin={ctx.esSuperadmin} pausados={pausados} modulos={{ ...ctx.modulosActivos, pausados: ctx.puedeApagarBot }} />
+          <Nav esSuperadmin={ctx.esSuperadmin} soloAnalitica={ctx.esMarketing} pausados={pausados} modulos={{ ...ctx.modulosActivos, pausados: ctx.puedeApagarBot }} />
         </header>
-        {ctx.tieneApagadoBot && !ctx.negocio.bot_activo && (
+        {ctx.tieneApagadoBot && !ctx.negocio.bot_activo && !ctx.esMarketing && (
           <div role="status" className="animate-fade-in border-b border-rs-danger/30 bg-rs-danger/10 px-4 py-2 text-center text-sm text-rs-danger">
             El bot está apagado: no responde ni registra los mensajes de WhatsApp. {ctx.puedeApagarBot ? 'Encendelo desde el botón de arriba.' : 'Pedile a un encargado que lo encienda.'}
           </div>

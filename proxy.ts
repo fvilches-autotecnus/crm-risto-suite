@@ -10,14 +10,16 @@ export async function proxy(request: NextRequest) {
     const slug = tramos.length === 1 && /^[a-z0-9-]+$/i.test(tramos[0]) ? tramos[0].toLowerCase() : 'no-existe'
     return NextResponse.rewrite(new URL(`/carta/${slug}/ver`, request.url))
   }
-  let response = NextResponse.next({ request })
+  // La ruta que se pide, para que el contexto del panel pueda cortar lo que un rol no ve. Siempre se pisa: nunca vale uno enviado por el cliente.
+  const conRuta = () => { const h = new Headers(request.headers); h.set('x-pathname', request.nextUrl.pathname); return h }
+  let response = NextResponse.next({ request: { headers: conRuta() } })
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (list) => {
         list.forEach(({ name, value }) => request.cookies.set(name, value))
-        response = NextResponse.next({ request })
+        response = NextResponse.next({ request: { headers: conRuta() } })
         list.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
       },
     },

@@ -38,7 +38,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: ERROR_GENERICO, usuario }
   }
 
-  const { data: perfil } = await admin.from('perfiles').select('id, activo').eq('usuario', usuario).maybeSingle()
+  const { data: perfil } = await admin.from('perfiles').select('id, activo, es_superadmin').eq('usuario', usuario).maybeSingle()
   if (!perfil || !perfil.activo) return fallo()
 
   const { data: u } = await admin.auth.admin.getUserById(perfil.id)
@@ -50,5 +50,12 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (error) return fallo()
 
   await admin.rpc('login_exitoso', { p_usuario: usuario, p_ip: ip })
+  // Rol marketing (solo estadísticas): si su primer negocio es de marketing, entra directo a Métricas. Una redirección a / dentro de esta misma acción,
+  // que después se redirige otra vez a Métricas, no la sigue el navegador y la primera pantalla quedaba vacía.
+  if (!perfil.es_superadmin) {
+    const { data: mems } = await admin.from('membresias').select('rol, negocios(nombre, activo)').eq('user_id', perfil.id).eq('activo', true)
+    const propios = ((mems ?? []) as unknown as { rol: string; negocios: { nombre: string; activo: boolean } | null }[]).filter((m) => m.negocios?.activo).sort((a, b) => a.negocios!.nombre.localeCompare(b.negocios!.nombre, 'es'))
+    if (propios[0]?.rol === 'marketing') redirect('/metricas')
+  }
   redirect('/')
 }

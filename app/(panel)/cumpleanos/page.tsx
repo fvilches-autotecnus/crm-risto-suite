@@ -105,7 +105,7 @@ export default async function CumpleanosPage({ searchParams }: { searchParams: P
             <tbody>
               {pg.items.map((c, i) => (
                 <tr key={c.id} className="reveal border-b border-rs-border/60 transition-colors last:border-0 hover:bg-rs-raised/50" style={{ ['--i' as string]: Math.min(i, 12) }}>
-                  <td className="td font-medium"><Link href={`/clientes/${c.id}`} className="transition-colors hover:text-rs-lime">{c.nombre}</Link></td>
+                  <td className="td font-medium">{ctx.esMarketing ? c.nombre : <Link href={`/clientes/${c.id}`} className="transition-colors hover:text-rs-lime">{c.nombre}</Link>}</td>
                   <td className="td text-rs-muted">{c.telefono ?? '—'}</td>
                   <td className="td"><span className="font-semibold">{textoCumple(c.cumple_dia!, c.cumple_mes!)}</span> <span className={'text-xs ' + (c.prox.dias <= 1 ? 'font-semibold text-rs-lime' : 'text-rs-muted')}>· {textoFaltan(c.prox.dias)}</span></td>
                   <td className="td whitespace-nowrap">{c.fecha_nacimiento ? <span title="Edad que cumple"><span className="font-semibold">{edadQueCumple(c.fecha_nacimiento, c.prox.fecha)}</span> <span className="text-xs text-rs-muted">años</span></span> : <span className="text-rs-muted">—</span>}</td>

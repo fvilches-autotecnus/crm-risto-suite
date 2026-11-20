@@ -6,12 +6,13 @@ export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
   { value: 'encargado', label: 'Encargado', descripcion: 'Opera reservas y puede apagar el bot' },
   { value: 'staff', label: 'Staff', descripcion: 'Carga y edita reservas' },
   { value: 'solo_lectura', label: 'Solo lectura', descripcion: 'Solo consulta' },
+  { value: 'marketing', label: 'Marketing', descripcion: 'Solo ve métricas, resumen y cumpleaños; nada de lo operativo' },
 ]
 
 export const labelRol = (v: string) => ROLES.find((r) => r.value === v)?.label ?? v
 
 /** Roles que un administrador puede asignar o modificar (nunca dueño ni administrador). */
-export const ROLES_BAJOS: Rol[] = ['encargado', 'staff', 'solo_lectura']
+export const ROLES_BAJOS: Rol[] = ['encargado', 'staff', 'solo_lectura', 'marketing']
 
 export const USUARIO_RE = /^[a-z0-9._-]{3,40}$/
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,48}$/

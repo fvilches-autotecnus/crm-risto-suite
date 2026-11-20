@@ -28,9 +28,9 @@ const TABS = [
   { href: '/ayuda', label: 'Ayuda', icon: BookOpenText },
 ]
 
-export default function Nav({ esSuperadmin = false, pausados = 0, modulos = {} }: { esSuperadmin?: boolean; pausados?: number; modulos?: Record<string, boolean> }) {
+export default function Nav({ esSuperadmin = false, soloAnalitica = false, pausados = 0, modulos = {} }: { esSuperadmin?: boolean; soloAnalitica?: boolean; pausados?: number; modulos?: Record<string, boolean> }) {
   const pathname = usePathname()
-  const visibles = TABS.filter((t) => { const m = (t as { modulo?: string }).modulo; return !m || modulos[m] === true })
+  const visibles = TABS.filter((t) => { const m = (t as { modulo?: string }).modulo; return (!soloAnalitica || ['/resumen', '/metricas', '/cumpleanos', '/ayuda'].includes(t.href)) && (!m || modulos[m] === true) })   // soloAnalitica: rol marketing
   const tabs = esSuperadmin ? [...visibles, { href: '/interacciones', label: 'Interacciones', icon: Inbox }, { href: '/administracion', label: 'Administración', icon: Building2 }] : visibles
   const activo = tabs.find((t) => (t.href === '/' ? pathname === '/' : pathname.startsWith(t.href)))?.href ?? null
   const refs = useRef<Record<string, HTMLAnchorElement | null>>({})

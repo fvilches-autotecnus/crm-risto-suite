@@ -1,13 +1,13 @@
 import 'server-only'
 import { cache } from 'react'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cookies, headers } from 'next/headers'
+import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { zonaOk } from '@/lib/fechas'
 import { aplicarSede, resolverModulos, unionModulos, type ModuloClave, type ModulosActivos } from '@/lib/modulos'
 import { CONFIG_SEDE_VACIA, type ConfigSede } from '@/lib/config-sedes'
 
-export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura'
+export type Rol = 'owner' | 'admin' | 'encargado' | 'staff' | 'solo_lectura' | 'marketing'
 
 export interface Negocio {
   id: string
@@ -43,6 +43,8 @@ export interface Contexto {
   rol: Rol | 'superadmin'
   puedeEscribir: boolean
   puedeAdministrar: boolean
+  /** Rol marketing: solo ve métricas y estadísticas; nada de lo operativo y no puede cambiar nada. */
+  esMarketing: boolean
   /** Módulos habilitados para lo que el usuario está viendo: los del negocio, menos los que apagó la sede elegida (con varias sedes a la vista, los que usa alguna). */
   modulosActivos: ModulosActivos
   /** Módulos del negocio (lo que contrató), sin tener en cuenta las sedes. */
@@ -67,6 +69,8 @@ export interface Contexto {
 
 export const NEGOCIO_COOKIE = 'rs_negocio'
 export const SEDE_COOKIE = 'rs_sede'
+/** Las únicas pantallas que ve el rol marketing (la ruta la deja el proxy en el encabezado x-pathname). */
+const RUTAS_MARKETING = ['/metricas', '/resumen', '/cumpleanos', '/ayuda']
 
 /** Usuario + negocio activo + rol. Las páginas del panel arrancan siempre de acá. */
 export const getContexto = cache(async (): Promise<Contexto> => {
@@ -112,6 +116,17 @@ export const getContexto = cache(async (): Promise<Contexto> => {
   const modulosNegocio = resolverModulos(negocio.modulos as Record<string, unknown> | null)
   const modulosActivos = sede ? aplicarSede(modulosNegocio, configSedes[sede.id]?.modulos) : unionModulos(modulosNegocio, sedes.map((x) => aplicarSede(modulosNegocio, configSedes[x.id]?.modulos)))
 
+  // Rol marketing: cualquier pantalla (o acción) que no sea de estadísticas lo lleva a lo que sí puede ver, o a "no encontrado" si el negocio no tiene esos módulos.
+  if (rol === 'marketing') {
+    const ruta = (await headers()).get('x-pathname')
+    if (!ruta) notFound()   // sin la ruta no se puede comprobar: no se muestra nada
+    if (ruta !== '/login' && !RUTAS_MARKETING.some((r) => ruta === r || ruta.startsWith(r + '/'))) {   // /login: la acción de entrar ya los manda a Métricas
+      const destino = modulosActivos.metricas ? '/metricas' : modulosActivos.resumen ? '/resumen' : null
+      if (destino) redirect(destino)
+      notFound()
+    }
+  }
+
   return {
     userId,
     nombreUsuario: perfil.nombre,
@@ -119,8 +134,9 @@ export const getContexto = cache(async (): Promise<Contexto> => {
     negocios: lista,
     negocio,
     rol,
-    puedeEscribir: rol !== 'solo_lectura',
+    puedeEscribir: rol !== 'solo_lectura' && rol !== 'marketing',
     puedeAdministrar: rol === 'superadmin' || rol === 'owner' || rol === 'admin',
+    esMarketing: rol === 'marketing',
     modulosActivos,
     modulosNegocio,
     configSedes,
