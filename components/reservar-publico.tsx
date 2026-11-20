@@ -396,7 +396,7 @@ export default function ReservarPublico({ slug, nombre, ubicaciones: ubicaciones
                   <p className="mt-1 text-xs text-rs-muted">{tr('Recibí un regalo en ese día 🎁')}</p>
                 </div>
               )}
-              <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} placeholder="Cumpleaños, alergias, cochecito…" className="input w-full" /></div>
+              <div><label className="label" htmlFor="rw_obs">Comentarios (opcional)</label><textarea id="rw_obs" value={form.observaciones} onChange={campo('observaciones')} maxLength={400} rows={2} className="input w-full" /></div>
               <input type="text" name="web" value={form.web} onChange={campo('web')} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
               <div className="rounded-md bg-rs-raised/50 px-3 py-2 text-sm"><b className="capitalize">{fechaTxt(fecha)}</b> · {hora} · {personas} personas{sede && sedes.length > 1 ? ` · ${sede.nombre}` : ''}{ubicacion ? ` · ${ubicTexto(ubicacion)}` : ''}{promoElegida ? ` · ${promoElegida.nombre}` : ''}{modo === 'elegir' && mesasSel.length ? ` · Mesa ${mesasSel.map((m) => m.numero).join(' + ')}` : ''}</div>
               <button disabled={pend} className="btn btn-primary h-12 w-full text-base">{pend ? 'Guardando…' : sinWA ? 'Reservar' : 'Reservar y enviar por WhatsApp'}</button>
